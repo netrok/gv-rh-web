@@ -12,8 +12,8 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { api } from "../api/axios";
-import { useAuth } from "./../features/auth/AuthContext";
+import { loginRequest } from "../api/auth.api";
+import { useAuth } from "../features/auth/AuthContext";
 
 const loginSchema = z.object({
   email: z.string().email("Correo inválido"),
@@ -24,7 +24,7 @@ type LoginForm = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
   const { login } = useAuth();
-  const [errorMessage, setErrorMessage] = useState<string>("");
+  const [errorMessage, setErrorMessage] = useState("");
 
   const {
     register,
@@ -41,14 +41,14 @@ export default function LoginPage() {
   const onSubmit = async (values: LoginForm) => {
     try {
       setErrorMessage("");
-      const { data } = await api.post("/api/auth/login", values);
 
-      const token = data.accessToken;
-      if (!token) {
+      const data = await loginRequest(values);
+
+      if (!data.accessToken) {
         throw new Error("La respuesta no contiene accessToken");
       }
 
-      login(token);
+      login(data.accessToken, data.refreshToken ?? null);
       window.location.href = "/audit";
     } catch {
       setErrorMessage("No se pudo iniciar sesión.");
@@ -62,6 +62,7 @@ export default function LoginPage() {
           <Typography variant="h4" gutterBottom fontWeight={700}>
             GV RH
           </Typography>
+
           <Typography variant="body2" sx={{ mb: 3 }} color="text.secondary">
             Iniciar sesión
           </Typography>

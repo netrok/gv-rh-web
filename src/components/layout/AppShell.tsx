@@ -1,14 +1,14 @@
 import {
-    AppBar,
-    Box,
-    Button,
-    Divider,
-    Drawer,
-    List,
-    ListItemButton,
-    ListItemText,
-    Toolbar,
-    Typography,
+  AppBar,
+  Box,
+  Button,
+  Divider,
+  Drawer,
+  List,
+  ListItemButton,
+  ListItemText,
+  Toolbar,
+  Typography,
 } from "@mui/material";
 import { NavLink, Outlet, useLocation } from "react-router";
 import { useAuth } from "../../features/auth/AuthContext";

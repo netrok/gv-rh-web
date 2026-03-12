@@ -1,28 +1,41 @@
 import { createContext, useContext, useMemo, useState } from "react";
+import {
+  clearTokens,
+  getAccessToken,
+  getRefreshToken,
+  setTokens,
+} from "./tokenStorage";
+import { logoutRequest } from "../../api/auth.api";
 
 type AuthContextType = {
   token: string | null;
   isAuthenticated: boolean;
-  login: (accessToken: string) => void;
-  logout: () => void;
+  login: (accessToken: string, refreshToken?: string | null) => void;
+  logout: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [token, setToken] = useState<string | null>(
-    localStorage.getItem("access_token")
-  );
+  const [token, setToken] = useState<string | null>(getAccessToken());
 
-  const login = (accessToken: string) => {
-    localStorage.setItem("access_token", accessToken);
+  const login = (accessToken: string, refreshToken?: string | null) => {
+    setTokens(accessToken, refreshToken);
     setToken(accessToken);
   };
 
-  const logout = () => {
-    localStorage.removeItem("access_token");
-    setToken(null);
-    window.location.href = "/login";
+  const logout = async () => {
+    const refreshToken = getRefreshToken();
+
+    try {
+      await logoutRequest(refreshToken);
+    } catch {
+      // Aquí no hacemos drama; igual vamos a limpiar sesión local.
+    } finally {
+      clearTokens();
+      setToken(null);
+      window.location.href = "/login";
+    }
   };
 
   const value = useMemo(
