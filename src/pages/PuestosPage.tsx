@@ -15,7 +15,6 @@ import {
   FormControlLabel,
   IconButton,
   MenuItem,
-  Snackbar,
   Stack,
   Switch,
   Table,
@@ -46,6 +45,9 @@ import {
   getDepartamentos,
   type Departamento,
 } from "../api/departamentos.api";
+import PageHeader from "../components/ui/PageHeader";
+import ConfirmDialog from "../components/ui/ConfirmDialog";
+import { useAppSnackbar } from "../features/ui/AppSnackbarContext";
 
 const puestoSchema = z.object({
   clave: z
@@ -211,21 +213,13 @@ function PuestoDialog({
 
 export default function PuestosPage() {
   const queryClient = useQueryClient();
+  const { showSnackbar } = useAppSnackbar();
 
   const [search, setSearch] = useState("");
   const [departamentoFilter, setDepartamentoFilter] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Puesto | null>(null);
-
-  const [snackbar, setSnackbar] = useState<{
-    open: boolean;
-    message: string;
-    severity: "success" | "error";
-  }>({
-    open: false,
-    message: "",
-    severity: "success",
-  });
+  const [confirmTarget, setConfirmTarget] = useState<Puesto | null>(null);
 
   const puestosQuery = useQuery({
     queryKey: ["puestos"],
@@ -255,18 +249,10 @@ export default function PuestosPage() {
       queryClient.invalidateQueries({ queryKey: ["puestos"] });
       setDialogOpen(false);
       setEditing(null);
-      setSnackbar({
-        open: true,
-        message: editing ? "Puesto actualizado." : "Puesto creado.",
-        severity: "success",
-      });
+      showSnackbar(editing ? "Puesto actualizado." : "Puesto creado.", "success");
     },
     onError: (error) => {
-      setSnackbar({
-        open: true,
-        message: getErrorMessage(error),
-        severity: "error",
-      });
+      showSnackbar(getErrorMessage(error), "error");
     },
   });
 
@@ -281,18 +267,15 @@ export default function PuestosPage() {
     },
     onSuccess: (_, row) => {
       queryClient.invalidateQueries({ queryKey: ["puestos"] });
-      setSnackbar({
-        open: true,
-        message: row.activo ? "Puesto desactivado." : "Puesto reactivado.",
-        severity: "success",
-      });
+      showSnackbar(
+        row.activo ? "Puesto desactivado." : "Puesto reactivado.",
+        "success"
+      );
+      setConfirmTarget(null);
     },
     onError: (error) => {
-      setSnackbar({
-        open: true,
-        message: getErrorMessage(error),
-        severity: "error",
-      });
+      showSnackbar(getErrorMessage(error), "error");
+      setConfirmTarget(null);
     },
   });
 
@@ -333,44 +316,28 @@ export default function PuestosPage() {
 
   return (
     <Box sx={{ p: 3 }}>
-      <Stack
-        direction={{ xs: "column", md: "row" }}
-        justifyContent="space-between"
-        alignItems={{ xs: "flex-start", md: "center" }}
-        spacing={2}
-        sx={{ mb: 3 }}
-      >
-        <Box>
-          <Typography variant="h4" fontWeight={700}>
-            Puestos
-          </Typography>
-          <Typography color="text.secondary">
-            Catálogo de puestos vinculados a departamentos.
-          </Typography>
-        </Box>
-
-        <Stack direction="row" spacing={1}>
-          <Button
-            variant="outlined"
-            startIcon={<RefreshIcon />}
-            onClick={() => {
+      <PageHeader
+        title="Puestos"
+        subtitle="Catálogo de puestos vinculados a departamentos."
+        actions={[
+          {
+            label: "Actualizar",
+            variant: "outlined",
+            startIcon: <RefreshIcon />,
+            onClick: () => {
               puestosQuery.refetch();
               departamentosQuery.refetch();
-            }}
-          >
-            Actualizar
-          </Button>
-
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={openCreateDialog}
-            disabled={!canOpenDialog}
-          >
-            Nuevo puesto
-          </Button>
-        </Stack>
-      </Stack>
+            },
+          },
+          {
+            label: "Nuevo puesto",
+            variant: "contained",
+            startIcon: <AddIcon />,
+            onClick: openCreateDialog,
+            disabled: !canOpenDialog,
+          },
+        ]}
+      />
 
       {!canOpenDialog && !departamentosQuery.isLoading && (
         <Alert severity="warning" sx={{ mb: 2 }}>
@@ -480,10 +447,7 @@ export default function PuestosPage() {
                             <Tooltip
                               title={row.activo ? "Desactivar" : "Reactivar"}
                             >
-                              <IconButton
-                                onClick={() => toggleMutation.mutate(row)}
-                                disabled={toggleMutation.isPending}
-                              >
+                              <IconButton onClick={() => setConfirmTarget(row)}>
                                 <SyncAltIcon />
                               </IconButton>
                             </Tooltip>
@@ -514,19 +478,26 @@ export default function PuestosPage() {
         }}
       />
 
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={3500}
-        onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
-      >
-        <Alert
-          severity={snackbar.severity}
-          variant="filled"
-          onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
-        >
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
+      <ConfirmDialog
+        open={!!confirmTarget}
+        onClose={() => setConfirmTarget(null)}
+        onConfirm={() => {
+          if (confirmTarget) {
+            toggleMutation.mutate(confirmTarget);
+          }
+        }}
+        loading={toggleMutation.isPending}
+        title={confirmTarget?.activo ? "Desactivar puesto" : "Reactivar puesto"}
+        message={
+          confirmTarget
+            ? confirmTarget.activo
+              ? `Se desactivará el puesto "${confirmTarget.nombre}".`
+              : `Se reactivará el puesto "${confirmTarget.nombre}".`
+            : ""
+        }
+        confirmText={confirmTarget?.activo ? "Desactivar" : "Reactivar"}
+        confirmColor={confirmTarget?.activo ? "warning" : "success"}
+      />
     </Box>
   );
 }

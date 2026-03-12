@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import {
   Alert,
@@ -7,13 +7,13 @@ import {
   Card,
   CardContent,
   Chip,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
   FormControlLabel,
   IconButton,
-  Snackbar,
   Stack,
   Switch,
   Table,
@@ -24,7 +24,6 @@ import {
   TextField,
   Tooltip,
   Typography,
-  CircularProgress,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
@@ -41,6 +40,9 @@ import {
   type Departamento,
   type SaveDepartamentoInput,
 } from "../api/departamentos.api";
+import PageHeader from "../components/ui/PageHeader";
+import ConfirmDialog from "../components/ui/ConfirmDialog";
+import { useAppSnackbar } from "../features/ui/AppSnackbarContext";
 
 const departamentoSchema = z.object({
   clave: z
@@ -109,13 +111,17 @@ function DepartamentoDialog({
 
   const activo = watch("activo");
 
-  useMemo(() => {
+  useEffect(() => {
     reset({
       clave: initialValues?.clave ?? "",
       nombre: initialValues?.nombre ?? "",
       activo: initialValues?.activo ?? true,
     });
   }, [initialValues, reset, open]);
+
+  const submitForm = async (values: DepartamentoForm) => {
+    await onSubmit(values);
+  };
 
   return (
     <Dialog open={open} onClose={saving ? undefined : onClose} fullWidth maxWidth="sm">
@@ -128,9 +134,7 @@ function DepartamentoDialog({
           component="form"
           spacing={2}
           sx={{ mt: 1 }}
-          onSubmit={handleSubmit(async (values) => {
-            await onSubmit(values);
-          })}
+          onSubmit={handleSubmit(submitForm)}
         >
           <TextField
             label="Clave"
@@ -150,7 +154,9 @@ function DepartamentoDialog({
             control={
               <Switch
                 checked={activo}
-                onChange={(_, checked) => setValue("activo", checked, { shouldDirty: true })}
+                onChange={(_, checked) =>
+                  setValue("activo", checked, { shouldDirty: true })
+                }
               />
             }
             label={activo ? "Activo" : "Inactivo"}
@@ -163,9 +169,7 @@ function DepartamentoDialog({
           Cancelar
         </Button>
         <Button
-          onClick={handleSubmit(async (values) => {
-            await onSubmit(values);
-          })}
+          onClick={handleSubmit(submitForm)}
           variant="contained"
           disabled={saving}
         >
@@ -178,20 +182,12 @@ function DepartamentoDialog({
 
 export default function DepartamentosPage() {
   const queryClient = useQueryClient();
+  const { showSnackbar } = useAppSnackbar();
 
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Departamento | null>(null);
-
-  const [snackbar, setSnackbar] = useState<{
-    open: boolean;
-    message: string;
-    severity: "success" | "error";
-  }>({
-    open: false,
-    message: "",
-    severity: "success",
-  });
+  const [confirmTarget, setConfirmTarget] = useState<Departamento | null>(null);
 
   const departamentosQuery = useQuery({
     queryKey: ["departamentos"],
@@ -210,18 +206,13 @@ export default function DepartamentosPage() {
       queryClient.invalidateQueries({ queryKey: ["departamentos"] });
       setDialogOpen(false);
       setEditing(null);
-      setSnackbar({
-        open: true,
-        message: editing ? "Departamento actualizado." : "Departamento creado.",
-        severity: "success",
-      });
+      showSnackbar(
+        editing ? "Departamento actualizado." : "Departamento creado.",
+        "success"
+      );
     },
     onError: (error) => {
-      setSnackbar({
-        open: true,
-        message: getErrorMessage(error),
-        severity: "error",
-      });
+      showSnackbar(getErrorMessage(error), "error");
     },
   });
 
@@ -235,20 +226,15 @@ export default function DepartamentosPage() {
     },
     onSuccess: (_, row) => {
       queryClient.invalidateQueries({ queryKey: ["departamentos"] });
-      setSnackbar({
-        open: true,
-        message: row.activo
-          ? "Departamento desactivado."
-          : "Departamento reactivado.",
-        severity: "success",
-      });
+      showSnackbar(
+        row.activo ? "Departamento desactivado." : "Departamento reactivado.",
+        "success"
+      );
+      setConfirmTarget(null);
     },
     onError: (error) => {
-      setSnackbar({
-        open: true,
-        message: getErrorMessage(error),
-        severity: "error",
-      });
+      showSnackbar(getErrorMessage(error), "error");
+      setConfirmTarget(null);
     },
   });
 
@@ -278,40 +264,24 @@ export default function DepartamentosPage() {
 
   return (
     <Box sx={{ p: 3 }}>
-      <Stack
-        direction={{ xs: "column", md: "row" }}
-        justifyContent="space-between"
-        alignItems={{ xs: "flex-start", md: "center" }}
-        spacing={2}
-        sx={{ mb: 3 }}
-      >
-        <Box>
-          <Typography variant="h4" fontWeight={700}>
-            Departamentos
-          </Typography>
-          <Typography color="text.secondary">
-            Catálogo de departamentos de RH.
-          </Typography>
-        </Box>
-
-        <Stack direction="row" spacing={1}>
-          <Button
-            variant="outlined"
-            startIcon={<RefreshIcon />}
-            onClick={() => departamentosQuery.refetch()}
-          >
-            Actualizar
-          </Button>
-
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={openCreateDialog}
-          >
-            Nuevo departamento
-          </Button>
-        </Stack>
-      </Stack>
+      <PageHeader
+        title="Departamentos"
+        subtitle="Catálogo de departamentos de RH."
+        actions={[
+          {
+            label: "Actualizar",
+            variant: "outlined",
+            startIcon: <RefreshIcon />,
+            onClick: () => departamentosQuery.refetch(),
+          },
+          {
+            label: "Nuevo departamento",
+            variant: "contained",
+            startIcon: <AddIcon />,
+            onClick: openCreateDialog,
+          },
+        ]}
+      />
 
       <Card sx={{ borderRadius: 3 }}>
         <CardContent>
@@ -381,10 +351,7 @@ export default function DepartamentosPage() {
                           </Tooltip>
 
                           <Tooltip title={row.activo ? "Desactivar" : "Reactivar"}>
-                            <IconButton
-                              onClick={() => toggleMutation.mutate(row)}
-                              disabled={toggleMutation.isPending}
-                            >
+                            <IconButton onClick={() => setConfirmTarget(row)}>
                               <SyncAltIcon />
                             </IconButton>
                           </Tooltip>
@@ -413,19 +380,30 @@ export default function DepartamentosPage() {
         }}
       />
 
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={3500}
-        onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
-      >
-        <Alert
-          severity={snackbar.severity}
-          variant="filled"
-          onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
-        >
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
+      <ConfirmDialog
+        open={!!confirmTarget}
+        onClose={() => setConfirmTarget(null)}
+        onConfirm={() => {
+          if (confirmTarget) {
+            toggleMutation.mutate(confirmTarget);
+          }
+        }}
+        loading={toggleMutation.isPending}
+        title={
+          confirmTarget?.activo
+            ? "Desactivar departamento"
+            : "Reactivar departamento"
+        }
+        message={
+          confirmTarget
+            ? confirmTarget.activo
+              ? `Se desactivará el departamento "${confirmTarget.nombre}".`
+              : `Se reactivará el departamento "${confirmTarget.nombre}".`
+            : ""
+        }
+        confirmText={confirmTarget?.activo ? "Desactivar" : "Reactivar"}
+        confirmColor={confirmTarget?.activo ? "warning" : "success"}
+      />
     </Box>
   );
 }

@@ -15,8 +15,6 @@ import {
   FormControlLabel,
   IconButton,
   MenuItem,
-  Snackbar,
-  Stack,
   Switch,
   Table,
   TableBody,
@@ -47,6 +45,9 @@ import {
   type Departamento,
 } from "../api/departamentos.api";
 import { getPuestos, type Puesto } from "../api/puestos.api";
+import PageHeader from "../components/ui/PageHeader";
+import ConfirmDialog from "../components/ui/ConfirmDialog";
+import { useAppSnackbar } from "../features/ui/AppSnackbarContext";
 
 const empleadoSchema = z.object({
   nombres: z
@@ -392,22 +393,14 @@ function EmpleadoDialog({
 
 export default function EmpleadosPage() {
   const queryClient = useQueryClient();
+  const { showSnackbar } = useAppSnackbar();
 
   const [search, setSearch] = useState("");
   const [departamentoFilter, setDepartamentoFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Empleado | null>(null);
-
-  const [snackbar, setSnackbar] = useState<{
-    open: boolean;
-    message: string;
-    severity: "success" | "error";
-  }>({
-    open: false,
-    message: "",
-    severity: "success",
-  });
+  const [confirmTarget, setConfirmTarget] = useState<Empleado | null>(null);
 
   const empleadosQuery = useQuery({
     queryKey: ["empleados"],
@@ -447,18 +440,13 @@ export default function EmpleadosPage() {
       queryClient.invalidateQueries({ queryKey: ["empleados"] });
       setDialogOpen(false);
       setEditing(null);
-      setSnackbar({
-        open: true,
-        message: editing ? "Empleado actualizado." : "Empleado creado.",
-        severity: "success",
-      });
+      showSnackbar(
+        editing ? "Empleado actualizado." : "Empleado creado.",
+        "success"
+      );
     },
     onError: (error) => {
-      setSnackbar({
-        open: true,
-        message: getErrorMessage(error),
-        severity: "error",
-      });
+      showSnackbar(getErrorMessage(error), "error");
     },
   });
 
@@ -483,18 +471,15 @@ export default function EmpleadosPage() {
     },
     onSuccess: (_, row) => {
       queryClient.invalidateQueries({ queryKey: ["empleados"] });
-      setSnackbar({
-        open: true,
-        message: row.activo ? "Empleado desactivado." : "Empleado reactivado.",
-        severity: "success",
-      });
+      showSnackbar(
+        row.activo ? "Empleado desactivado." : "Empleado reactivado.",
+        "success"
+      );
+      setConfirmTarget(null);
     },
     onError: (error) => {
-      setSnackbar({
-        open: true,
-        message: getErrorMessage(error),
-        severity: "error",
-      });
+      showSnackbar(getErrorMessage(error), "error");
+      setConfirmTarget(null);
     },
   });
 
@@ -563,45 +548,29 @@ export default function EmpleadosPage() {
 
   return (
     <Box sx={{ p: 3 }}>
-      <Stack
-        direction={{ xs: "column", md: "row" }}
-        justifyContent="space-between"
-        alignItems={{ xs: "flex-start", md: "center" }}
-        spacing={2}
-        sx={{ mb: 3 }}
-      >
-        <Box>
-          <Typography variant="h4" fontWeight={700}>
-            Empleados
-          </Typography>
-          <Typography color="text.secondary">
-            Catálogo de empleados de RH.
-          </Typography>
-        </Box>
-
-        <Stack direction="row" spacing={1}>
-          <Button
-            variant="outlined"
-            startIcon={<RefreshIcon />}
-            onClick={() => {
+      <PageHeader
+        title="Empleados"
+        subtitle="Catálogo de empleados de RH."
+        actions={[
+          {
+            label: "Actualizar",
+            variant: "outlined",
+            startIcon: <RefreshIcon />,
+            onClick: () => {
               empleadosQuery.refetch();
               departamentosQuery.refetch();
               puestosQuery.refetch();
-            }}
-          >
-            Actualizar
-          </Button>
-
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={openCreateDialog}
-            disabled={!canOpenDialog}
-          >
-            Nuevo empleado
-          </Button>
-        </Stack>
-      </Stack>
+            },
+          },
+          {
+            label: "Nuevo empleado",
+            variant: "contained",
+            startIcon: <AddIcon />,
+            onClick: openCreateDialog,
+            disabled: !canOpenDialog,
+          },
+        ]}
+      />
 
       {!canOpenDialog &&
         !departamentosQuery.isLoading &&
@@ -741,10 +710,7 @@ export default function EmpleadosPage() {
                             </Tooltip>
 
                             <Tooltip title={row.activo ? "Desactivar" : "Reactivar"}>
-                              <IconButton
-                                onClick={() => toggleMutation.mutate(row)}
-                                disabled={toggleMutation.isPending}
-                              >
+                              <IconButton onClick={() => setConfirmTarget(row)}>
                                 <SyncAltIcon />
                               </IconButton>
                             </Tooltip>
@@ -776,19 +742,38 @@ export default function EmpleadosPage() {
         }}
       />
 
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={3500}
-        onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
-      >
-        <Alert
-          severity={snackbar.severity}
-          variant="filled"
-          onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
-        >
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
+      <ConfirmDialog
+        open={!!confirmTarget}
+        onClose={() => setConfirmTarget(null)}
+        onConfirm={() => {
+          if (confirmTarget) {
+            toggleMutation.mutate(confirmTarget);
+          }
+        }}
+        loading={toggleMutation.isPending}
+        title={confirmTarget?.activo ? "Desactivar empleado" : "Reactivar empleado"}
+        message={
+          confirmTarget
+            ? confirmTarget.activo
+              ? `Se desactivará el empleado "${[
+                  confirmTarget.nombres,
+                  confirmTarget.apellidoPaterno,
+                  confirmTarget.apellidoMaterno ?? "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}".`
+              : `Se reactivará el empleado "${[
+                  confirmTarget.nombres,
+                  confirmTarget.apellidoPaterno,
+                  confirmTarget.apellidoMaterno ?? "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}".`
+            : ""
+        }
+        confirmText={confirmTarget?.activo ? "Desactivar" : "Reactivar"}
+        confirmColor={confirmTarget?.activo ? "warning" : "success"}
+      />
     </Box>
   );
 }
