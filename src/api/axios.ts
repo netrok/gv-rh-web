@@ -1,59 +1,72 @@
-import axios, { AxiosError, type InternalAxiosRequestConfig } from "axios";
+import axios, {
+  AxiosError,
+  type AxiosRequestHeaders,
+  type InternalAxiosRequestConfig,
+} from "axios";
 import {
   clearTokens,
   getAccessToken,
   getRefreshToken,
   setTokens,
 } from "../features/auth/tokenStorage";
-import { refreshRequest } from "./auth.api";
 
 type RetryableRequestConfig = InternalAxiosRequestConfig & {
   _retry?: boolean;
 };
 
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL?.trim() ||
+  import.meta.env.VITE_API_URL?.trim() ||
+  "http://localhost:5041";
+
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,
+  baseURL: API_BASE_URL,
+  timeout: 15000,
   headers: {
     "Content-Type": "application/json",
   },
 });
 
-let isRefreshing = false;
-let refreshPromise: Promise<string | null> | null = null;
-
-api.interceptors.request.use((config) => {
-  const token = getAccessToken();
-
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-
-  return config;
+const refreshClient = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 15000,
+  headers: {
+    "Content-Type": "application/json",
+  },
 });
 
-async function performRefresh(): Promise<string | null> {
-  const refreshToken = getRefreshToken();
+let refreshPromise: Promise<string> | null = null;
 
-  if (!refreshToken) {
-    clearTokens();
-    return null;
-  }
+function isAuthRoute(url?: string): boolean {
+  if (!url) return false;
 
-  try {
-    const data = await refreshRequest(refreshToken);
+  return (
+    url.includes("/api/auth/login") ||
+    url.includes("/api/auth/refresh") ||
+    url.includes("/api/auth/logout")
+  );
+}
 
-    if (!data.accessToken) {
-      clearTokens();
-      return null;
-    }
-
-    setTokens(data.accessToken, data.refreshToken ?? refreshToken);
-    return data.accessToken;
-  } catch {
-    clearTokens();
-    return null;
+function redirectToLogin(): void {
+  if (window.location.pathname !== "/login") {
+    window.location.href = "/login";
   }
 }
+
+api.interceptors.request.use(
+  (config) => {
+    const token = getAccessToken();
+
+    if (token) {
+      const headers = (config.headers ?? {}) as AxiosRequestHeaders;
+      headers.Authorization = `Bearer ${token}`;
+      config.headers = headers;
+    }
+
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
 
 api.interceptors.response.use(
   (response) => response,
@@ -65,42 +78,56 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    // No intentar refresh contra login/refresh/logout
-    const url = originalRequest.url ?? "";
-    const isAuthRoute =
-      url.includes("/api/auth/login") ||
-      url.includes("/api/auth/refresh") ||
-      url.includes("/api/auth/logout");
-
-    if (isAuthRoute) {
+    if (originalRequest._retry || isAuthRoute(originalRequest.url)) {
       clearTokens();
-      window.location.href = "/login";
+      redirectToLogin();
       return Promise.reject(error);
     }
 
-    if (originalRequest._retry) {
+    const currentRefreshToken = getRefreshToken();
+
+    if (!currentRefreshToken) {
       clearTokens();
-      window.location.href = "/login";
+      redirectToLogin();
       return Promise.reject(error);
     }
 
     originalRequest._retry = true;
 
-    if (!isRefreshing) {
-      isRefreshing = true;
-      refreshPromise = performRefresh().finally(() => {
-        isRefreshing = false;
-      });
+    try {
+      if (!refreshPromise) {
+        refreshPromise = (async () => {
+          const { data } = await refreshClient.post<{
+            accessToken: string;
+            refreshToken?: string | null;
+          }>("/api/auth/refresh", {
+            refreshToken: currentRefreshToken,
+          });
+
+          if (!data.accessToken) {
+            throw new Error("La respuesta de refresh no contiene accessToken");
+          }
+
+          setTokens(data.accessToken, data.refreshToken ?? currentRefreshToken);
+          return data.accessToken;
+        })().finally(() => {
+          refreshPromise = null;
+        });
+      }
+
+      const newAccessToken = await refreshPromise;
+
+      const headers = (originalRequest.headers ?? {}) as AxiosRequestHeaders;
+      headers.Authorization = `Bearer ${newAccessToken}`;
+      originalRequest.headers = headers;
+
+      return api(originalRequest);
+    } catch (refreshError) {
+      clearTokens();
+      redirectToLogin();
+      return Promise.reject(refreshError);
     }
-
-    const newAccessToken = await refreshPromise;
-
-    if (!newAccessToken) {
-      window.location.href = "/login";
-      return Promise.reject(error);
-    }
-
-    originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
-    return api(originalRequest);
   }
 );
+
+export default api;

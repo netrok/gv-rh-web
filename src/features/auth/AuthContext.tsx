@@ -2,11 +2,13 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
 import {
+  AUTH_STORAGE_EVENT,
   clearTokens,
   getAccessToken,
   getRefreshToken,
@@ -39,7 +41,10 @@ function parseJwtPayload(token: string): JwtPayload | null {
     if (!base64Url) return null;
 
     const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
-    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");
+    const padded = base64.padEnd(
+      base64.length + ((4 - (base64.length % 4)) % 4),
+      "="
+    );
     const json = atob(padded);
 
     return JSON.parse(json) as JwtPayload;
@@ -51,7 +56,9 @@ function parseJwtPayload(token: string): JwtPayload | null {
 function normalizeRoles(input?: string | string[] | null): string[] {
   const values = Array.isArray(input) ? input : input ? [input] : [];
 
-  return [...new Set(values.map((r) => r.trim().toUpperCase()).filter(Boolean))];
+  return [
+    ...new Set(values.map((r) => r.trim().toUpperCase()).filter(Boolean)),
+  ];
 }
 
 function extractRoles(token: string | null): string[] {
@@ -77,10 +84,27 @@ function extractRoles(token: string | null): string[] {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(getAccessToken());
 
-  const login = useCallback((accessToken: string, refreshToken?: string | null) => {
-    setTokens(accessToken, refreshToken);
-    setToken(accessToken);
+  useEffect(() => {
+    const syncAuthState = () => {
+      setToken(getAccessToken());
+    };
+
+    window.addEventListener(AUTH_STORAGE_EVENT, syncAuthState);
+    window.addEventListener("storage", syncAuthState);
+
+    return () => {
+      window.removeEventListener(AUTH_STORAGE_EVENT, syncAuthState);
+      window.removeEventListener("storage", syncAuthState);
+    };
   }, []);
+
+  const login = useCallback(
+    (accessToken: string, refreshToken?: string | null) => {
+      setTokens(accessToken, refreshToken);
+      setToken(accessToken);
+    },
+    []
+  );
 
   const logout = useCallback(async () => {
     const refreshToken = getRefreshToken();
@@ -88,7 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await logoutRequest(refreshToken);
     } catch {
-      // No hacemos drama; igual limpiamos sesión local.
+      // Igual limpiamos sesión local.
     } finally {
       clearTokens();
       setToken(null);
