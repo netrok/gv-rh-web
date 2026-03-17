@@ -2,12 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import {
   Alert,
-  Box,
   Button,
-  Card,
-  CardContent,
   Chip,
-  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -16,23 +12,19 @@ import {
   IconButton,
   Stack,
   Switch,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
   TextField,
   Tooltip,
-  Typography,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import SyncAltIcon from "@mui/icons-material/SyncAlt";
 import RefreshIcon from "@mui/icons-material/Refresh";
+import type { GridColDef } from "@mui/x-data-grid";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
+
 import {
   createDepartamento,
   getDepartamentos,
@@ -42,6 +34,7 @@ import {
 } from "../api/departamentos.api";
 import PageHeader from "../components/ui/PageHeader";
 import ConfirmDialog from "../components/ui/ConfirmDialog";
+import ReusableDataTable from "../components/ui/ReusableDataTable";
 import { useAppSnackbar } from "../features/ui/AppSnackbarContext";
 
 const departamentoSchema = z.object({
@@ -71,7 +64,9 @@ function getErrorMessage(error: unknown) {
       return apiMessage;
     }
 
-    return `${error.response?.status ?? ""} ${error.response?.statusText ?? error.message}`.trim();
+    return `${error.response?.status ?? ""} ${
+      error.response?.statusText ?? error.message
+    }`.trim();
   }
 
   if (error instanceof Error) return error.message;
@@ -124,7 +119,12 @@ function DepartamentoDialog({
   };
 
   return (
-    <Dialog open={open} onClose={saving ? undefined : onClose} fullWidth maxWidth="sm">
+    <Dialog
+      open={open}
+      onClose={saving ? undefined : onClose}
+      fullWidth
+      maxWidth="sm"
+    >
       <DialogTitle>
         {isEdit ? "Editar departamento" : "Nuevo departamento"}
       </DialogTitle>
@@ -141,6 +141,7 @@ function DepartamentoDialog({
             {...register("clave")}
             error={!!errors.clave}
             helperText={errors.clave?.message}
+            autoFocus
           />
 
           <TextField
@@ -155,7 +156,10 @@ function DepartamentoDialog({
               <Switch
                 checked={activo}
                 onChange={(_, checked) =>
-                  setValue("activo", checked, { shouldDirty: true })
+                  setValue("activo", checked, {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  })
                 }
               />
             }
@@ -199,15 +203,17 @@ export default function DepartamentosPage() {
       if (editing) {
         return updateDepartamento(editing.id, values);
       }
-
       return createDepartamento(values);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["departamentos"] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["departamentos"] });
+
+      const wasEdit = !!editing;
       setDialogOpen(false);
       setEditing(null);
+
       showSnackbar(
-        editing ? "Departamento actualizado." : "Departamento creado.",
+        wasEdit ? "Departamento actualizado." : "Departamento creado.",
         "success"
       );
     },
@@ -224,12 +230,14 @@ export default function DepartamentosPage() {
         activo: !row.activo,
       });
     },
-    onSuccess: (_, row) => {
-      queryClient.invalidateQueries({ queryKey: ["departamentos"] });
+    onSuccess: async (_, row) => {
+      await queryClient.invalidateQueries({ queryKey: ["departamentos"] });
+
       showSnackbar(
         row.activo ? "Departamento desactivado." : "Departamento reactivado.",
         "success"
       );
+
       setConfirmTarget(null);
     },
     onError: (error) => {
@@ -238,8 +246,9 @@ export default function DepartamentosPage() {
     },
   });
 
+  const rows = departamentosQuery.data ?? [];
+
   const filteredRows = useMemo(() => {
-    const rows = departamentosQuery.data ?? [];
     const term = search.trim().toLowerCase();
 
     if (!term) return rows;
@@ -250,7 +259,7 @@ export default function DepartamentosPage() {
         x.nombre.toLowerCase().includes(term) ||
         (x.activo ? "activo" : "inactivo").includes(term)
     );
-  }, [departamentosQuery.data, search]);
+  }, [rows, search]);
 
   const openCreateDialog = () => {
     setEditing(null);
@@ -262,8 +271,90 @@ export default function DepartamentosPage() {
     setDialogOpen(true);
   };
 
+  const columns = useMemo<GridColDef<Departamento>[]>(
+    () => [
+      {
+        field: "id",
+        headerName: "ID",
+        width: 90,
+      },
+      {
+        field: "clave",
+        headerName: "Clave",
+        width: 140,
+      },
+      {
+        field: "nombre",
+        headerName: "Nombre",
+        flex: 1,
+        minWidth: 220,
+      },
+      {
+        field: "activo",
+        headerName: "Estatus",
+        width: 130,
+        sortable: false,
+        renderCell: (params) => (
+          <Chip
+            size="small"
+            label={params.row.activo ? "Activo" : "Inactivo"}
+            color={params.row.activo ? "success" : "default"}
+            sx={{
+              fontWeight: 700,
+              borderRadius: 999,
+            }}
+          />
+        ),
+      },
+      {
+        field: "acciones",
+        headerName: "Acciones",
+        width: 150,
+        sortable: false,
+        filterable: false,
+        disableColumnMenu: true,
+        renderCell: (params) => (
+          <Stack direction="row" spacing={0.5}>
+            <Tooltip title="Editar">
+              <IconButton
+                size="small"
+                onClick={() => openEditDialog(params.row)}
+              >
+                <EditIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+
+            <Tooltip title={params.row.activo ? "Desactivar" : "Reactivar"}>
+              <IconButton
+                size="small"
+                onClick={() => setConfirmTarget(params.row)}
+              >
+                <SyncAltIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Stack>
+        ),
+      },
+    ],
+    []
+  );
+
+  const isLoading =
+    departamentosQuery.isLoading ||
+    departamentosQuery.isFetching ||
+    saveMutation.isPending ||
+    toggleMutation.isPending;
+
+  const emptyTitle = search.trim()
+    ? "No hay coincidencias"
+    : "No hay departamentos";
+
+  const emptyMessage = search.trim()
+    ? "No encontramos departamentos con ese criterio de búsqueda."
+    : "Captura el primer departamento para empezar.";
+
   return (
-    <Box sx={{ p: 3 }}>
+    <Stack spacing={2.5}>
       <PageHeader
         title="Departamentos"
         subtitle="Catálogo de departamentos de RH."
@@ -283,88 +374,50 @@ export default function DepartamentosPage() {
         ]}
       />
 
-      <Card sx={{ borderRadius: 3 }}>
-        <CardContent>
-          <Stack
-            direction={{ xs: "column", md: "row" }}
-            justifyContent="space-between"
-            spacing={2}
-            sx={{ mb: 2 }}
-          >
-            <TextField
-              label="Buscar"
-              placeholder="Clave, nombre o estatus"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              sx={{ minWidth: { xs: "100%", md: 320 } }}
-            />
-          </Stack>
+      {departamentosQuery.isError && (
+        <Alert severity="error">
+          No se pudo cargar el catálogo.{" "}
+          {getErrorMessage(departamentosQuery.error)}
+        </Alert>
+      )}
 
-          {departamentosQuery.isLoading ? (
-            <Box sx={{ py: 6, display: "flex", justifyContent: "center" }}>
-              <CircularProgress />
-            </Box>
-          ) : departamentosQuery.isError ? (
-            <Alert severity="error">
-              No se pudo cargar el catálogo. {getErrorMessage(departamentosQuery.error)}
-            </Alert>
-          ) : (
-            <Box sx={{ overflowX: "auto" }}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>ID</TableCell>
-                    <TableCell>Clave</TableCell>
-                    <TableCell>Nombre</TableCell>
-                    <TableCell>Estatus</TableCell>
-                    <TableCell align="right">Acciones</TableCell>
-                  </TableRow>
-                </TableHead>
-
-                <TableBody>
-                  {filteredRows.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
-                        <Typography color="text.secondary">
-                          No hay departamentos para mostrar.
-                        </Typography>
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredRows.map((row) => (
-                      <TableRow key={row.id} hover>
-                        <TableCell>{row.id}</TableCell>
-                        <TableCell>{row.clave}</TableCell>
-                        <TableCell>{row.nombre}</TableCell>
-                        <TableCell>
-                          <Chip
-                            size="small"
-                            label={row.activo ? "Activo" : "Inactivo"}
-                            color={row.activo ? "success" : "default"}
-                          />
-                        </TableCell>
-                        <TableCell align="right">
-                          <Tooltip title="Editar">
-                            <IconButton onClick={() => openEditDialog(row)}>
-                              <EditIcon />
-                            </IconButton>
-                          </Tooltip>
-
-                          <Tooltip title={row.activo ? "Desactivar" : "Reactivar"}>
-                            <IconButton onClick={() => setConfirmTarget(row)}>
-                              <SyncAltIcon />
-                            </IconButton>
-                          </Tooltip>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </Box>
-          )}
-        </CardContent>
-      </Card>
+      <ReusableDataTable<Departamento>
+        rows={filteredRows}
+        columns={columns}
+        loading={isLoading}
+        getRowId={(row) => row.id}
+        minHeight={190}
+        maxHeight={320}
+        initialPageSize={5}
+        toolbar={
+          <TextField
+            placeholder="Buscar"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            size="small"
+            sx={{
+              minWidth: { xs: "100%", md: 300 },
+              "& .MuiOutlinedInput-root": {
+                borderRadius: 2.5,
+                bgcolor: "#fff",
+              },
+            }}
+          />
+        }
+        emptyTitle={emptyTitle}
+        emptyMessage={emptyMessage}
+        emptyAction={
+          !search.trim() ? (
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={openCreateDialog}
+            >
+              Crear departamento
+            </Button>
+          ) : undefined
+        }
+      />
 
       <DepartamentoDialog
         open={dialogOpen}
@@ -404,6 +457,6 @@ export default function DepartamentosPage() {
         confirmText={confirmTarget?.activo ? "Desactivar" : "Reactivar"}
         confirmColor={confirmTarget?.activo ? "warning" : "success"}
       />
-    </Box>
+    </Stack>
   );
 }
