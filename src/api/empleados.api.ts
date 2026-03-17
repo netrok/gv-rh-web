@@ -11,8 +11,15 @@ export type Empleado = {
   email?: string | null;
   fechaIngreso: string;
   activo: boolean;
+
   departamentoId?: number | null;
+  departamentoNombre?: string | null;
+
   puestoId?: number | null;
+  puestoNombre?: string | null;
+
+  sucursalId?: number | null;
+  sucursalNombre?: string | null;
 };
 
 export type SaveEmpleadoInput = {
@@ -26,6 +33,7 @@ export type SaveEmpleadoInput = {
   activo: boolean;
   departamentoId: number;
   puestoId: number;
+  sucursalId?: number | null;
 };
 
 type EmpleadoListEnvelope =
@@ -51,6 +59,6 @@ export async function createEmpleado(input: SaveEmpleadoInput) {
 }
 
 export async function updateEmpleado(id: number, input: SaveEmpleadoInput) {
-  const { data } = await api.put<Empleado | void>(`/api/Empleados/${id}`, input);
+  const { data } = await api.put<Empleado>(`/api/Empleados/${id}`, input);
   return data;
 }

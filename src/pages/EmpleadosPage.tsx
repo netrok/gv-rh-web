@@ -45,6 +45,7 @@ import {
   type Departamento,
 } from "../api/departamentos.api";
 import { getPuestos, type Puesto } from "../api/puestos.api";
+import { getSucursales, type SucursalDto } from "../api/sucursales.api";
 import PageHeader from "../components/ui/PageHeader";
 import ConfirmDialog from "../components/ui/ConfirmDialog";
 import { useAppSnackbar } from "../features/ui/AppSnackbarContext";
@@ -66,6 +67,7 @@ const empleadoSchema = z.object({
   activo: z.boolean(),
   departamentoId: z.coerce.number().min(1, "Debes seleccionar un departamento"),
   puestoId: z.coerce.number().min(1, "Debes seleccionar un puesto"),
+  sucursalId: z.coerce.number().min(0),
 });
 
 type EmpleadoFormInput = z.input<typeof empleadoSchema>;
@@ -133,6 +135,7 @@ function EmpleadoDialog({
   initialValues,
   departamentos,
   puestos,
+  sucursales,
 }: {
   open: boolean;
   onClose: () => void;
@@ -141,6 +144,7 @@ function EmpleadoDialog({
   initialValues: Empleado | null;
   departamentos: Departamento[];
   puestos: Puesto[];
+  sucursales: SucursalDto[];
 }) {
   const isEdit = !!initialValues;
 
@@ -164,12 +168,14 @@ function EmpleadoDialog({
       activo: initialValues?.activo ?? true,
       departamentoId: initialValues?.departamentoId ?? 0,
       puestoId: initialValues?.puestoId ?? 0,
+      sucursalId: initialValues?.sucursalId ?? 0,
     },
   });
 
   const activo = watch("activo");
   const departamentoId = Number(watch("departamentoId") ?? 0);
   const puestoId = Number(watch("puestoId") ?? 0);
+  const sucursalId = Number(watch("sucursalId") ?? 0);
 
   const puestosDisponibles = useMemo(() => {
     const depId = Number(departamentoId || 0);
@@ -188,6 +194,7 @@ function EmpleadoDialog({
       activo: initialValues?.activo ?? true,
       departamentoId: initialValues?.departamentoId ?? 0,
       puestoId: initialValues?.puestoId ?? 0,
+      sucursalId: initialValues?.sucursalId ?? 0,
     });
   }, [initialValues, reset, open]);
 
@@ -226,6 +233,7 @@ function EmpleadoDialog({
       activo: values.activo,
       departamentoId: Number(values.departamentoId),
       puestoId: Number(values.puestoId),
+      sucursalId: Number(values.sucursalId) > 0 ? Number(values.sucursalId) : null,
     });
   };
 
@@ -300,7 +308,26 @@ function EmpleadoDialog({
             InputLabelProps={{ shrink: true }}
           />
 
-          <Box />
+          <TextField
+            select
+            label="Sucursal"
+            value={sucursalId}
+            onChange={(e) => {
+              setValue("sucursalId", Number(e.target.value), {
+                shouldDirty: true,
+                shouldValidate: true,
+              });
+            }}
+            error={!!errors.sucursalId}
+            helperText={errors.sucursalId?.message}
+          >
+            <MenuItem value={0}>Sin sucursal</MenuItem>
+            {sucursales.map((sucursal) => (
+              <MenuItem key={sucursal.id} value={sucursal.id}>
+                {sucursal.clave} - {sucursal.nombre}
+              </MenuItem>
+            ))}
+          </TextField>
 
           <TextField
             select
@@ -397,6 +424,7 @@ export default function EmpleadosPage() {
 
   const [search, setSearch] = useState("");
   const [departamentoFilter, setDepartamentoFilter] = useState("");
+  const [sucursalFilter, setSucursalFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Empleado | null>(null);
@@ -417,8 +445,14 @@ export default function EmpleadosPage() {
     queryFn: getPuestos,
   });
 
+  const sucursalesQuery = useQuery({
+    queryKey: ["sucursales-select"],
+    queryFn: () => getSucursales({ activo: true }),
+  });
+
   const departamentos = departamentosQuery.data ?? [];
   const puestos = puestosQuery.data ?? [];
+  const sucursales = sucursalesQuery.data ?? [];
 
   const departamentosMap = useMemo(() => {
     return new Map(departamentos.map((d) => [Number(d.id), d]));
@@ -427,6 +461,10 @@ export default function EmpleadosPage() {
   const puestosMap = useMemo(() => {
     return new Map(puestos.map((p) => [Number(p.id), p]));
   }, [puestos]);
+
+  const sucursalesMap = useMemo(() => {
+    return new Map(sucursales.map((s) => [Number(s.id), s]));
+  }, [sucursales]);
 
   const saveMutation = useMutation({
     mutationFn: async (values: SaveEmpleadoInput) => {
@@ -467,6 +505,7 @@ export default function EmpleadosPage() {
         activo: !row.activo,
         departamentoId: Number(row.departamentoId),
         puestoId: Number(row.puestoId),
+        sucursalId: row.sucursalId ?? null,
       });
     },
     onSuccess: (_, row) => {
@@ -494,9 +533,16 @@ export default function EmpleadosPage() {
       const puesto = row.puestoId
         ? puestosMap.get(Number(row.puestoId))
         : undefined;
+      const sucursal = row.sucursalId
+        ? sucursalesMap.get(Number(row.sucursalId))
+        : undefined;
 
       const matchesDepartamento = departamentoFilter
         ? Number(row.departamentoId) === Number(departamentoFilter)
+        : true;
+
+      const matchesSucursal = sucursalFilter
+        ? Number(row.sucursalId) === Number(sucursalFilter)
         : true;
 
       const matchesStatus =
@@ -521,17 +567,26 @@ export default function EmpleadosPage() {
           (row.email ?? "").toLowerCase().includes(term) ||
           (departamento?.nombre ?? "").toLowerCase().includes(term) ||
           (puesto?.nombre ?? "").toLowerCase().includes(term) ||
+          (sucursal?.nombre ?? "").toLowerCase().includes(term) ||
+          (sucursal?.clave ?? "").toLowerCase().includes(term) ||
           (row.activo ? "activo" : "inactivo").includes(term);
 
-      return matchesDepartamento && matchesStatus && matchesSearch;
+      return (
+        matchesDepartamento &&
+        matchesSucursal &&
+        matchesStatus &&
+        matchesSearch
+      );
     });
   }, [
     empleadosQuery.data,
     search,
     departamentoFilter,
+    sucursalFilter,
     statusFilter,
     departamentosMap,
     puestosMap,
+    sucursalesMap,
   ]);
 
   const openCreateDialog = () => {
@@ -544,7 +599,12 @@ export default function EmpleadosPage() {
     setDialogOpen(true);
   };
 
-  const canOpenDialog = departamentos.length > 0 && puestos.length > 0;
+  const canOpenDialog =
+    departamentos.length > 0 &&
+    puestos.length > 0 &&
+    !departamentosQuery.isLoading &&
+    !puestosQuery.isLoading &&
+    !sucursalesQuery.isLoading;
 
   return (
     <Box sx={{ p: 3 }}>
@@ -560,6 +620,7 @@ export default function EmpleadosPage() {
               empleadosQuery.refetch();
               departamentosQuery.refetch();
               puestosQuery.refetch();
+              sucursalesQuery.refetch();
             },
           },
           {
@@ -574,7 +635,8 @@ export default function EmpleadosPage() {
 
       {!canOpenDialog &&
         !departamentosQuery.isLoading &&
-        !puestosQuery.isLoading && (
+        !puestosQuery.isLoading &&
+        !sucursalesQuery.isLoading && (
           <Alert severity="warning" sx={{ mb: 2 }}>
             Necesitas departamentos y puestos registrados para crear empleados.
           </Alert>
@@ -585,14 +647,17 @@ export default function EmpleadosPage() {
           <Box
             sx={{
               display: "grid",
-              gridTemplateColumns: { xs: "1fr", md: "1fr 260px 180px" },
+              gridTemplateColumns: {
+                xs: "1fr",
+                md: "1fr 260px 260px 180px",
+              },
               gap: 2,
               mb: 2,
             }}
           >
             <TextField
               label="Buscar"
-              placeholder="No. empleado, nombre, correo, puesto..."
+              placeholder="No. empleado, nombre, correo, puesto, sucursal..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -613,6 +678,20 @@ export default function EmpleadosPage() {
 
             <TextField
               select
+              label="Filtrar por sucursal"
+              value={sucursalFilter}
+              onChange={(e) => setSucursalFilter(e.target.value)}
+            >
+              <MenuItem value="">Todas</MenuItem>
+              {sucursales.map((sucursal) => (
+                <MenuItem key={sucursal.id} value={sucursal.id}>
+                  {sucursal.clave} - {sucursal.nombre}
+                </MenuItem>
+              ))}
+            </TextField>
+
+            <TextField
+              select
               label="Estatus"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
@@ -625,7 +704,8 @@ export default function EmpleadosPage() {
 
           {empleadosQuery.isLoading ||
           departamentosQuery.isLoading ||
-          puestosQuery.isLoading ? (
+          puestosQuery.isLoading ||
+          sucursalesQuery.isLoading ? (
             <Box sx={{ py: 6, display: "flex", justifyContent: "center" }}>
               <CircularProgress />
             </Box>
@@ -643,6 +723,11 @@ export default function EmpleadosPage() {
               No se pudo cargar el catálogo de puestos.{" "}
               {getErrorMessage(puestosQuery.error)}
             </Alert>
+          ) : sucursalesQuery.isError ? (
+            <Alert severity="error">
+              No se pudo cargar el catálogo de sucursales.{" "}
+              {getErrorMessage(sucursalesQuery.error)}
+            </Alert>
           ) : (
             <Box sx={{ overflowX: "auto" }}>
               <Table size="small">
@@ -653,6 +738,7 @@ export default function EmpleadosPage() {
                     <TableCell>Nombre</TableCell>
                     <TableCell>Departamento</TableCell>
                     <TableCell>Puesto</TableCell>
+                    <TableCell>Sucursal</TableCell>
                     <TableCell>Ingreso</TableCell>
                     <TableCell>Estatus</TableCell>
                     <TableCell align="right">Acciones</TableCell>
@@ -662,7 +748,7 @@ export default function EmpleadosPage() {
                 <TableBody>
                   {filteredRows.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
+                      <TableCell colSpan={9} align="center" sx={{ py: 4 }}>
                         <Typography color="text.secondary">
                           No hay empleados para mostrar.
                         </Typography>
@@ -675,6 +761,9 @@ export default function EmpleadosPage() {
                         : undefined;
                       const puesto = row.puestoId
                         ? puestosMap.get(Number(row.puestoId))
+                        : undefined;
+                      const sucursal = row.sucursalId
+                        ? sucursalesMap.get(Number(row.sucursalId))
                         : undefined;
 
                       return (
@@ -693,6 +782,11 @@ export default function EmpleadosPage() {
                           </TableCell>
                           <TableCell>
                             {puesto ? `${puesto.clave} - ${puesto.nombre}` : "-"}
+                          </TableCell>
+                          <TableCell>
+                            {sucursal
+                              ? `${sucursal.clave} - ${sucursal.nombre}`
+                              : row.sucursalNombre ?? "-"}
                           </TableCell>
                           <TableCell>{formatDate(row.fechaIngreso)}</TableCell>
                           <TableCell>
@@ -737,6 +831,7 @@ export default function EmpleadosPage() {
         saving={saveMutation.isPending}
         departamentos={departamentos}
         puestos={puestos}
+        sucursales={sucursales}
         onSubmit={async (values) => {
           await saveMutation.mutateAsync(values);
         }}
@@ -777,4 +872,3 @@ export default function EmpleadosPage() {
     </Box>
   );
 }
-
