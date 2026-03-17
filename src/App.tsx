@@ -1,31 +1,87 @@
-import { Navigate, Route, Routes } from "react-router";
+import { Navigate, Route, Routes } from "react-router-dom";
 import AppShell from "./components/layout/AppShell";
-import ProtectedRoute from "./components/layout/ProtectedRoute";
 import LoginPage from "./pages/LoginPage";
 import AuditPage from "./pages/AuditPage";
 import DepartamentosPage from "./pages/DepartamentosPage";
 import PuestosPage from "./pages/PuestosPage";
 import EmpleadosPage from "./pages/EmpleadosPage";
+import RequireAuth from "./features/auth/RequireAuth";
+import RoleGuard from "./features/auth/RoleGuard";
+import ForbiddenPage from "./pages/ForbiddenPage";
+import NotFoundPage from "./pages/NotFoundPage";
+import { useAuth } from "./features/auth/AuthContext";
 
 export default function App() {
+  const { isAuthenticated, roles = [] } = useAuth();
+
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/403" element={<ForbiddenPage />} />
 
       <Route
         element={
-          <ProtectedRoute>
+          <RequireAuth isAuthenticated={isAuthenticated}>
             <AppShell />
-          </ProtectedRoute>
+          </RequireAuth>
         }
       >
-        <Route path="/audit" element={<AuditPage />} />
-        <Route path="/departamentos" element={<DepartamentosPage />} />
-        <Route path="/puestos" element={<PuestosPage />} />
-        <Route path="/empleados" element={<EmpleadosPage />} />
+        <Route index element={<Navigate to="/audit" replace />} />
+
+        <Route
+          path="/audit"
+          element={
+            <RoleGuard
+              isAuthenticated={isAuthenticated}
+              userRoles={roles}
+              allow={["ADMIN", "RRHH"]}
+            >
+              <AuditPage />
+            </RoleGuard>
+          }
+        />
+
+        <Route
+          path="/departamentos"
+          element={
+            <RoleGuard
+              isAuthenticated={isAuthenticated}
+              userRoles={roles}
+              allow={["ADMIN", "RRHH"]}
+            >
+              <DepartamentosPage />
+            </RoleGuard>
+          }
+        />
+
+        <Route
+          path="/puestos"
+          element={
+            <RoleGuard
+              isAuthenticated={isAuthenticated}
+              userRoles={roles}
+              allow={["ADMIN", "RRHH"]}
+            >
+              <PuestosPage />
+            </RoleGuard>
+          }
+        />
+
+        <Route
+          path="/empleados"
+          element={
+            <RoleGuard
+              isAuthenticated={isAuthenticated}
+              userRoles={roles}
+              allow={["ADMIN", "RRHH"]}
+            >
+              <EmpleadosPage />
+            </RoleGuard>
+          }
+        />
       </Route>
 
-      <Route path="*" element={<Navigate to="/audit" replace />} />
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );
 }

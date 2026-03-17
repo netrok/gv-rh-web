@@ -10,8 +10,10 @@ import {
 } from "@mui/material";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
+import { useNavigate } from "react-router-dom";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
+
 import { loginRequest } from "../api/auth.api";
 import { useAuth } from "../features/auth/AuthContext";
 
@@ -24,6 +26,7 @@ type LoginForm = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
   const { login } = useAuth();
+  const navigate = useNavigate();
   const [errorMessage, setErrorMessage] = useState("");
 
   const {
@@ -49,9 +52,9 @@ export default function LoginPage() {
       }
 
       login(data.accessToken, data.refreshToken ?? null);
-      window.location.href = "/audit";
+      navigate("/audit", { replace: true });
     } catch {
-      setErrorMessage("No se pudo iniciar sesión.");
+      setErrorMessage("Correo o contraseña incorrectos.");
     }
   };
 
@@ -67,30 +70,35 @@ export default function LoginPage() {
             Iniciar sesión
           </Typography>
 
-          {errorMessage && (
+          {errorMessage ? (
             <Alert severity="error" sx={{ mb: 2 }}>
               {errorMessage}
             </Alert>
-          )}
+          ) : null}
 
           <Stack component="form" spacing={2} onSubmit={handleSubmit(onSubmit)}>
             <TextField
               label="Correo"
+              type="email"
+              autoComplete="email"
               {...register("email")}
               error={!!errors.email}
               helperText={errors.email?.message}
+              fullWidth
             />
 
             <TextField
               label="Contraseña"
               type="password"
+              autoComplete="current-password"
               {...register("password")}
               error={!!errors.password}
               helperText={errors.password?.message}
+              fullWidth
             />
 
             <Button type="submit" variant="contained" disabled={isSubmitting}>
-              Entrar
+              {isSubmitting ? "Entrando..." : "Entrar"}
             </Button>
           </Stack>
         </CardContent>

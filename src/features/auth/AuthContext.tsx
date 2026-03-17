@@ -1,4 +1,11 @@
-import { createContext, useContext, useMemo, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   clearTokens,
   getAccessToken,
@@ -7,51 +14,106 @@ import {
 } from "./tokenStorage";
 import { logoutRequest } from "../../api/auth.api";
 
-type AuthContextType = {
+export type AuthContextType = {
   token: string | null;
+  accessToken: string | null;
   isAuthenticated: boolean;
+  roles: string[];
   login: (accessToken: string, refreshToken?: string | null) => void;
   logout: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+type JwtPayload = {
+  role?: string | string[];
+  roles?: string | string[];
+  "http://schemas.microsoft.com/ws/2008/06/identity/claims/role"?:
+    | string
+    | string[];
+};
+
+function parseJwtPayload(token: string): JwtPayload | null {
+  try {
+    const base64Url = token.split(".")[1];
+    if (!base64Url) return null;
+
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");
+    const json = atob(padded);
+
+    return JSON.parse(json) as JwtPayload;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeRoles(input?: string | string[] | null): string[] {
+  const values = Array.isArray(input) ? input : input ? [input] : [];
+
+  return [...new Set(values.map((r) => r.trim().toUpperCase()).filter(Boolean))];
+}
+
+function extractRoles(token: string | null): string[] {
+  if (!token) return [];
+
+  const payload = parseJwtPayload(token);
+  if (!payload) return [];
+
+  const directRoles = normalizeRoles(payload.roles);
+  if (directRoles.length > 0) return directRoles;
+
+  const directRole = normalizeRoles(payload.role);
+  if (directRole.length > 0) return directRole;
+
+  const microsoftRole = normalizeRoles(
+    payload["http://schemas.microsoft.com/ws/2008/06/identity/claims/role"]
+  );
+  if (microsoftRole.length > 0) return microsoftRole;
+
+  return [];
+}
+
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(getAccessToken());
 
-  const login = (accessToken: string, refreshToken?: string | null) => {
+  const login = useCallback((accessToken: string, refreshToken?: string | null) => {
     setTokens(accessToken, refreshToken);
     setToken(accessToken);
-  };
+  }, []);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     const refreshToken = getRefreshToken();
 
     try {
       await logoutRequest(refreshToken);
     } catch {
-      // Aquí no hacemos drama; igual vamos a limpiar sesión local.
+      // No hacemos drama; igual limpiamos sesión local.
     } finally {
       clearTokens();
       setToken(null);
       window.location.href = "/login";
     }
-  };
+  }, []);
 
-  const value = useMemo(
+  const roles = useMemo(() => extractRoles(token), [token]);
+
+  const value = useMemo<AuthContextType>(
     () => ({
       token,
+      accessToken: token,
       isAuthenticated: !!token,
+      roles,
       login,
       logout,
     }),
-    [token]
+    [token, roles, login, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-export function useAuth() {
+export function useAuth(): AuthContextType {
   const context = useContext(AuthContext);
 
   if (!context) {

@@ -1,6 +1,6 @@
 import { Button, Card, CardContent, Container, Stack, Typography } from "@mui/material";
 import BlockRoundedIcon from "@mui/icons-material/BlockRounded";
-import { useNavigate } from "react-router";
+import { useNavigate } from "react-router-dom";
 
 export default function ForbiddenPage() {
   const navigate = useNavigate();
@@ -14,17 +14,24 @@ export default function ForbiddenPage() {
             <Typography variant="h4" fontWeight={800}>
               403
             </Typography>
+
             <Typography variant="h6" fontWeight={700}>
               No tienes permiso para entrar aquí
             </Typography>
+
             <Typography color="text.secondary">
               Tu usuario no cuenta con los permisos requeridos para esta sección.
             </Typography>
 
-            <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} sx={{ pt: 1 }}>
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              spacing={1.5}
+              sx={{ pt: 1 }}
+            >
               <Button variant="contained" onClick={() => navigate("/")}>
                 Ir al inicio
               </Button>
+
               <Button variant="outlined" onClick={() => navigate(-1)}>
                 Regresar
               </Button>
