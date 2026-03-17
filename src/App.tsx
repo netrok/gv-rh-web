@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import AppShell from "./components/layout/AppShell";
 import LoginPage from "./pages/LoginPage";
+import DashboardPage from "./pages/DashBoardPage";
 import AuditPage from "./pages/AuditPage";
 import DepartamentosPage from "./pages/DepartamentosPage";
 import PuestosPage from "./pages/PuestosPage";
@@ -26,7 +27,9 @@ export default function App() {
           </RequireAuth>
         }
       >
-        <Route index element={<Navigate to="/audit" replace />} />
+        <Route index element={<Navigate to="/dashboard" replace />} />
+
+        <Route path="/dashboard" element={<DashboardPage />} />
 
         <Route
           path="/audit"

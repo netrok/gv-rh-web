@@ -52,7 +52,7 @@ export default function LoginPage() {
       }
 
       login(data.accessToken, data.refreshToken ?? null);
-      navigate("/audit", { replace: true });
+      navigate("/dashboard", { replace: true });
     } catch {
       setErrorMessage("Correo o contraseña incorrectos.");
     }

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import {
   AppBar,
   Box,
@@ -11,6 +12,7 @@ import {
   Toolbar,
   Typography,
 } from "@mui/material";
+import HomeRoundedIcon from "@mui/icons-material/HomeRounded";
 import GavelRoundedIcon from "@mui/icons-material/GavelRounded";
 import ApartmentRoundedIcon from "@mui/icons-material/ApartmentRounded";
 import WorkOutlineRoundedIcon from "@mui/icons-material/WorkOutlineRounded";
@@ -26,11 +28,16 @@ const appBarHeight = 72;
 type MenuItemConfig = {
   label: string;
   to: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
   allow?: string[];
 };
 
 const menuItems: MenuItemConfig[] = [
+  {
+    label: "Dashboard",
+    to: "/dashboard",
+    icon: <HomeRoundedIcon fontSize="small" />,
+  },
   {
     label: "Auditoría",
     to: "/audit",
