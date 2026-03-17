@@ -13,6 +13,7 @@ import {
   Typography,
 } from "@mui/material";
 import HomeRoundedIcon from "@mui/icons-material/HomeRounded";
+import StoreRoundedIcon from "@mui/icons-material/StoreRounded";
 import GavelRoundedIcon from "@mui/icons-material/GavelRounded";
 import ApartmentRoundedIcon from "@mui/icons-material/ApartmentRounded";
 import WorkOutlineRoundedIcon from "@mui/icons-material/WorkOutlineRounded";
@@ -37,6 +38,12 @@ const menuItems: MenuItemConfig[] = [
     label: "Dashboard",
     to: "/dashboard",
     icon: <HomeRoundedIcon fontSize="small" />,
+  },
+  {
+    label: "Sucursales",
+    to: "/sucursales",
+    icon: <StoreRoundedIcon fontSize="small" />,
+    allow: ["ADMIN", "RRHH"],
   },
   {
     label: "Auditoría",
@@ -65,7 +72,11 @@ const menuItems: MenuItemConfig[] = [
 ];
 
 function normalizeRoles(roles?: string[] | null): string[] {
-  return [...new Set((roles ?? []).map((r) => r.trim().toUpperCase()).filter(Boolean))];
+  return [
+    ...new Set(
+      (roles ?? []).map((r) => r.trim().toUpperCase()).filter(Boolean)
+    ),
+  ];
 }
 
 function canAccess(userRoles: string[], allowedRoles?: string[]) {
@@ -86,7 +97,9 @@ export default function AppShell() {
 
   const currentTitle =
     menuItems.find(
-      (x) => location.pathname === x.to || location.pathname.startsWith(`${x.to}/`)
+      (x) =>
+        location.pathname === x.to ||
+        location.pathname.startsWith(`${x.to}/`)
     )?.label ?? "GV RH";
 
   return (

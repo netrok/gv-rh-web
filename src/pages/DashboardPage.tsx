@@ -17,6 +17,7 @@ import ApartmentRoundedIcon from "@mui/icons-material/ApartmentRounded";
 import WorkOutlineRoundedIcon from "@mui/icons-material/WorkOutlineRounded";
 import BadgeRoundedIcon from "@mui/icons-material/BadgeRounded";
 import GavelRoundedIcon from "@mui/icons-material/GavelRounded";
+import StoreRoundedIcon from "@mui/icons-material/StoreRounded";
 import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import HistoryRoundedIcon from "@mui/icons-material/HistoryRounded";
@@ -52,7 +53,9 @@ type KpiCard = {
 };
 
 function normalizeRoles(roles?: string[] | null): string[] {
-  return [...new Set((roles ?? []).map((r) => r.trim().toUpperCase()).filter(Boolean))];
+  return [
+    ...new Set((roles ?? []).map((r) => r.trim().toUpperCase()).filter(Boolean)),
+  ];
 }
 
 function canAccess(userRoles: string[], allowedRoles?: string[]): boolean {
@@ -133,6 +136,13 @@ export default function DashboardPage() {
 
   const quickActions: QuickAction[] = [
     {
+      label: "Sucursales",
+      description: "Administra sedes y ubicaciones operativas.",
+      to: "/sucursales",
+      allow: ["ADMIN", "RRHH"],
+      icon: <StoreRoundedIcon fontSize="small" />,
+    },
+    {
       label: "Auditoría",
       description: "Consulta eventos de autenticación y cambios del sistema.",
       to: "/audit",
@@ -180,6 +190,12 @@ export default function DashboardPage() {
       value: statsQuery.data?.puestosTotal ?? 0,
       description: "puestos disponibles",
       icon: <WorkOutlineRoundedIcon fontSize="small" />,
+    },
+    {
+      label: "Sucursales",
+      value: statsQuery.data?.sucursalesTotal ?? 0,
+      description: "sedes registradas",
+      icon: <StoreRoundedIcon fontSize="small" />,
     },
     {
       label: "Auditoría",

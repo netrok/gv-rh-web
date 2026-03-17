@@ -5,6 +5,7 @@ export type DashboardStats = {
   empleadosTotal: number;
   departamentosTotal: number;
   puestosTotal: number;
+  sucursalesTotal: number;
   auditoriaTotal: number;
   recentAudit: AuditItem[];
 };
@@ -62,18 +63,25 @@ async function fetchCollectionTotal(url: string): Promise<number> {
 }
 
 export async function getDashboardStats(): Promise<DashboardStats> {
-  const [empleadosTotal, departamentosTotal, puestosTotal, auditPage] =
-    await Promise.all([
-      fetchCollectionTotal("/api/Empleados"),
-      fetchCollectionTotal("/api/Departamentos"),
-      fetchCollectionTotal("/api/Puestos"),
-      getAudit({ page: 1, pageSize: 5 }),
-    ]);
+  const [
+    empleadosTotal,
+    departamentosTotal,
+    puestosTotal,
+    sucursalesTotal,
+    auditPage,
+  ] = await Promise.all([
+    fetchCollectionTotal("/api/Empleados"),
+    fetchCollectionTotal("/api/Departamentos"),
+    fetchCollectionTotal("/api/Puestos"),
+    fetchCollectionTotal("/api/Sucursales"),
+    getAudit({ page: 1, pageSize: 5 }),
+  ]);
 
   return {
     empleadosTotal,
     departamentosTotal,
     puestosTotal,
+    sucursalesTotal,
     auditoriaTotal: auditPage.total ?? 0,
     recentAudit: auditPage.items ?? [],
   };

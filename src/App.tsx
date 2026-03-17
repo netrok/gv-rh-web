@@ -6,6 +6,7 @@ import AuditPage from "./pages/AuditPage";
 import DepartamentosPage from "./pages/DepartamentosPage";
 import PuestosPage from "./pages/PuestosPage";
 import EmpleadosPage from "./pages/EmpleadosPage";
+import SucursalesPage from "./pages/SucursalesPage";
 import RequireAuth from "./features/auth/RequireAuth";
 import RoleGuard from "./features/auth/RoleGuard";
 import ForbiddenPage from "./pages/ForbiddenPage";
@@ -30,6 +31,19 @@ export default function App() {
         <Route index element={<Navigate to="/dashboard" replace />} />
 
         <Route path="/dashboard" element={<DashboardPage />} />
+
+        <Route
+          path="/sucursales"
+          element={
+            <RoleGuard
+              isAuthenticated={isAuthenticated}
+              userRoles={roles}
+              allow={["ADMIN", "RRHH"]}
+            >
+              <SucursalesPage />
+            </RoleGuard>
+          }
+        />
 
         <Route
           path="/audit"
