@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useMemo } from "react";
 import {
   Alert,
@@ -12,30 +13,42 @@ import {
   Typography,
 } from "@mui/material";
 import DashboardRoundedIcon from "@mui/icons-material/DashboardRounded";
-import GavelRoundedIcon from "@mui/icons-material/GavelRounded";
 import ApartmentRoundedIcon from "@mui/icons-material/ApartmentRounded";
 import WorkOutlineRoundedIcon from "@mui/icons-material/WorkOutlineRounded";
 import BadgeRoundedIcon from "@mui/icons-material/BadgeRounded";
+import GavelRoundedIcon from "@mui/icons-material/GavelRounded";
 import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
+import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import HistoryRoundedIcon from "@mui/icons-material/HistoryRounded";
 import LoginRoundedIcon from "@mui/icons-material/LoginRounded";
-import SecurityRoundedIcon from "@mui/icons-material/SecurityRounded";
 import EditNoteRoundedIcon from "@mui/icons-material/EditNoteRounded";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import RestoreRoundedIcon from "@mui/icons-material/RestoreRounded";
+import SecurityRoundedIcon from "@mui/icons-material/SecurityRounded";
 import axios from "axios";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 
 import { useAuth } from "../features/auth/AuthContext";
-import { getAudit, type AuditItem } from "../api/audit.api";
+import {
+  getDashboardStats,
+  type DashboardStats,
+} from "../api/dashboard.api";
+import type { AuditItem } from "../api/audit.api";
 
 type QuickAction = {
   label: string;
   description: string;
   to: string;
   allow?: string[];
-  icon: React.ReactNode;
+  icon: ReactNode;
+};
+
+type KpiCard = {
+  label: string;
+  value: number;
+  description: string;
+  icon: ReactNode;
 };
 
 function normalizeRoles(roles?: string[] | null): string[] {
@@ -47,7 +60,7 @@ function canAccess(userRoles: string[], allowedRoles?: string[]): boolean {
   return allowedRoles.some((role) => userRoles.includes(role.toUpperCase()));
 }
 
-function formatDate(value?: string | null) {
+function formatDate(value?: string | null): string {
   if (!value) return "-";
 
   const date = new Date(value);
@@ -57,6 +70,10 @@ function formatDate(value?: string | null) {
     dateStyle: "short",
     timeStyle: "short",
   }).format(date);
+}
+
+function formatNumber(value: number): string {
+  return new Intl.NumberFormat("es-MX").format(value);
 }
 
 function getActionColor(
@@ -82,7 +99,7 @@ function getActionColor(
   }
 }
 
-function getActionIcon(action: string) {
+function getActionIcon(action: string): ReactNode {
   switch (action) {
     case "LOGIN":
     case "REFRESH":
@@ -109,24 +126,29 @@ export default function DashboardPage() {
   const normalizedRoles = useMemo(() => normalizeRoles(roles), [roles]);
   const canSeeAudit = canAccess(normalizedRoles, ["ADMIN", "RRHH"]);
 
+  const statsQuery = useQuery<DashboardStats>({
+    queryKey: ["dashboard-stats"],
+    queryFn: getDashboardStats,
+  });
+
   const quickActions: QuickAction[] = [
     {
       label: "Auditoría",
-      description: "Revisa eventos de autenticación y cambios del sistema.",
+      description: "Consulta eventos de autenticación y cambios del sistema.",
       to: "/audit",
       allow: ["ADMIN", "RRHH"],
       icon: <GavelRoundedIcon fontSize="small" />,
     },
     {
       label: "Departamentos",
-      description: "Administra catálogos de departamentos.",
+      description: "Administra el catálogo de departamentos.",
       to: "/departamentos",
       allow: ["ADMIN", "RRHH"],
       icon: <ApartmentRoundedIcon fontSize="small" />,
     },
     {
       label: "Puestos",
-      description: "Administra puestos y su estructura.",
+      description: "Administra puestos y estructura organizacional.",
       to: "/puestos",
       allow: ["ADMIN", "RRHH"],
       icon: <WorkOutlineRoundedIcon fontSize="small" />,
@@ -140,69 +162,82 @@ export default function DashboardPage() {
     },
   ].filter((item) => canAccess(normalizedRoles, item.allow));
 
-  const auditQuery = useQuery({
-    queryKey: ["dashboard-recent-audit"],
-    queryFn: () =>
-      getAudit({
-        page: 1,
-        pageSize: 5,
-      }),
-    enabled: canSeeAudit,
-  });
+  const kpiCards: KpiCard[] = [
+    {
+      label: "Empleados",
+      value: statsQuery.data?.empleadosTotal ?? 0,
+      description: "registros totales",
+      icon: <BadgeRoundedIcon fontSize="small" />,
+    },
+    {
+      label: "Departamentos",
+      value: statsQuery.data?.departamentosTotal ?? 0,
+      description: "catálogos registrados",
+      icon: <ApartmentRoundedIcon fontSize="small" />,
+    },
+    {
+      label: "Puestos",
+      value: statsQuery.data?.puestosTotal ?? 0,
+      description: "puestos disponibles",
+      icon: <WorkOutlineRoundedIcon fontSize="small" />,
+    },
+    {
+      label: "Auditoría",
+      value: canSeeAudit ? statsQuery.data?.auditoriaTotal ?? 0 : 0,
+      description: canSeeAudit ? "eventos acumulados" : "sin acceso por rol",
+      icon: <GavelRoundedIcon fontSize="small" />,
+    },
+  ];
 
-  const recentRows = auditQuery.data?.items ?? [];
+  const recentAudit: AuditItem[] = statsQuery.data?.recentAudit ?? [];
 
   return (
-    <Box>
-      <Stack spacing={3}>
-        <Card
-          elevation={0}
-          sx={{
-            borderRadius: 4,
-            border: "1px solid #e5e7eb",
-            background:
-              "linear-gradient(135deg, #111827 0%, #1f2937 60%, #0f172a 100%)",
-            color: "#fff",
-          }}
-        >
-          <CardContent sx={{ p: { xs: 2.5, md: 3 } }}>
-            <Grid container spacing={3} alignItems="center">
-              <Grid size={{ xs: 12, md: 8 }}>
-                <Stack spacing={1.25}>
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <DashboardRoundedIcon fontSize="small" />
-                    <Typography variant="overline" sx={{ color: "rgba(255,255,255,0.75)" }}>
-                      Panel principal
-                    </Typography>
-                  </Stack>
-
-                  <Typography variant="h4" fontWeight={800} sx={{ lineHeight: 1.1 }}>
-                    Bienvenido a GV RH
+    <Stack spacing={3}>
+      <Card
+        elevation={0}
+        sx={{
+          borderRadius: 4,
+          border: "1px solid #e5e7eb",
+          background:
+            "linear-gradient(135deg, #111827 0%, #1f2937 60%, #0f172a 100%)",
+          color: "#fff",
+        }}
+      >
+        <CardContent sx={{ p: { xs: 2.5, md: 3 } }}>
+          <Grid container spacing={3} alignItems="center">
+            <Grid size={{ xs: 12, md: 8 }}>
+              <Stack spacing={1.25}>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <DashboardRoundedIcon fontSize="small" />
+                  <Typography
+                    variant="overline"
+                    sx={{ color: "rgba(255,255,255,0.75)" }}
+                  >
+                    Panel principal
                   </Typography>
+                </Stack>
 
-                  <Typography sx={{ color: "rgba(255,255,255,0.82)", maxWidth: 720 }}>
-                    Desde aquí puedes entrar rápido a los módulos principales y revisar
-                    actividad reciente del sistema sin caer directo a la bitácora como si
-                    amaneciéramos en auditoría interna.
-                  </Typography>
+                <Typography variant="h4" fontWeight={800} sx={{ lineHeight: 1.1 }}>
+                  Bienvenido a GV RH
+                </Typography>
 
-                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ pt: 1 }}>
-                    {normalizedRoles.length > 0 ? (
-                      normalizedRoles.map((role) => (
-                        <Chip
-                          key={role}
-                          label={role}
-                          size="small"
-                          sx={{
-                            color: "#fff",
-                            backgroundColor: "rgba(255,255,255,0.12)",
-                            border: "1px solid rgba(255,255,255,0.12)",
-                          }}
-                        />
-                      ))
-                    ) : (
+                <Typography sx={{ color: "rgba(255,255,255,0.82)", maxWidth: 760 }}>
+                  Ya no caes de hocico en auditoría. Ahora entras a un tablero útil,
+                  con accesos rápidos y métricas del sistema como debe ser.
+                </Typography>
+
+                <Stack
+                  direction="row"
+                  spacing={1}
+                  flexWrap="wrap"
+                  useFlexGap
+                  sx={{ pt: 1 }}
+                >
+                  {normalizedRoles.length > 0 ? (
+                    normalizedRoles.map((role) => (
                       <Chip
-                        label="Sin roles detectados"
+                        key={role}
+                        label={role}
                         size="small"
                         sx={{
                           color: "#fff",
@@ -210,44 +245,58 @@ export default function DashboardPage() {
                           border: "1px solid rgba(255,255,255,0.12)",
                         }}
                       />
-                    )}
-                  </Stack>
+                    ))
+                  ) : (
+                    <Chip
+                      label="Sin roles detectados"
+                      size="small"
+                      sx={{
+                        color: "#fff",
+                        backgroundColor: "rgba(255,255,255,0.12)",
+                        border: "1px solid rgba(255,255,255,0.12)",
+                      }}
+                    />
+                  )}
                 </Stack>
-              </Grid>
+              </Stack>
+            </Grid>
 
-              <Grid size={{ xs: 12, md: 4 }}>
-                <Card
-                  elevation={0}
-                  sx={{
-                    borderRadius: 3,
-                    backgroundColor: "rgba(255,255,255,0.08)",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                    color: "#fff",
-                  }}
-                >
-                  <CardContent>
-                    <Stack spacing={1.25}>
-                      <Typography variant="subtitle2" sx={{ color: "rgba(255,255,255,0.75)" }}>
-                        Resumen rápido
-                      </Typography>
+            <Grid size={{ xs: 12, md: 4 }}>
+              <Card
+                elevation={0}
+                sx={{
+                  borderRadius: 3,
+                  backgroundColor: "rgba(255,255,255,0.08)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  color: "#fff",
+                }}
+              >
+                <CardContent>
+                  <Stack spacing={1.25}>
+                    <Typography
+                      variant="subtitle2"
+                      sx={{ color: "rgba(255,255,255,0.75)" }}
+                    >
+                      Resumen rápido
+                    </Typography>
 
-                      <Typography variant="h5" fontWeight={800}>
-                        {quickActions.length}
-                      </Typography>
+                    <Typography variant="h5" fontWeight={800}>
+                      {quickActions.length}
+                    </Typography>
 
-                      <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.82)" }}>
-                        módulos disponibles para tu sesión actual
-                      </Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{ color: "rgba(255,255,255,0.82)" }}
+                    >
+                      módulos disponibles para tu sesión actual
+                    </Typography>
 
+                    <Stack direction="row" spacing={1} sx={{ pt: 1 }}>
                       <Button
                         variant="contained"
                         endIcon={<ArrowForwardRoundedIcon />}
-                        onClick={() =>
-                          navigate(quickActions[0]?.to ?? "/empleados")
-                        }
+                        onClick={() => navigate("/empleados")}
                         sx={{
-                          mt: 1,
-                          alignSelf: "flex-start",
                           textTransform: "none",
                           fontWeight: 700,
                           borderRadius: 999,
@@ -260,197 +309,263 @@ export default function DashboardPage() {
                       >
                         Ir al sistema
                       </Button>
+
+                      <Button
+                        variant="outlined"
+                        startIcon={<RefreshRoundedIcon />}
+                        onClick={() => statsQuery.refetch()}
+                        sx={{
+                          textTransform: "none",
+                          fontWeight: 700,
+                          borderRadius: 999,
+                          color: "#fff",
+                          borderColor: "rgba(255,255,255,0.22)",
+                        }}
+                      >
+                        Actualizar
+                      </Button>
                     </Stack>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
-          </CardContent>
-        </Card>
-
-        <Grid container spacing={2.5}>
-          {quickActions.map((action) => (
-            <Grid key={action.to} size={{ xs: 12, sm: 6, xl: 3 }}>
-              <Card
-                elevation={0}
-                sx={{
-                  height: "100%",
-                  borderRadius: 4,
-                  border: "1px solid #e5e7eb",
-                }}
-              >
-                <CardContent sx={{ p: 2.5 }}>
-                  <Stack spacing={2}>
-                    <Box
-                      sx={{
-                        width: 42,
-                        height: 42,
-                        borderRadius: 2.5,
-                        display: "grid",
-                        placeItems: "center",
-                        backgroundColor: "#eef2ff",
-                        color: "#4338ca",
-                      }}
-                    >
-                      {action.icon}
-                    </Box>
-
-                    <Box>
-                      <Typography variant="h6" fontWeight={700} sx={{ mb: 0.5 }}>
-                        {action.label}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {action.description}
-                      </Typography>
-                    </Box>
-
-                    <Button
-                      variant="text"
-                      endIcon={<ArrowForwardRoundedIcon />}
-                      onClick={() => navigate(action.to)}
-                      sx={{
-                        alignSelf: "flex-start",
-                        px: 0,
-                        textTransform: "none",
-                        fontWeight: 700,
-                      }}
-                    >
-                      Abrir módulo
-                    </Button>
                   </Stack>
                 </CardContent>
               </Card>
             </Grid>
-          ))}
-        </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
 
-        <Card
-          elevation={0}
-          sx={{
-            borderRadius: 4,
-            border: "1px solid #e5e7eb",
-            overflow: "hidden",
-          }}
-        >
-          <CardContent sx={{ p: 0 }}>
-            <Box
+      <Grid container spacing={2.5}>
+        {kpiCards.map((card) => (
+          <Grid key={card.label} size={{ xs: 12, sm: 6, xl: 3 }}>
+            <Card
+              elevation={0}
               sx={{
-                px: 2.5,
-                py: 1.75,
-                borderBottom: "1px solid #e5e7eb",
-                backgroundColor: "#f8fafc",
+                height: "100%",
+                borderRadius: 4,
+                border: "1px solid #e5e7eb",
               }}
             >
-              <Stack direction="row" spacing={1} alignItems="center">
-                <HistoryRoundedIcon fontSize="small" />
-                <Typography variant="subtitle1" fontWeight={700}>
-                  Actividad reciente
-                </Typography>
-              </Stack>
-            </Box>
+              <CardContent sx={{ p: 2.5 }}>
+                <Stack spacing={2}>
+                  <Box
+                    sx={{
+                      width: 42,
+                      height: 42,
+                      borderRadius: 2.5,
+                      display: "grid",
+                      placeItems: "center",
+                      backgroundColor: "#eef2ff",
+                      color: "#4338ca",
+                    }}
+                  >
+                    {card.icon}
+                  </Box>
 
-            <Box sx={{ p: 2.5 }}>
-              {!canSeeAudit ? (
-                <Alert severity="info">
-                  Tu rol actual no tiene acceso a la bitácora de auditoría.
-                </Alert>
-              ) : auditQuery.isLoading ? (
-                <Box sx={{ py: 4, display: "flex", justifyContent: "center" }}>
-                  <CircularProgress />
-                </Box>
-              ) : auditQuery.isError ? (
-                <Alert severity="error">
-                  No se pudo cargar la actividad reciente.
-                  <br />
-                  {axios.isAxiosError(auditQuery.error)
-                    ? `${auditQuery.error.response?.status ?? ""} ${
-                        auditQuery.error.response?.statusText ?? auditQuery.error.message
-                      }`
-                    : (auditQuery.error as Error)?.message ?? "Error desconocido"}
-                </Alert>
-              ) : recentRows.length === 0 ? (
-                <Alert severity="info">No hay actividad reciente para mostrar.</Alert>
-              ) : (
-                <Stack spacing={1.5}>
-                  {recentRows.map((row: AuditItem) => (
-                    <Card
-                      key={row.id}
-                      elevation={0}
-                      sx={{
-                        borderRadius: 3,
-                        border: "1px solid #e5e7eb",
-                        backgroundColor: "#fff",
-                      }}
-                    >
-                      <CardContent sx={{ p: 2 }}>
-                        <Stack
-                          direction={{ xs: "column", md: "row" }}
-                          justifyContent="space-between"
-                          spacing={1.5}
-                        >
-                          <Stack direction="row" spacing={1.25} alignItems="flex-start">
-                            <Box
-                              sx={{
-                                width: 36,
-                                height: 36,
-                                borderRadius: 2,
-                                display: "grid",
-                                placeItems: "center",
-                                backgroundColor: "#f8fafc",
-                                color: "#334155",
-                                flexShrink: 0,
-                              }}
-                            >
-                              {getActionIcon(row.action)}
-                            </Box>
+                  <Box>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                      {card.label}
+                    </Typography>
 
-                            <Box>
-                              <Stack
-                                direction={{ xs: "column", sm: "row" }}
-                                spacing={1}
-                                alignItems={{ xs: "flex-start", sm: "center" }}
-                                sx={{ mb: 0.5 }}
-                              >
-                                <Typography fontWeight={700}>
-                                  {row.entityName || "Sistema"}
-                                </Typography>
-                                <Chip
-                                  size="small"
-                                  label={row.action}
-                                  color={getActionColor(row.action)}
-                                />
-                              </Stack>
+                    {statsQuery.isLoading ? (
+                      <CircularProgress size={24} />
+                    ) : (
+                      <Typography variant="h4" fontWeight={800} sx={{ lineHeight: 1 }}>
+                        {formatNumber(card.value)}
+                      </Typography>
+                    )}
 
-                              <Typography variant="body2" color="text.secondary">
-                                Usuario: {row.userEmail ?? "-"} · Rol: {row.userRole ?? "-"} ·
-                                Registro: {row.recordId ?? "-"}
-                              </Typography>
-                            </Box>
-                          </Stack>
-
-                          <Stack alignItems={{ xs: "flex-start", md: "flex-end" }}>
-                            <Typography variant="body2" color="text.secondary">
-                              {formatDate(row.occurredAtUtc)}
-                            </Typography>
-
-                            <Button
-                              size="small"
-                              onClick={() => navigate("/audit")}
-                              sx={{ mt: 0.5, textTransform: "none", fontWeight: 700 }}
-                            >
-                              Ver auditoría
-                            </Button>
-                          </Stack>
-                        </Stack>
-                      </CardContent>
-                    </Card>
-                  ))}
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                      {card.description}
+                    </Typography>
+                  </Box>
                 </Stack>
-              )}
-            </Box>
-          </CardContent>
-        </Card>
-      </Stack>
-    </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
+      </Grid>
+
+      <Grid container spacing={2.5}>
+        {quickActions.map((action) => (
+          <Grid key={action.to} size={{ xs: 12, sm: 6, xl: 3 }}>
+            <Card
+              elevation={0}
+              sx={{
+                height: "100%",
+                borderRadius: 4,
+                border: "1px solid #e5e7eb",
+              }}
+            >
+              <CardContent sx={{ p: 2.5 }}>
+                <Stack spacing={2}>
+                  <Box
+                    sx={{
+                      width: 42,
+                      height: 42,
+                      borderRadius: 2.5,
+                      display: "grid",
+                      placeItems: "center",
+                      backgroundColor: "#f8fafc",
+                      color: "#334155",
+                    }}
+                  >
+                    {action.icon}
+                  </Box>
+
+                  <Box>
+                    <Typography variant="h6" fontWeight={700} sx={{ mb: 0.5 }}>
+                      {action.label}
+                    </Typography>
+
+                    <Typography variant="body2" color="text.secondary">
+                      {action.description}
+                    </Typography>
+                  </Box>
+
+                  <Button
+                    variant="text"
+                    endIcon={<ArrowForwardRoundedIcon />}
+                    onClick={() => navigate(action.to)}
+                    sx={{
+                      alignSelf: "flex-start",
+                      px: 0,
+                      textTransform: "none",
+                      fontWeight: 700,
+                    }}
+                  >
+                    Abrir módulo
+                  </Button>
+                </Stack>
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
+      </Grid>
+
+      <Card
+        elevation={0}
+        sx={{
+          borderRadius: 4,
+          border: "1px solid #e5e7eb",
+          overflow: "hidden",
+        }}
+      >
+        <CardContent sx={{ p: 0 }}>
+          <Box
+            sx={{
+              px: 2.5,
+              py: 1.75,
+              borderBottom: "1px solid #e5e7eb",
+              backgroundColor: "#f8fafc",
+            }}
+          >
+            <Stack direction="row" spacing={1} alignItems="center">
+              <HistoryRoundedIcon fontSize="small" />
+              <Typography variant="subtitle1" fontWeight={700}>
+                Actividad reciente
+              </Typography>
+            </Stack>
+          </Box>
+
+          <Box sx={{ p: 2.5 }}>
+            {!canSeeAudit ? (
+              <Alert severity="info">
+                Tu rol actual no tiene acceso a la bitácora de auditoría.
+              </Alert>
+            ) : statsQuery.isLoading ? (
+              <Box sx={{ py: 4, display: "flex", justifyContent: "center" }}>
+                <CircularProgress />
+              </Box>
+            ) : statsQuery.isError ? (
+              <Alert severity="error">
+                No se pudo cargar el dashboard.
+                <br />
+                {axios.isAxiosError(statsQuery.error)
+                  ? `${statsQuery.error.response?.status ?? ""} ${
+                      statsQuery.error.response?.statusText ?? statsQuery.error.message
+                    }`
+                  : (statsQuery.error as Error)?.message ?? "Error desconocido"}
+              </Alert>
+            ) : recentAudit.length === 0 ? (
+              <Alert severity="info">No hay actividad reciente para mostrar.</Alert>
+            ) : (
+              <Stack spacing={1.5}>
+                {recentAudit.map((row) => (
+                  <Card
+                    key={row.id}
+                    elevation={0}
+                    sx={{
+                      borderRadius: 3,
+                      border: "1px solid #e5e7eb",
+                    }}
+                  >
+                    <CardContent sx={{ p: 2 }}>
+                      <Stack
+                        direction={{ xs: "column", md: "row" }}
+                        justifyContent="space-between"
+                        spacing={1.5}
+                      >
+                        <Stack direction="row" spacing={1.25} alignItems="flex-start">
+                          <Box
+                            sx={{
+                              width: 36,
+                              height: 36,
+                              borderRadius: 2,
+                              display: "grid",
+                              placeItems: "center",
+                              backgroundColor: "#f8fafc",
+                              color: "#334155",
+                              flexShrink: 0,
+                            }}
+                          >
+                            {getActionIcon(row.action)}
+                          </Box>
+
+                          <Box>
+                            <Stack
+                              direction={{ xs: "column", sm: "row" }}
+                              spacing={1}
+                              alignItems={{ xs: "flex-start", sm: "center" }}
+                              sx={{ mb: 0.5 }}
+                            >
+                              <Typography fontWeight={700}>
+                                {row.entityName || "Sistema"}
+                              </Typography>
+                              <Chip
+                                size="small"
+                                label={row.action}
+                                color={getActionColor(row.action)}
+                              />
+                            </Stack>
+
+                            <Typography variant="body2" color="text.secondary">
+                              Usuario: {row.userEmail ?? "-"} · Rol: {row.userRole ?? "-"} ·
+                              Registro: {row.recordId ?? "-"}
+                            </Typography>
+                          </Box>
+                        </Stack>
+
+                        <Stack alignItems={{ xs: "flex-start", md: "flex-end" }}>
+                          <Typography variant="body2" color="text.secondary">
+                            {formatDate(row.occurredAtUtc)}
+                          </Typography>
+
+                          <Button
+                            size="small"
+                            onClick={() => navigate("/audit")}
+                            sx={{ mt: 0.5, textTransform: "none", fontWeight: 700 }}
+                          >
+                            Ver auditoría
+                          </Button>
+                        </Stack>
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                ))}
+              </Stack>
+            )}
+          </Box>
+        </CardContent>
+      </Card>
+    </Stack>
   );
 }
