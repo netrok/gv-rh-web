@@ -11,6 +11,7 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Divider,
   FormControl,
   FormControlLabel,
   InputLabel,
@@ -28,14 +29,22 @@ import {
   Typography,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
+import AttachFileRoundedIcon from "@mui/icons-material/AttachFileRounded";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import CloseIcon from "@mui/icons-material/Close";
 import EditIcon from "@mui/icons-material/Edit";
 import RefreshIcon from "@mui/icons-material/Refresh";
+import FilterAltOutlinedIcon from "@mui/icons-material/FilterAltOutlined";
+import PendingActionsRoundedIcon from "@mui/icons-material/PendingActionsRounded";
+import TaskAltRoundedIcon from "@mui/icons-material/TaskAltRounded";
+import DescriptionRoundedIcon from "@mui/icons-material/DescriptionRounded";
+import PeopleAltRoundedIcon from "@mui/icons-material/PeopleAltRounded";
 
+import IncidenciaEvidenciaDialog from "../components/IncidenciaEvidenciaDialog";
 import type {
   CatalogoOption,
   Incidencia,
+  IncidenciaEvidencia,
   IncidenciaQuery,
   SaveIncidenciaInput,
 } from "../api/incidencias.api";
@@ -89,28 +98,90 @@ const DEFAULT_ESTATUS: CatalogoOption[] = [
   { id: 3, clave: "RECHAZADA", nombre: "RECHAZADA" },
 ];
 
-function getTipoNombre(tipo: number, tipos: CatalogoOption[]) {
-  return tipos.find((x) => x.id === tipo)?.nombre ?? `Tipo ${tipo}`;
+function normalizeEnumValue(value: unknown): string {
+  return String(value ?? "").trim().toUpperCase();
 }
 
-function getEstatusNombre(estatus: number, estatuses: CatalogoOption[]) {
-  return estatuses.find((x) => x.id === estatus)?.nombre ?? `Estatus ${estatus}`;
+function formatEnumLabel(value: unknown): string {
+  const text = String(value ?? "").trim();
+  if (!text) return "—";
+
+  return text
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function formatDate(value?: string | null): string {
+  if (!value) return "—";
+
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return new Intl.DateTimeFormat("es-MX", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
+}
+
+function findCatalogOption(
+  value: string | number | null | undefined,
+  options: CatalogoOption[]
+): CatalogoOption | undefined {
+  if (value === null || value === undefined || value === "") return undefined;
+
+  const normalizedString = normalizeEnumValue(value);
+  const numericValue = Number(value);
+
+  return options.find(
+    (x) =>
+      x.id === numericValue ||
+      normalizeEnumValue(x.clave) === normalizedString ||
+      normalizeEnumValue(x.nombre) === normalizedString
+  );
+}
+
+function getCatalogSelectValue(
+  value: string | number | null | undefined,
+  options: CatalogoOption[]
+): string {
+  const match = findCatalogOption(value, options);
+  return match ? String(match.id) : value ? String(value) : "";
+}
+
+function getTipoNombre(tipo: string | number, tipos: CatalogoOption[]): string {
+  return findCatalogOption(tipo, tipos)?.nombre ?? formatEnumLabel(tipo);
+}
+
+function getEstatusNombre(
+  estatus: string | number,
+  estatuses: CatalogoOption[]
+): string {
+  return findCatalogOption(estatus, estatuses)?.nombre ?? formatEnumLabel(estatus);
 }
 
 function estatusChipColor(
-  estatus: number
+  estatus: string | number
 ): "default" | "warning" | "success" | "error" {
-  if (estatus === 1) return "warning";
-  if (estatus === 2) return "success";
-  if (estatus === 3) return "error";
+  const normalized = normalizeEnumValue(estatus);
+
+  if (normalized === "1" || normalized === "PENDIENTE") return "warning";
+  if (normalized === "2" || normalized === "APROBADA") return "success";
+  if (normalized === "3" || normalized === "RECHAZADA") return "error";
   return "default";
 }
 
-function toForm(item: Incidencia): FormState {
+function isPendienteValue(estatus: string | number): boolean {
+  const normalized = normalizeEnumValue(estatus);
+  return normalized === "1" || normalized === "PENDIENTE";
+}
+
+function toForm(item: Incidencia, tipos: CatalogoOption[]): FormState {
   return {
     empleadoId: String(item.empleadoId),
     sucursalId: item.sucursalId ? String(item.sucursalId) : "",
-    tipo: String(item.tipo),
+    tipo: getCatalogSelectValue(item.tipo as string | number, tipos),
     fechaInicio: item.fechaInicio,
     fechaFin: item.fechaFin,
     comentario: item.comentario ?? "",
@@ -123,6 +194,58 @@ function getErrorMessage(error: any, fallback: string) {
     error?.response?.data?.title ||
     error?.message ||
     fallback
+  );
+}
+
+type SummaryCardProps = {
+  title: string;
+  value: number;
+  subtitle: string;
+  icon: React.ReactNode;
+};
+
+function SummaryCard({ title, value, subtitle, icon }: SummaryCardProps) {
+  return (
+    <Card
+      elevation={0}
+      sx={{
+        borderRadius: 3,
+        border: "1px solid",
+        borderColor: "divider",
+        height: "100%",
+      }}
+    >
+      <CardContent>
+        <Stack direction="row" justifyContent="space-between" spacing={2}>
+          <Box>
+            <Typography variant="body2" color="text.secondary">
+              {title}
+            </Typography>
+            <Typography variant="h4" fontWeight={800} sx={{ mt: 0.75, lineHeight: 1 }}>
+              {value}
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              {subtitle}
+            </Typography>
+          </Box>
+
+          <Box
+            sx={{
+              width: 44,
+              height: 44,
+              borderRadius: 2.5,
+              display: "grid",
+              placeItems: "center",
+              bgcolor: "action.hover",
+              color: "text.secondary",
+              flexShrink: 0,
+            }}
+          >
+            {icon}
+          </Box>
+        </Stack>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -139,6 +262,11 @@ export default function IncidenciasPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Incidencia | null>(null);
   const [form, setForm] = useState<FormState>(initialForm);
+
+  const [evidenciaOpen, setEvidenciaOpen] = useState(false);
+  const [selectedIncidencia, setSelectedIncidencia] = useState<Incidencia | null>(
+    null
+  );
 
   const [filters, setFilters] = useState({
     empleadoId: "",
@@ -170,6 +298,25 @@ export default function IncidenciasPage() {
       })),
     [empleados]
   );
+
+  const summary = useMemo(() => {
+    const pendientes = items.filter((x) =>
+      isPendienteValue(x.estatus as string | number)
+    ).length;
+
+    const aprobadas = items.filter(
+      (x) => normalizeEnumValue(x.estatus) === "APROBADA"
+    ).length;
+
+    const conEvidencia = items.filter((x) => x.tieneEvidencia).length;
+
+    return {
+      total: items.length,
+      pendientes,
+      aprobadas,
+      conEvidencia,
+    };
+  }, [items]);
 
   function notify(severity: "success" | "error" | "info", message: string) {
     setSnackbar({ open: true, severity, message });
@@ -234,6 +381,14 @@ export default function IncidenciasPage() {
   async function loadItems(currentFilters = filters) {
     setLoading(true);
     try {
+      const tipoSeleccionado = currentFilters.tipo
+        ? findCatalogOption(currentFilters.tipo, tipos)
+        : undefined;
+
+      const estatusSeleccionado = currentFilters.estatus
+        ? findCatalogOption(currentFilters.estatus, estatuses)
+        : undefined;
+
       const query: IncidenciaQuery = {
         empleadoId: currentFilters.empleadoId
           ? Number(currentFilters.empleadoId)
@@ -241,10 +396,9 @@ export default function IncidenciasPage() {
         sucursalId: currentFilters.sucursalId
           ? Number(currentFilters.sucursalId)
           : undefined,
-        tipo: currentFilters.tipo ? Number(currentFilters.tipo) : undefined,
-        estatus: currentFilters.estatus
-          ? Number(currentFilters.estatus)
-          : undefined,
+        tipo: (tipoSeleccionado?.clave as IncidenciaQuery["tipo"]) ?? undefined,
+        estatus:
+          (estatusSeleccionado?.clave as IncidenciaQuery["estatus"]) ?? undefined,
         fechaDesde: currentFilters.fechaDesde || undefined,
         fechaHasta: currentFilters.fechaHasta || undefined,
         soloPendientes: currentFilters.soloPendientes || undefined,
@@ -278,7 +432,7 @@ export default function IncidenciasPage() {
 
   function openEdit(item: Incidencia) {
     setEditing(item);
-    setForm(toForm(item));
+    setForm(toForm(item, tipos));
     setDialogOpen(true);
   }
 
@@ -293,16 +447,60 @@ export default function IncidenciasPage() {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  function handleOpenEvidencia(item: Incidencia) {
+    setSelectedIncidencia(item);
+    setEvidenciaOpen(true);
+  }
+
+  function handleEvidenciaChanged(payload: {
+    incidenciaId: number;
+    evidencia: IncidenciaEvidencia | null;
+  }) {
+    setItems((prev) =>
+      prev.map((item) =>
+        item.id !== payload.incidenciaId
+          ? item
+          : {
+              ...item,
+              tieneEvidencia: !!payload.evidencia,
+              evidenciaNombreOriginal:
+                payload.evidencia?.evidenciaNombreOriginal ?? null,
+              evidenciaContentType:
+                payload.evidencia?.evidenciaContentType ?? null,
+              evidenciaTamanoBytes:
+                payload.evidencia?.evidenciaTamanoBytes ?? null,
+            }
+      )
+    );
+
+    setSelectedIncidencia((prev) =>
+      prev && prev.id === payload.incidenciaId
+        ? {
+            ...prev,
+            tieneEvidencia: !!payload.evidencia,
+            evidenciaNombreOriginal:
+              payload.evidencia?.evidenciaNombreOriginal ?? null,
+            evidenciaContentType:
+              payload.evidencia?.evidenciaContentType ?? null,
+            evidenciaTamanoBytes:
+              payload.evidencia?.evidenciaTamanoBytes ?? null,
+          }
+        : prev
+    );
+  }
+
   async function handleSave() {
     if (!form.empleadoId || !form.tipo || !form.fechaInicio || !form.fechaFin) {
       notify("error", "Empleado, tipo y rango de fechas son obligatorios.");
       return;
     }
 
+    const tipoSeleccionado = findCatalogOption(form.tipo, tipos);
+
     const payload: SaveIncidenciaInput = {
       empleadoId: Number(form.empleadoId),
       sucursalId: form.sucursalId ? Number(form.sucursalId) : null,
-      tipo: Number(form.tipo),
+      tipo: ((tipoSeleccionado?.clave ?? form.tipo) as unknown) as SaveIncidenciaInput["tipo"],
       fechaInicio: form.fechaInicio,
       fechaFin: form.fechaFin,
       comentario: form.comentario?.trim() || null,
@@ -368,24 +566,23 @@ export default function IncidenciasPage() {
   }
 
   return (
-    <Box>
+    <Box sx={{ display: "grid", gap: 3 }}>
       <Stack
         direction={{ xs: "column", md: "row" }}
         justifyContent="space-between"
         alignItems={{ xs: "stretch", md: "center" }}
         spacing={2}
-        sx={{ mb: 3 }}
       >
         <Box>
           <Typography variant="h4" fontWeight={800}>
             Incidencias
           </Typography>
           <Typography variant="body1" color="text.secondary">
-            Control de incidencias y asistencias MVP.
+            Control de incidencias y asistencias con evidencia documental.
           </Typography>
         </Box>
 
-        <Stack direction="row" spacing={1}>
+        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
           <Button
             variant="outlined"
             startIcon={<RefreshIcon />}
@@ -393,21 +590,69 @@ export default function IncidenciasPage() {
           >
             Recargar
           </Button>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={openCreate}
-          >
+          <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
             Nueva incidencia
           </Button>
         </Stack>
       </Stack>
 
-      <Card sx={{ mb: 3 }}>
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: {
+            xs: "1fr",
+            sm: "repeat(2, 1fr)",
+            xl: "repeat(4, 1fr)",
+          },
+          gap: 2,
+        }}
+      >
+        <SummaryCard
+          title="Total"
+          value={summary.total}
+          subtitle="Incidencias visibles"
+          icon={<PeopleAltRoundedIcon fontSize="small" />}
+        />
+        <SummaryCard
+          title="Pendientes"
+          value={summary.pendientes}
+          subtitle="Esperando revisión"
+          icon={<PendingActionsRoundedIcon fontSize="small" />}
+        />
+        <SummaryCard
+          title="Aprobadas"
+          value={summary.aprobadas}
+          subtitle="Ya resueltas"
+          icon={<TaskAltRoundedIcon fontSize="small" />}
+        />
+        <SummaryCard
+          title="Con evidencia"
+          value={summary.conEvidencia}
+          subtitle="Con archivo adjunto"
+          icon={<DescriptionRoundedIcon fontSize="small" />}
+        />
+      </Box>
+
+      <Card>
         <CardContent>
-          <Typography variant="h6" sx={{ mb: 2 }}>
-            Filtros
-          </Typography>
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            spacing={1}
+            alignItems={{ xs: "flex-start", sm: "center" }}
+            sx={{ mb: 2 }}
+          >
+            <FilterAltOutlinedIcon fontSize="small" />
+            <Box>
+              <Typography variant="h6" fontWeight={700}>
+                Filtros
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Refina el listado por empleado, sucursal, tipo, estatus o fechas.
+              </Typography>
+            </Box>
+          </Stack>
+
+          <Divider sx={{ mb: 2 }} />
 
           <Box
             sx={{
@@ -543,7 +788,13 @@ export default function IncidenciasPage() {
               />
             </Box>
 
-            <Box sx={{ gridColumn: { xs: "span 1", md: "span 2" } }}>
+            <Box
+              sx={{
+                gridColumn: { xs: "span 1", md: "span 2" },
+                display: "flex",
+                alignItems: "center",
+              }}
+            >
               <FormControlLabel
                 control={
                   <Switch
@@ -561,7 +812,7 @@ export default function IncidenciasPage() {
             </Box>
 
             <Box sx={{ gridColumn: { xs: "span 1", md: "span 12" } }}>
-              <Stack direction="row" spacing={1}>
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                 <Button variant="contained" onClick={applyFilters}>
                   Aplicar filtros
                 </Button>
@@ -576,9 +827,30 @@ export default function IncidenciasPage() {
 
       <Card>
         <CardContent>
-          <Typography variant="h6" sx={{ mb: 2 }}>
-            Listado
-          </Typography>
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            justifyContent="space-between"
+            alignItems={{ xs: "flex-start", sm: "center" }}
+            spacing={1}
+            sx={{ mb: 2 }}
+          >
+            <Box>
+              <Typography variant="h6" fontWeight={700}>
+                Listado
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Revisa estatus, evidencia y acciones disponibles por incidencia.
+              </Typography>
+            </Box>
+
+            <Chip
+              label={`${items.length} registros`}
+              size="small"
+              variant="outlined"
+            />
+          </Stack>
+
+          <Divider sx={{ mb: 2 }} />
 
           {loading ? (
             <Box sx={{ py: 6, display: "flex", justifyContent: "center" }}>
@@ -597,49 +869,148 @@ export default function IncidenciasPage() {
                     <TableCell>Empleado</TableCell>
                     <TableCell>Sucursal</TableCell>
                     <TableCell>Tipo</TableCell>
-                    <TableCell>Fecha inicio</TableCell>
-                    <TableCell>Fecha fin</TableCell>
+                    <TableCell>Periodo</TableCell>
                     <TableCell>Estatus</TableCell>
+                    <TableCell>Evidencia</TableCell>
                     <TableCell>Comentario</TableCell>
                     <TableCell align="right">Acciones</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {items.map((item) => {
-                    const isPendiente = item.estatus === 1;
+                    const isPendiente = isPendienteValue(
+                      item.estatus as string | number
+                    );
 
                     return (
-                      <TableRow key={item.id} hover>
-                        <TableCell>{item.id}</TableCell>
-                        <TableCell>{item.empleadoNombre}</TableCell>
+                      <TableRow
+                        key={item.id}
+                        hover
+                        sx={{
+                          backgroundColor: isPendiente
+                            ? "rgba(255, 244, 229, 0.35)"
+                            : "transparent",
+                        }}
+                      >
+                        <TableCell>
+                          <Typography fontWeight={700}>#{item.id}</Typography>
+                        </TableCell>
+
+                        <TableCell>
+                          <Stack spacing={0.25}>
+                            <Typography fontWeight={600}>
+                              {item.empleadoNombre}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              Empleado #{item.empleadoId}
+                            </Typography>
+                          </Stack>
+                        </TableCell>
+
                         <TableCell>{item.sucursalNombre ?? "—"}</TableCell>
-                        <TableCell>{getTipoNombre(item.tipo, tipos)}</TableCell>
-                        <TableCell>{item.fechaInicio}</TableCell>
-                        <TableCell>{item.fechaFin}</TableCell>
+
+                        <TableCell>
+                          {getTipoNombre(item.tipo as string | number, tipos)}
+                        </TableCell>
+
+                        <TableCell>
+                          <Stack spacing={0.25}>
+                            <Typography variant="body2">
+                              Inicio: {formatDate(item.fechaInicio)}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              Fin: {formatDate(item.fechaFin)}
+                            </Typography>
+                          </Stack>
+                        </TableCell>
+
                         <TableCell>
                           <Chip
                             size="small"
-                            label={getEstatusNombre(item.estatus, estatuses)}
-                            color={estatusChipColor(item.estatus)}
+                            label={getEstatusNombre(
+                              item.estatus as string | number,
+                              estatuses
+                            )}
+                            color={estatusChipColor(item.estatus as string | number)}
                           />
                         </TableCell>
-                        <TableCell>{item.comentario || "—"}</TableCell>
+
+                        <TableCell>
+                          <Stack spacing={0.5}>
+                            <Chip
+                              size="small"
+                              color={item.tieneEvidencia ? "success" : "default"}
+                              variant={item.tieneEvidencia ? "filled" : "outlined"}
+                              label={
+                                item.tieneEvidencia
+                                  ? "Con evidencia"
+                                  : "Sin evidencia"
+                              }
+                            />
+                            {item.tieneEvidencia && item.evidenciaNombreOriginal ? (
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                sx={{
+                                  display: "block",
+                                  maxWidth: 180,
+                                  whiteSpace: "nowrap",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                }}
+                                title={item.evidenciaNombreOriginal}
+                              >
+                                {item.evidenciaNombreOriginal}
+                              </Typography>
+                            ) : null}
+                          </Stack>
+                        </TableCell>
+
+                        <TableCell sx={{ maxWidth: 260 }}>
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              display: "-webkit-box",
+                              WebkitLineClamp: 3,
+                              WebkitBoxOrient: "vertical",
+                              overflow: "hidden",
+                            }}
+                          >
+                            {item.comentario || "—"}
+                          </Typography>
+                        </TableCell>
+
                         <TableCell align="right">
                           <Stack
                             direction="row"
                             spacing={1}
                             justifyContent="flex-end"
                             flexWrap="wrap"
+                            useFlexGap
                           >
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              startIcon={<AttachFileRoundedIcon />}
+                              onClick={() => handleOpenEvidencia(item)}
+                              sx={{ textTransform: "none", fontWeight: 700 }}
+                            >
+                              {item.tieneEvidencia
+                                ? "Gestionar evidencia"
+                                : "Subir evidencia"}
+                            </Button>
+
                             <Button
                               size="small"
                               variant="outlined"
                               startIcon={<EditIcon />}
                               onClick={() => openEdit(item)}
                               disabled={!isPendiente}
+                              sx={{ textTransform: "none", fontWeight: 700 }}
                             >
                               Editar
                             </Button>
+
                             <Button
                               size="small"
                               color="success"
@@ -647,9 +1018,11 @@ export default function IncidenciasPage() {
                               startIcon={<CheckCircleOutlineIcon />}
                               onClick={() => handleApprove(item)}
                               disabled={!isPendiente}
+                              sx={{ textTransform: "none", fontWeight: 700 }}
                             >
                               Aprobar
                             </Button>
+
                             <Button
                               size="small"
                               color="error"
@@ -657,6 +1030,7 @@ export default function IncidenciasPage() {
                               startIcon={<CloseIcon />}
                               onClick={() => handleReject(item)}
                               disabled={!isPendiente}
+                              sx={{ textTransform: "none", fontWeight: 700 }}
                             >
                               Rechazar
                             </Button>
@@ -785,6 +1159,13 @@ export default function IncidenciasPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <IncidenciaEvidenciaDialog
+        open={evidenciaOpen}
+        incidencia={selectedIncidencia}
+        onClose={() => setEvidenciaOpen(false)}
+        onChanged={handleEvidenciaChanged}
+      />
 
       <Snackbar
         open={snackbar.open}

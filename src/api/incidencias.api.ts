@@ -12,20 +12,31 @@ export type Incidencia = {
   empleadoNombre: string;
   sucursalId?: number | null;
   sucursalNombre?: string | null;
-  tipo: number;
+  tipo: string;
   fechaInicio: string;
   fechaFin: string;
   comentario?: string | null;
-  estatus: number;
+  estatus: string;
+  tieneEvidencia: boolean;
+  evidenciaNombreOriginal?: string | null;
+  evidenciaContentType?: string | null;
+  evidenciaTamanoBytes?: number | null;
   createdAtUtc: string;
   updatedAtUtc: string;
+};
+
+export type IncidenciaEvidencia = {
+  tieneEvidencia: boolean;
+  evidenciaNombreOriginal?: string | null;
+  evidenciaContentType?: string | null;
+  evidenciaTamanoBytes?: number | null;
 };
 
 export type IncidenciaQuery = {
   empleadoId?: number;
   sucursalId?: number;
-  tipo?: number;
-  estatus?: number;
+  tipo?: string;
+  estatus?: string;
   fechaDesde?: string;
   fechaHasta?: string;
   soloPendientes?: boolean;
@@ -34,7 +45,7 @@ export type IncidenciaQuery = {
 export type SaveIncidenciaInput = {
   empleadoId: number;
   sucursalId?: number | null;
-  tipo: number;
+  tipo: string;
   fechaInicio: string;
   fechaFin: string;
   comentario?: string | null;
@@ -75,10 +86,7 @@ export async function updateIncidencia(
   id: number,
   input: SaveIncidenciaInput
 ): Promise<Incidencia> {
-  const { data } = await api.put<Incidencia>(
-    `/api/Incidencias/${id}`,
-    input
-  );
+  const { data } = await api.put<Incidencia>(`/api/Incidencias/${id}`, input);
   return data;
 }
 
@@ -102,4 +110,53 @@ export async function getEstatusIncidencia(): Promise<CatalogoOption[]> {
     "/api/Incidencias/catalogos/estatus"
   );
   return data;
+}
+
+export async function uploadIncidenciaEvidencia(
+  id: number,
+  file: File
+): Promise<IncidenciaEvidencia> {
+  const formData = new FormData();
+  formData.append("archivo", file);
+
+  const { data } = await api.post<IncidenciaEvidencia>(
+    `/api/Incidencias/${id}/evidencia`,
+    formData,
+    {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    }
+  );
+
+  return data;
+}
+
+export async function downloadIncidenciaEvidencia(id: number): Promise<Blob> {
+  const { data } = await api.get(`/api/Incidencias/${id}/evidencia`, {
+    responseType: "blob",
+  });
+
+  return data;
+}
+
+export async function deleteIncidenciaEvidencia(id: number): Promise<void> {
+  await api.delete(`/api/Incidencias/${id}/evidencia`);
+}
+
+export async function saveIncidenciaEvidenciaToDisk(
+  id: number,
+  fileName = "evidencia"
+): Promise<void> {
+  const blob = await downloadIncidenciaEvidencia(id);
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+
+  window.URL.revokeObjectURL(url);
 }
