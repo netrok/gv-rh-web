@@ -7,6 +7,7 @@ import DepartamentosPage from "./pages/DepartamentosPage";
 import PuestosPage from "./pages/PuestosPage";
 import EmpleadosPage from "./pages/EmpleadosPage";
 import SucursalesPage from "./pages/SucursalesPage";
+import IncidenciasPage from "./pages/IncidenciasPage";
 import RequireAuth from "./features/auth/RequireAuth";
 import RoleGuard from "./features/auth/RoleGuard";
 import ForbiddenPage from "./pages/ForbiddenPage";
@@ -93,6 +94,19 @@ export default function App() {
               allow={["ADMIN", "RRHH"]}
             >
               <EmpleadosPage />
+            </RoleGuard>
+          }
+        />
+
+        <Route
+          path="/incidencias"
+          element={
+            <RoleGuard
+              isAuthenticated={isAuthenticated}
+              userRoles={roles}
+              allow={["ADMIN", "RRHH"]}
+            >
+              <IncidenciasPage />
             </RoleGuard>
           }
         />

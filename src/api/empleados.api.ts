@@ -48,17 +48,27 @@ function normalizeEmpleados(payload: EmpleadoListEnvelope): Empleado[] {
   return payload.items ?? payload.data ?? [];
 }
 
-export async function getEmpleados() {
+export async function getEmpleados(): Promise<Empleado[]> {
   const { data } = await api.get<EmpleadoListEnvelope>("/api/Empleados");
   return normalizeEmpleados(data);
 }
 
-export async function createEmpleado(input: SaveEmpleadoInput) {
+export async function getEmpleadoById(id: number): Promise<Empleado> {
+  const { data } = await api.get<Empleado>(`/api/Empleados/${id}`);
+  return data;
+}
+
+export async function createEmpleado(
+  input: SaveEmpleadoInput
+): Promise<Empleado> {
   const { data } = await api.post<Empleado>("/api/Empleados", input);
   return data;
 }
 
-export async function updateEmpleado(id: number, input: SaveEmpleadoInput) {
+export async function updateEmpleado(
+  id: number,
+  input: SaveEmpleadoInput
+): Promise<Empleado> {
   const { data } = await api.put<Empleado>(`/api/Empleados/${id}`, input);
   return data;
 }

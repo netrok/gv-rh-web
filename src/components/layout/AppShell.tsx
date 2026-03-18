@@ -18,6 +18,7 @@ import GavelRoundedIcon from "@mui/icons-material/GavelRounded";
 import ApartmentRoundedIcon from "@mui/icons-material/ApartmentRounded";
 import WorkOutlineRoundedIcon from "@mui/icons-material/WorkOutlineRounded";
 import BadgeRoundedIcon from "@mui/icons-material/BadgeRounded";
+import EventNoteRoundedIcon from "@mui/icons-material/EventNoteRounded";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
 import ShieldRoundedIcon from "@mui/icons-material/ShieldRounded";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
@@ -67,6 +68,12 @@ const menuItems: MenuItemConfig[] = [
     label: "Empleados",
     to: "/empleados",
     icon: <BadgeRoundedIcon fontSize="small" />,
+    allow: ["ADMIN", "RRHH"],
+  },
+  {
+    label: "Incidencias",
+    to: "/incidencias",
+    icon: <EventNoteRoundedIcon fontSize="small" />,
     allow: ["ADMIN", "RRHH"],
   },
 ];
