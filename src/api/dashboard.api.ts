@@ -10,6 +10,33 @@ export type DashboardStats = {
   recentAudit: AuditItem[];
 };
 
+export type DashboardCountBy = {
+  nombre: string;
+  total: number;
+};
+
+export type DashboardIncidenciaReciente = {
+  id: number;
+  empleadoId: number;
+  numEmpleado: string;
+  empleadoNombre: string;
+  tipo: string;
+  estatus: string;
+  fechaInicio: string;
+  fechaFin?: string | null;
+  createdAtUtc: string;
+};
+
+export type DashboardData = {
+  empleadosActivos: number;
+  sucursalesActivas: number;
+  incidenciasPendientes: number;
+  incidenciasMes: number;
+  incidenciasPorTipo: DashboardCountBy[];
+  incidenciasPorEstatus: DashboardCountBy[];
+  incidenciasRecientes: DashboardIncidenciaReciente[];
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -85,4 +112,9 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     auditoriaTotal: auditPage.total ?? 0,
     recentAudit: auditPage.items ?? [],
   };
+}
+
+export async function getDashboard(): Promise<DashboardData> {
+  const { data } = await api.get<DashboardData>("/api/Dashboard");
+  return data;
 }

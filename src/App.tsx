@@ -31,7 +31,18 @@ export default function App() {
       >
         <Route index element={<Navigate to="/dashboard" replace />} />
 
-        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route
+          path="/dashboard"
+          element={
+            <RoleGuard
+              isAuthenticated={isAuthenticated}
+              userRoles={roles}
+              allow={["ADMIN", "RRHH"]}
+            >
+              <DashboardPage />
+            </RoleGuard>
+          }
+        />
 
         <Route
           path="/sucursales"
