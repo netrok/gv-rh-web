@@ -26,6 +26,7 @@ import {
   TableHead,
   TableRow,
   TextField,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
@@ -39,6 +40,9 @@ import PendingActionsRoundedIcon from "@mui/icons-material/PendingActionsRounded
 import TaskAltRoundedIcon from "@mui/icons-material/TaskAltRounded";
 import DescriptionRoundedIcon from "@mui/icons-material/DescriptionRounded";
 import PeopleAltRoundedIcon from "@mui/icons-material/PeopleAltRounded";
+import InsertDriveFileRoundedIcon from "@mui/icons-material/InsertDriveFileRounded";
+import ImageRoundedIcon from "@mui/icons-material/ImageRounded";
+import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded";
 
 import IncidenciaEvidenciaDialog from "../components/IncidenciaEvidenciaDialog";
 import ConfirmActionDialog from "../components/ui/ConfirmActionDialog";
@@ -133,6 +137,21 @@ function formatDate(value?: string | null): string {
   }).format(date);
 }
 
+function formatBytes(value?: number | null): string {
+  if (!value || value <= 0) return "-";
+
+  const units = ["B", "KB", "MB", "GB"];
+  let size = value;
+  let unitIndex = 0;
+
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+
+  return `${size.toFixed(size >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+}
+
 function findCatalogOption(
   value: string | number | null | undefined,
   options: CatalogoOption[]
@@ -185,6 +204,41 @@ function isPendienteValue(estatus: string | number): boolean {
   return normalized === "1" || normalized === "PENDIENTE";
 }
 
+function getEvidenceKind(item: Incidencia): "image" | "pdf" | "file" {
+  const contentType = (item.evidenciaContentType ?? "").toLowerCase();
+  const fileName = (item.evidenciaNombreOriginal ?? "").toLowerCase();
+
+  if (
+    contentType.startsWith("image/") ||
+    fileName.endsWith(".jpg") ||
+    fileName.endsWith(".jpeg") ||
+    fileName.endsWith(".png") ||
+    fileName.endsWith(".webp")
+  ) {
+    return "image";
+  }
+
+  if (contentType === "application/pdf" || fileName.endsWith(".pdf")) {
+    return "pdf";
+  }
+
+  return "file";
+}
+
+function getEvidenceIcon(item: Incidencia): ReactNode {
+  const kind = getEvidenceKind(item);
+
+  if (kind === "image") {
+    return <ImageRoundedIcon fontSize="small" />;
+  }
+
+  if (kind === "pdf") {
+    return <PictureAsPdfRoundedIcon fontSize="small" />;
+  }
+
+  return <InsertDriveFileRoundedIcon fontSize="small" />;
+}
+
 function toForm(item: Incidencia, tipos: CatalogoOption[]): FormState {
   return {
     empleadoId: String(item.empleadoId),
@@ -229,7 +283,11 @@ function SummaryCard({ title, value, subtitle, icon }: SummaryCardProps) {
             <Typography variant="body2" color="text.secondary">
               {title}
             </Typography>
-            <Typography variant="h4" fontWeight={800} sx={{ mt: 0.75, lineHeight: 1 }}>
+            <Typography
+              variant="h4"
+              fontWeight={800}
+              sx={{ mt: 0.75, lineHeight: 1 }}
+            >
               {value}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
@@ -896,6 +954,7 @@ export default function IncidenciasPage() {
                     <TableCell align="right">Acciones</TableCell>
                   </TableRow>
                 </TableHead>
+
                 <TableBody>
                   {items.map((item) => {
                     const isPendiente = isPendienteValue(item.estatus);
@@ -949,34 +1008,86 @@ export default function IncidenciasPage() {
                         </TableCell>
 
                         <TableCell>
-                          <Stack spacing={0.5}>
-                            <Chip
-                              size="small"
-                              color={item.tieneEvidencia ? "success" : "default"}
-                              variant={item.tieneEvidencia ? "filled" : "outlined"}
-                              label={
-                                item.tieneEvidencia
-                                  ? "Con evidencia"
-                                  : "Sin evidencia"
+                          {item.tieneEvidencia ? (
+                            <Tooltip
+                              arrow
+                              title={
+                                <Box>
+                                  <Typography variant="body2" fontWeight={700}>
+                                    {item.evidenciaNombreOriginal || "Archivo adjunto"}
+                                  </Typography>
+                                  <Typography variant="caption" display="block">
+                                    Tipo: {item.evidenciaContentType || "No disponible"}
+                                  </Typography>
+                                  <Typography variant="caption" display="block">
+                                    Tamaño: {formatBytes(item.evidenciaTamanoBytes)}
+                                  </Typography>
+                                </Box>
                               }
-                            />
-                            {item.tieneEvidencia && item.evidenciaNombreOriginal ? (
-                              <Typography
-                                variant="caption"
-                                color="text.secondary"
+                            >
+                              <Box
+                                onClick={() => handleOpenEvidencia(item)}
                                 sx={{
-                                  display: "block",
-                                  maxWidth: 180,
-                                  whiteSpace: "nowrap",
-                                  overflow: "hidden",
-                                  textOverflow: "ellipsis",
+                                  maxWidth: 220,
+                                  width: "fit-content",
+                                  border: "1px solid",
+                                  borderColor: "divider",
+                                  borderRadius: 2,
+                                  px: 1,
+                                  py: 0.75,
+                                  bgcolor: "success.50",
+                                  cursor: "pointer",
+                                  transition: "all .15s ease",
+                                  "&:hover": {
+                                    borderColor: "success.main",
+                                    boxShadow: "0 2px 10px rgba(0,0,0,0.06)",
+                                  },
                                 }}
-                                title={item.evidenciaNombreOriginal}
                               >
-                                {item.evidenciaNombreOriginal}
-                              </Typography>
-                            ) : null}
-                          </Stack>
+                                <Stack direction="row" spacing={1} alignItems="center">
+                                  <Box
+                                    sx={{
+                                      width: 28,
+                                      height: 28,
+                                      borderRadius: 1.5,
+                                      display: "grid",
+                                      placeItems: "center",
+                                      bgcolor: "background.paper",
+                                      color: "success.main",
+                                      flexShrink: 0,
+                                    }}
+                                  >
+                                    {getEvidenceIcon(item)}
+                                  </Box>
+
+                                  <Box sx={{ minWidth: 0 }}>
+                                    <Typography
+                                      variant="caption"
+                                      fontWeight={700}
+                                      display="block"
+                                    >
+                                      Con evidencia
+                                    </Typography>
+                                    <Typography
+                                      variant="caption"
+                                      color="text.secondary"
+                                      sx={{
+                                        display: "block",
+                                        whiteSpace: "nowrap",
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis",
+                                        maxWidth: 150,
+                                      }}
+                                    >
+                                      {item.evidenciaNombreOriginal || "Archivo"}
+                                    </Typography>
+                                  </Box>
+                                </Stack>
+                              </Box>
+                            </Tooltip>
+                          ) : (
+                            <Chip size="small" variant="outlined" label="Sin evidencia" />
+                          )}
                         </TableCell>
 
                         <TableCell sx={{ maxWidth: 260 }}>
