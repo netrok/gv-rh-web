@@ -46,6 +46,7 @@ import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded";
 
 import IncidenciaEvidenciaDialog from "../components/IncidenciaEvidenciaDialog";
 import ConfirmActionDialog from "../components/ui/ConfirmActionDialog";
+import { useAuth } from "../features/auth/AuthContext";
 import type {
   CatalogoOption,
   Incidencia,
@@ -56,7 +57,11 @@ import type {
 import {
   aprobarIncidencia,
   createIncidencia,
+  downloadBlobFile,
+  exportIncidenciasPdf,
+  exportIncidenciasXlsx,
   getEstatusIncidencia,
+  getFileNameFromDisposition,
   getIncidencias,
   getTiposIncidencia,
   rechazarIncidencia,
@@ -79,12 +84,28 @@ type FormState = {
   comentario: string;
 };
 
+type FiltersState = {
+  empleadoId: string;
+  sucursalId: string;
+  tipo: string;
+  estatus: string;
+  fechaDesde: string;
+  fechaHasta: string;
+  soloPendientes: boolean;
+};
+
 type PendingAction =
   | {
       type: "approve" | "reject";
       item: Incidencia;
     }
   | null;
+
+type SnackbarState = {
+  open: boolean;
+  severity: "success" | "error" | "info" | "warning";
+  message: string;
+};
 
 const initialForm: FormState = {
   empleadoId: "",
@@ -93,6 +114,16 @@ const initialForm: FormState = {
   fechaInicio: "",
   fechaFin: "",
   comentario: "",
+};
+
+const initialFilters: FiltersState = {
+  empleadoId: "",
+  sucursalId: "",
+  tipo: "",
+  estatus: "",
+  fechaDesde: "",
+  fechaHasta: "",
+  soloPendientes: false,
 };
 
 const DEFAULT_TIPOS: CatalogoOption[] = [
@@ -112,6 +143,16 @@ const DEFAULT_ESTATUS: CatalogoOption[] = [
 
 function normalizeEnumValue(value: unknown): string {
   return String(value ?? "").trim().toUpperCase();
+}
+
+function normalizeRoles(roles?: string[] | null): string[] {
+  return (roles ?? []).map((role) => String(role).trim().toUpperCase());
+}
+
+function hasSomeRole(userRoles: string[] | null | undefined, allowed: string[]) {
+  const normalizedUserRoles = normalizeRoles(userRoles);
+  const normalizedAllowed = normalizeRoles(allowed);
+  return normalizedAllowed.some((role) => normalizedUserRoles.includes(role));
 }
 
 function formatEnumLabel(value: unknown): string {
@@ -149,7 +190,9 @@ function formatBytes(value?: number | null): string {
     unitIndex += 1;
   }
 
-  return `${size.toFixed(size >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+  return `${size.toFixed(size >= 10 || unitIndex === 0 ? 0 : 1)} ${
+    units[unitIndex]
+  }`;
 }
 
 function findCatalogOption(
@@ -185,7 +228,9 @@ function getEstatusNombre(
   estatus: string | number,
   estatuses: CatalogoOption[]
 ): string {
-  return findCatalogOption(estatus, estatuses)?.nombre ?? formatEnumLabel(estatus);
+  return (
+    findCatalogOption(estatus, estatuses)?.nombre ?? formatEnumLabel(estatus)
+  );
 }
 
 function estatusChipColor(
@@ -228,13 +273,8 @@ function getEvidenceKind(item: Incidencia): "image" | "pdf" | "file" {
 function getEvidenceIcon(item: Incidencia): ReactNode {
   const kind = getEvidenceKind(item);
 
-  if (kind === "image") {
-    return <ImageRoundedIcon fontSize="small" />;
-  }
-
-  if (kind === "pdf") {
-    return <PictureAsPdfRoundedIcon fontSize="small" />;
-  }
+  if (kind === "image") return <ImageRoundedIcon fontSize="small" />;
+  if (kind === "pdf") return <PictureAsPdfRoundedIcon fontSize="small" />;
 
   return <InsertDriveFileRoundedIcon fontSize="small" />;
 }
@@ -250,13 +290,34 @@ function toForm(item: Incidencia, tipos: CatalogoOption[]): FormState {
   };
 }
 
-function getErrorMessage(error: any, fallback: string) {
+function getErrorMessage(error: unknown, fallback: string) {
+  const typed = error as {
+    message?: string;
+    response?: {
+      data?: {
+        message?: string;
+        title?: string;
+      };
+    };
+  };
+
   return (
-    error?.response?.data?.message ||
-    error?.response?.data?.title ||
-    error?.message ||
+    typed?.response?.data?.message ||
+    typed?.response?.data?.title ||
+    typed?.message ||
     fallback
   );
+}
+
+function normalizeIncidenciasResponse(data: unknown): Incidencia[] {
+  if (Array.isArray(data)) return data;
+
+  const typed = data as { items?: unknown };
+  if (Array.isArray(typed?.items)) {
+    return typed.items as Incidencia[];
+  }
+
+  return [];
 }
 
 type SummaryCardProps = {
@@ -316,15 +377,20 @@ function SummaryCard({ title, value, subtitle, icon }: SummaryCardProps) {
 }
 
 export default function IncidenciasPage() {
+  const { roles: userRoles } = useAuth();
+
   const [items, setItems] = useState<Incidencia[]>([]);
   const [tipos, setTipos] = useState<CatalogoOption[]>(DEFAULT_TIPOS);
   const [estatuses, setEstatuses] = useState<CatalogoOption[]>(DEFAULT_ESTATUS);
   const [empleados, setEmpleados] = useState<Empleado[]>([]);
   const [sucursales, setSucursales] = useState<SucursalLite[]>([]);
 
-  const [loading, setLoading] = useState(true);
+  const [bootstrapping, setBootstrapping] = useState(true);
+  const [loadingList, setLoadingList] = useState(false);
   const [saving, setSaving] = useState(false);
   const [confirmLoading, setConfirmLoading] = useState(false);
+  const [exportingXlsx, setExportingXlsx] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Incidencia | null>(null);
@@ -336,25 +402,25 @@ export default function IncidenciasPage() {
   );
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
 
-  const [filters, setFilters] = useState({
-    empleadoId: "",
-    sucursalId: "",
-    tipo: "",
-    estatus: "",
-    fechaDesde: "",
-    fechaHasta: "",
-    soloPendientes: false,
-  });
+  const [filters, setFilters] = useState<FiltersState>(initialFilters);
 
-  const [snackbar, setSnackbar] = useState<{
-    open: boolean;
-    severity: "success" | "error" | "info";
-    message: string;
-  }>({
+  const [snackbar, setSnackbar] = useState<SnackbarState>({
     open: false,
     severity: "success",
     message: "",
   });
+
+  const canManageIncidencias = hasSomeRole(userRoles, ["ADMIN", "RRHH"]);
+  const canApproveReject = hasSomeRole(userRoles, ["ADMIN", "RRHH"]);
+  const canExport = hasSomeRole(userRoles, ["ADMIN", "RRHH"]);
+
+  const pageBusy =
+    bootstrapping ||
+    loadingList ||
+    saving ||
+    confirmLoading ||
+    exportingXlsx ||
+    exportingPdf;
 
   const empleadoOptions = useMemo(
     () =>
@@ -370,7 +436,9 @@ export default function IncidenciasPage() {
   const summary = useMemo(() => {
     const pendientes = items.filter((x) => isPendienteValue(x.estatus)).length;
     const aprobadas = items.filter(
-      (x) => normalizeEnumValue(x.estatus) === "APROBADA"
+      (x) =>
+        normalizeEnumValue(x.estatus) === "APROBADA" ||
+        normalizeEnumValue(x.estatus) === "2"
     ).length;
     const conEvidencia = items.filter((x) => x.tieneEvidencia).length;
 
@@ -382,8 +450,36 @@ export default function IncidenciasPage() {
     };
   }, [items]);
 
-  function notify(severity: "success" | "error" | "info", message: string) {
+  function notify(severity: SnackbarState["severity"], message: string) {
     setSnackbar({ open: true, severity, message });
+  }
+
+  function closeSnackbar() {
+    setSnackbar((prev) => ({ ...prev, open: false }));
+  }
+
+  function buildQueryFromFilters(currentFilters = filters): IncidenciaQuery {
+    const tipoSeleccionado = currentFilters.tipo
+      ? findCatalogOption(currentFilters.tipo, tipos)
+      : undefined;
+
+    const estatusSeleccionado = currentFilters.estatus
+      ? findCatalogOption(currentFilters.estatus, estatuses)
+      : undefined;
+
+    return {
+      empleadoId: currentFilters.empleadoId
+        ? Number(currentFilters.empleadoId)
+        : undefined,
+      sucursalId: currentFilters.sucursalId
+        ? Number(currentFilters.sucursalId)
+        : undefined,
+      tipo: tipoSeleccionado?.clave ?? undefined,
+      estatus: estatusSeleccionado?.clave ?? undefined,
+      fechaDesde: currentFilters.fechaDesde || undefined,
+      fechaHasta: currentFilters.fechaHasta || undefined,
+      soloPendientes: currentFilters.soloPendientes || undefined,
+    };
   }
 
   async function loadCatalogs() {
@@ -400,8 +496,8 @@ export default function IncidenciasPage() {
 
     if (tiposResult.status === "fulfilled" && Array.isArray(tiposResult.value)) {
       setTipos(tiposResult.value);
-    } else {
-      console.error("Error cargando tipos de incidencia:", tiposResult);
+    } else if (tiposResult.status === "rejected") {
+      console.error("Error cargando tipos de incidencia:", tiposResult.reason);
     }
 
     if (
@@ -409,33 +505,36 @@ export default function IncidenciasPage() {
       Array.isArray(estatusResult.value)
     ) {
       setEstatuses(estatusResult.value);
-    } else {
-      console.error("Error cargando estatus de incidencia:", estatusResult);
+    } else if (estatusResult.status === "rejected") {
+      console.error(
+        "Error cargando estatus de incidencia:",
+        estatusResult.reason
+      );
     }
 
     if (empleadosResult.status === "fulfilled") {
-      const empleadosData = empleadosResult.value as any;
-      setEmpleados(
-        Array.isArray(empleadosData)
-          ? empleadosData
-          : Array.isArray(empleadosData?.items)
-          ? empleadosData.items
-          : []
-      );
+      const empleadosData = empleadosResult.value as unknown;
+      const empleadosList = Array.isArray(empleadosData)
+        ? (empleadosData as Empleado[])
+        : Array.isArray((empleadosData as { items?: unknown[] })?.items)
+        ? ((empleadosData as { items: Empleado[] }).items ?? [])
+        : [];
+
+      setEmpleados(empleadosList);
     } else {
       console.error("Error cargando empleados:", empleadosResult.reason);
       setEmpleados([]);
     }
 
     if (sucursalesResult.status === "fulfilled") {
-      const sucursalesData = sucursalesResult.value as any;
-      setSucursales(
-        Array.isArray(sucursalesData)
-          ? (sucursalesData as SucursalLite[])
-          : Array.isArray(sucursalesData?.items)
-          ? (sucursalesData.items as SucursalLite[])
-          : []
-      );
+      const sucursalesData = sucursalesResult.value as unknown;
+      const sucursalesList = Array.isArray(sucursalesData)
+        ? (sucursalesData as SucursalLite[])
+        : Array.isArray((sucursalesData as { items?: unknown[] })?.items)
+        ? ((sucursalesData as { items: SucursalLite[] }).items ?? [])
+        : [];
+
+      setSucursales(sucursalesList);
     } else {
       console.error("Error cargando sucursales:", sucursalesResult.reason);
       setSucursales([]);
@@ -443,47 +542,44 @@ export default function IncidenciasPage() {
   }
 
   async function loadItems(currentFilters = filters) {
-    setLoading(true);
+    setLoadingList(true);
+
     try {
-      const tipoSeleccionado = currentFilters.tipo
-        ? findCatalogOption(currentFilters.tipo, tipos)
-        : undefined;
-
-      const estatusSeleccionado = currentFilters.estatus
-        ? findCatalogOption(currentFilters.estatus, estatuses)
-        : undefined;
-
-      const query: IncidenciaQuery = {
-        empleadoId: currentFilters.empleadoId
-          ? Number(currentFilters.empleadoId)
-          : undefined,
-        sucursalId: currentFilters.sucursalId
-          ? Number(currentFilters.sucursalId)
-          : undefined,
-        tipo: tipoSeleccionado?.clave ?? undefined,
-        estatus: estatusSeleccionado?.clave ?? undefined,
-        fechaDesde: currentFilters.fechaDesde || undefined,
-        fechaHasta: currentFilters.fechaHasta || undefined,
-        soloPendientes: currentFilters.soloPendientes || undefined,
-      };
-
+      const query = buildQueryFromFilters(currentFilters);
       const data = await getIncidencias(query);
-      setItems(data);
-    } catch (error: any) {
+      setItems(normalizeIncidenciasResponse(data));
+    } catch (error) {
       console.error("Error cargando incidencias:", error);
-      notify("error", getErrorMessage(error, "No se pudieron cargar las incidencias."));
+      notify(
+        "error",
+        getErrorMessage(error, "No se pudieron cargar las incidencias.")
+      );
     } finally {
-      setLoading(false);
+      setLoadingList(false);
     }
   }
 
   useEffect(() => {
+    let cancelled = false;
+
     (async () => {
-      setLoading(true);
-      await loadCatalogs();
-      await loadItems();
-      setLoading(false);
+      setBootstrapping(true);
+
+      try {
+        await loadCatalogs();
+        if (!cancelled) {
+          await loadItems(initialFilters);
+        }
+      } finally {
+        if (!cancelled) {
+          setBootstrapping(false);
+        }
+      }
     })();
+
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -513,6 +609,11 @@ export default function IncidenciasPage() {
   function handleOpenEvidencia(item: Incidencia) {
     setSelectedIncidencia(item);
     setEvidenciaOpen(true);
+  }
+
+  function handleCloseEvidencia() {
+    setEvidenciaOpen(false);
+    setSelectedIncidencia(null);
   }
 
   function handleEvidenciaChanged(payload: {
@@ -553,8 +654,18 @@ export default function IncidenciasPage() {
   }
 
   async function handleSave() {
+    if (!canManageIncidencias) {
+      notify("warning", "No tienes permisos para guardar incidencias.");
+      return;
+    }
+
     if (!form.empleadoId || !form.tipo || !form.fechaInicio || !form.fechaFin) {
       notify("error", "Empleado, tipo y rango de fechas son obligatorios.");
+      return;
+    }
+
+    if (form.fechaInicio > form.fechaFin) {
+      notify("error", "La fecha fin no puede ser menor a la fecha inicio.");
       return;
     }
 
@@ -570,6 +681,7 @@ export default function IncidenciasPage() {
     };
 
     setSaving(true);
+
     try {
       if (editing) {
         await updateIncidencia(editing.id, payload);
@@ -579,22 +691,33 @@ export default function IncidenciasPage() {
         notify("success", "Incidencia creada correctamente.");
       }
 
-      setDialogOpen(false);
-      setEditing(null);
-      setForm(initialForm);
-      await loadItems();
-    } catch (error: any) {
-      notify("error", getErrorMessage(error, "No se pudo guardar la incidencia."));
+      closeDialog();
+      await loadItems(filters);
+    } catch (error) {
+      notify(
+        "error",
+        getErrorMessage(error, "No se pudo guardar la incidencia.")
+      );
     } finally {
       setSaving(false);
     }
   }
 
   function requestApprove(item: Incidencia) {
+    if (!canApproveReject) {
+      notify("warning", "No tienes permisos para aprobar incidencias.");
+      return;
+    }
+
     setPendingAction({ type: "approve", item });
   }
 
   function requestReject(item: Incidencia) {
+    if (!canApproveReject) {
+      notify("warning", "No tienes permisos para rechazar incidencias.");
+      return;
+    }
+
     setPendingAction({ type: "reject", item });
   }
 
@@ -613,8 +736,8 @@ export default function IncidenciasPage() {
       }
 
       setPendingAction(null);
-      await loadItems();
-    } catch (error: any) {
+      await loadItems(filters);
+    } catch (error) {
       notify(
         "error",
         getErrorMessage(
@@ -630,21 +753,85 @@ export default function IncidenciasPage() {
   }
 
   async function applyFilters() {
+    if (
+      filters.fechaDesde &&
+      filters.fechaHasta &&
+      filters.fechaDesde > filters.fechaHasta
+    ) {
+      notify("error", "La fecha hasta no puede ser menor a la fecha desde.");
+      return;
+    }
+
     await loadItems(filters);
   }
 
   async function clearFilters() {
-    const next = {
-      empleadoId: "",
-      sucursalId: "",
-      tipo: "",
-      estatus: "",
-      fechaDesde: "",
-      fechaHasta: "",
-      soloPendientes: false,
-    };
-    setFilters(next);
-    await loadItems(next);
+    setFilters(initialFilters);
+    await loadItems(initialFilters);
+  }
+
+  async function handleRefresh() {
+    await loadItems(filters);
+  }
+
+  async function handleExportXlsx() {
+    if (!canExport) {
+      notify("warning", "No tienes permisos para exportar incidencias.");
+      return;
+    }
+
+    try {
+      setExportingXlsx(true);
+
+      const query = buildQueryFromFilters(filters);
+      const response = await exportIncidenciasXlsx(query);
+
+      const fileName = getFileNameFromDisposition(
+        response.headers["content-disposition"],
+        "incidencias.xlsx"
+      );
+
+      downloadBlobFile(response.data, fileName);
+      notify("success", "Excel exportado correctamente.");
+    } catch (error) {
+      console.error("Error exportando Excel:", error);
+      notify(
+        "error",
+        getErrorMessage(error, "No se pudo exportar el Excel de incidencias.")
+      );
+    } finally {
+      setExportingXlsx(false);
+    }
+  }
+
+  async function handleExportPdf() {
+    if (!canExport) {
+      notify("warning", "No tienes permisos para exportar incidencias.");
+      return;
+    }
+
+    try {
+      setExportingPdf(true);
+
+      const query = buildQueryFromFilters(filters);
+      const response = await exportIncidenciasPdf(query);
+
+      const fileName = getFileNameFromDisposition(
+        response.headers["content-disposition"],
+        "incidencias.pdf"
+      );
+
+      downloadBlobFile(response.data, fileName);
+      notify("success", "PDF exportado correctamente.");
+    } catch (error) {
+      console.error("Error exportando PDF:", error);
+      notify(
+        "error",
+        getErrorMessage(error, "No se pudo exportar el PDF de incidencias.")
+      );
+    } finally {
+      setExportingPdf(false);
+    }
   }
 
   return (
@@ -667,14 +854,59 @@ export default function IncidenciasPage() {
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
           <Button
             variant="outlined"
-            startIcon={<RefreshIcon />}
-            onClick={() => loadItems()}
+            startIcon={
+              loadingList ? <CircularProgress size={18} /> : <RefreshIcon />
+            }
+            onClick={handleRefresh}
+            disabled={pageBusy}
           >
-            Recargar
+            {loadingList ? "Recargando..." : "Recargar"}
           </Button>
-          <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
-            Nueva incidencia
-          </Button>
+
+          {canExport && (
+            <Button
+              variant="outlined"
+              startIcon={
+                exportingXlsx ? (
+                  <CircularProgress size={18} />
+                ) : (
+                  <DescriptionRoundedIcon />
+                )
+              }
+              onClick={handleExportXlsx}
+              disabled={pageBusy}
+            >
+              {exportingXlsx ? "Exportando Excel..." : "Exportar Excel"}
+            </Button>
+          )}
+
+          {canExport && (
+            <Button
+              variant="outlined"
+              startIcon={
+                exportingPdf ? (
+                  <CircularProgress size={18} />
+                ) : (
+                  <PictureAsPdfRoundedIcon />
+                )
+              }
+              onClick={handleExportPdf}
+              disabled={pageBusy}
+            >
+              {exportingPdf ? "Exportando PDF..." : "Exportar PDF"}
+            </Button>
+          )}
+
+          {canManageIncidencias && (
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={openCreate}
+              disabled={pageBusy}
+            >
+              Nueva incidencia
+            </Button>
+          )}
         </Stack>
       </Stack>
 
@@ -895,10 +1127,21 @@ export default function IncidenciasPage() {
 
             <Box sx={{ gridColumn: { xs: "span 1", md: "span 12" } }}>
               <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                <Button variant="contained" onClick={applyFilters}>
-                  Aplicar filtros
+                <Button
+                  variant="contained"
+                  onClick={applyFilters}
+                  disabled={pageBusy}
+                  startIcon={
+                    loadingList ? <CircularProgress size={18} /> : undefined
+                  }
+                >
+                  {loadingList ? "Aplicando..." : "Aplicar filtros"}
                 </Button>
-                <Button variant="outlined" onClick={clearFilters}>
+                <Button
+                  variant="outlined"
+                  onClick={clearFilters}
+                  disabled={pageBusy}
+                >
                   Limpiar
                 </Button>
               </Stack>
@@ -925,19 +1168,25 @@ export default function IncidenciasPage() {
               </Typography>
             </Box>
 
-            <Chip label={`${items.length} registros`} size="small" variant="outlined" />
+            <Chip
+              label={`${items.length} registros`}
+              size="small"
+              variant="outlined"
+            />
           </Stack>
 
           <Divider sx={{ mb: 2 }} />
 
-          {loading ? (
+          {bootstrapping || loadingList ? (
             <Box sx={{ py: 6, display: "flex", justifyContent: "center" }}>
               <CircularProgress />
             </Box>
           ) : items.length === 0 ? (
-            <Alert severity="info">
-              No hay incidencias con los filtros seleccionados.
-            </Alert>
+            <Box sx={{ py: 4 }}>
+              <Alert severity="info">
+                No hay incidencias con los filtros seleccionados.
+              </Alert>
+            </Box>
           ) : (
             <Box sx={{ overflowX: "auto" }}>
               <Table>
@@ -958,6 +1207,8 @@ export default function IncidenciasPage() {
                 <TableBody>
                   {items.map((item) => {
                     const isPendiente = isPendienteValue(item.estatus);
+                    const isThisPendingRow =
+                      pendingAction?.item.id === item.id && confirmLoading;
 
                     return (
                       <TableRow
@@ -1014,13 +1265,16 @@ export default function IncidenciasPage() {
                               title={
                                 <Box>
                                   <Typography variant="body2" fontWeight={700}>
-                                    {item.evidenciaNombreOriginal || "Archivo adjunto"}
+                                    {item.evidenciaNombreOriginal ||
+                                      "Archivo adjunto"}
                                   </Typography>
                                   <Typography variant="caption" display="block">
-                                    Tipo: {item.evidenciaContentType || "No disponible"}
+                                    Tipo:{" "}
+                                    {item.evidenciaContentType || "No disponible"}
                                   </Typography>
                                   <Typography variant="caption" display="block">
-                                    Tamaño: {formatBytes(item.evidenciaTamanoBytes)}
+                                    Tamaño:{" "}
+                                    {formatBytes(item.evidenciaTamanoBytes)}
                                   </Typography>
                                 </Box>
                               }
@@ -1035,7 +1289,7 @@ export default function IncidenciasPage() {
                                   borderRadius: 2,
                                   px: 1,
                                   py: 0.75,
-                                  bgcolor: "success.50",
+                                  bgcolor: "action.hover",
                                   cursor: "pointer",
                                   transition: "all .15s ease",
                                   "&:hover": {
@@ -1044,7 +1298,11 @@ export default function IncidenciasPage() {
                                   },
                                 }}
                               >
-                                <Stack direction="row" spacing={1} alignItems="center">
+                                <Stack
+                                  direction="row"
+                                  spacing={1}
+                                  alignItems="center"
+                                >
                                   <Box
                                     sx={{
                                       width: 28,
@@ -1086,7 +1344,11 @@ export default function IncidenciasPage() {
                               </Box>
                             </Tooltip>
                           ) : (
-                            <Chip size="small" variant="outlined" label="Sin evidencia" />
+                            <Chip
+                              size="small"
+                              variant="outlined"
+                              label="Sin evidencia"
+                            />
                           )}
                         </TableCell>
 
@@ -1124,40 +1386,60 @@ export default function IncidenciasPage() {
                                 : "Subir evidencia"}
                             </Button>
 
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              startIcon={<EditIcon />}
-                              onClick={() => openEdit(item)}
-                              disabled={!isPendiente}
-                              sx={{ textTransform: "none", fontWeight: 700 }}
-                            >
-                              Editar
-                            </Button>
+                            {canManageIncidencias && (
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                startIcon={<EditIcon />}
+                                onClick={() => openEdit(item)}
+                                disabled={!isPendiente || isThisPendingRow}
+                                sx={{ textTransform: "none", fontWeight: 700 }}
+                              >
+                                Editar
+                              </Button>
+                            )}
 
-                            <Button
-                              size="small"
-                              color="success"
-                              variant="outlined"
-                              startIcon={<CheckCircleOutlineIcon />}
-                              onClick={() => requestApprove(item)}
-                              disabled={!isPendiente}
-                              sx={{ textTransform: "none", fontWeight: 700 }}
-                            >
-                              Aprobar
-                            </Button>
+                            {canApproveReject && (
+                              <Button
+                                size="small"
+                                color="success"
+                                variant="outlined"
+                                startIcon={
+                                  isThisPendingRow &&
+                                  pendingAction?.type === "approve" ? (
+                                    <CircularProgress size={16} />
+                                  ) : (
+                                    <CheckCircleOutlineIcon />
+                                  )
+                                }
+                                onClick={() => requestApprove(item)}
+                                disabled={!isPendiente || confirmLoading}
+                                sx={{ textTransform: "none", fontWeight: 700 }}
+                              >
+                                Aprobar
+                              </Button>
+                            )}
 
-                            <Button
-                              size="small"
-                              color="error"
-                              variant="outlined"
-                              startIcon={<CloseIcon />}
-                              onClick={() => requestReject(item)}
-                              disabled={!isPendiente}
-                              sx={{ textTransform: "none", fontWeight: 700 }}
-                            >
-                              Rechazar
-                            </Button>
+                            {canApproveReject && (
+                              <Button
+                                size="small"
+                                color="error"
+                                variant="outlined"
+                                startIcon={
+                                  isThisPendingRow &&
+                                  pendingAction?.type === "reject" ? (
+                                    <CircularProgress size={16} />
+                                  ) : (
+                                    <CloseIcon />
+                                  )
+                                }
+                                onClick={() => requestReject(item)}
+                                disabled={!isPendiente || confirmLoading}
+                                sx={{ textTransform: "none", fontWeight: 700 }}
+                              >
+                                Rechazar
+                              </Button>
+                            )}
                           </Stack>
                         </TableCell>
                       </TableRow>
@@ -1279,7 +1561,11 @@ export default function IncidenciasPage() {
             Cancelar
           </Button>
           <Button onClick={handleSave} variant="contained" disabled={saving}>
-            {saving ? "Guardando..." : editing ? "Guardar cambios" : "Crear incidencia"}
+            {saving
+              ? "Guardando..."
+              : editing
+              ? "Guardar cambios"
+              : "Crear incidencia"}
           </Button>
         </DialogActions>
       </Dialog>
@@ -1287,7 +1573,7 @@ export default function IncidenciasPage() {
       <IncidenciaEvidenciaDialog
         open={evidenciaOpen}
         incidencia={selectedIncidencia}
-        onClose={() => setEvidenciaOpen(false)}
+        onClose={handleCloseEvidencia}
         onChanged={handleEvidenciaChanged}
       />
 
@@ -1307,21 +1593,28 @@ export default function IncidenciasPage() {
               }. Esta acción cambiará su estatus.`
             : ""
         }
-        confirmText={pendingAction?.type === "approve" ? "Aprobar" : "Rechazar"}
-        confirmColor={pendingAction?.type === "approve" ? "success" : "error"}
+        confirmText={
+          pendingAction?.type === "approve" ? "Aprobar" : "Rechazar"
+        }
+        confirmColor={
+          pendingAction?.type === "approve" ? "success" : "error"
+        }
         loading={confirmLoading}
-        onClose={() => setPendingAction(null)}
+        onClose={() => {
+          if (!confirmLoading) setPendingAction(null);
+        }}
         onConfirm={handleConfirmAction}
       />
 
       <Snackbar
         open={snackbar.open}
-        autoHideDuration={3500}
-        onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+        autoHideDuration={4000}
+        onClose={closeSnackbar}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
       >
         <Alert
           severity={snackbar.severity}
-          onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+          onClose={closeSnackbar}
           variant="filled"
         >
           {snackbar.message}

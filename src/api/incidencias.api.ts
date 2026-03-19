@@ -1,3 +1,4 @@
+import type { AxiosResponse } from "axios";
 import { api } from "./axios";
 
 export type CatalogoOption = {
@@ -59,6 +60,19 @@ function cleanQuery(query?: IncidenciaQuery) {
       ([, value]) => value !== undefined && value !== null && value !== ""
     )
   );
+}
+
+function buildExportParams(filters?: IncidenciaQuery) {
+  const cleaned = cleanQuery(filters);
+  const params = new URLSearchParams();
+
+  if (!cleaned) return "";
+
+  Object.entries(cleaned).forEach(([key, value]) => {
+    params.append(key, String(value));
+  });
+
+  return params.toString();
 }
 
 export async function getIncidencias(
@@ -149,14 +163,55 @@ export async function saveIncidenciaEvidenciaToDisk(
   fileName = "evidencia"
 ): Promise<void> {
   const blob = await downloadIncidenciaEvidencia(id);
+  downloadBlobFile(blob, fileName);
+}
+
+export async function exportIncidenciasXlsx(
+  filters?: IncidenciaQuery
+): Promise<AxiosResponse<Blob>> {
+  const query = buildExportParams(filters);
+
+  return api.get(`/api/Incidencias/export/xlsx${query ? `?${query}` : ""}`, {
+    responseType: "blob",
+  });
+}
+
+export async function exportIncidenciasPdf(
+  filters?: IncidenciaQuery
+): Promise<AxiosResponse<Blob>> {
+  const query = buildExportParams(filters);
+
+  return api.get(`/api/Incidencias/export/pdf${query ? `?${query}` : ""}`, {
+    responseType: "blob",
+  });
+}
+
+export function getFileNameFromDisposition(
+  disposition: string | undefined,
+  fallback: string
+) {
+  if (!disposition) return fallback;
+
+  const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8Match?.[1]) {
+    return decodeURIComponent(utf8Match[1]);
+  }
+
+  const simpleMatch = disposition.match(/filename="?([^"]+)"?/i);
+  if (simpleMatch?.[1]) {
+    return simpleMatch[1];
+  }
+
+  return fallback;
+}
+
+export function downloadBlobFile(blob: Blob, fileName: string) {
   const url = window.URL.createObjectURL(blob);
-  const link = document.createElement("a");
-
-  link.href = url;
-  link.download = fileName;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
   window.URL.revokeObjectURL(url);
 }
