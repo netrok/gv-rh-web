@@ -20,6 +20,7 @@ import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded";
 import VisibilityRoundedIcon from "@mui/icons-material/VisibilityRounded";
 import InsertDriveFileRoundedIcon from "@mui/icons-material/InsertDriveFileRounded";
 
+import ConfirmActionDialog from "./ui/ConfirmActionDialog";
 import type {
   Incidencia,
   IncidenciaEvidencia,
@@ -91,6 +92,7 @@ export default function IncidenciaEvidenciaDialog({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -111,6 +113,7 @@ export default function IncidenciaEvidenciaDialog({
     setSelectedFile(null);
     setError("");
     setSuccess("");
+    setConfirmDeleteOpen(false);
   }, [open, incidencia?.id]);
 
   useEffect(() => {
@@ -184,7 +187,7 @@ export default function IncidenciaEvidenciaDialog({
       }
     }
 
-    loadPreview();
+    void loadPreview();
 
     return () => {
       cancelled = true;
@@ -271,6 +274,7 @@ export default function IncidenciaEvidenciaDialog({
       });
 
       setSuccess("Evidencia eliminada correctamente.");
+      setConfirmDeleteOpen(false);
     } catch (err: any) {
       const message =
         err?.response?.data?.message ||
@@ -284,270 +288,283 @@ export default function IncidenciaEvidenciaDialog({
   };
 
   return (
-    <Dialog
-      open={open}
-      onClose={busy ? undefined : onClose}
-      fullWidth
-      maxWidth="md"
-    >
-      <DialogTitle>Gestionar evidencia</DialogTitle>
+    <>
+      <Dialog
+        open={open}
+        onClose={busy ? undefined : onClose}
+        fullWidth
+        maxWidth="md"
+      >
+        <DialogTitle>Gestionar evidencia</DialogTitle>
 
-      <DialogContent dividers>
-        {!incidencia ? (
-          <Alert severity="info">No hay incidencia seleccionada.</Alert>
-        ) : (
-          <Stack spacing={2.5}>
-            <Box>
-              <Typography variant="body2" color="text.secondary">
-                Incidencia
-              </Typography>
-              <Typography fontWeight={800}>
-                #{incidencia.id} · {incidencia.empleadoNombre}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {String(incidencia.tipo)} · {String(incidencia.estatus)}
-              </Typography>
-            </Box>
-
-            {error ? <Alert severity="error">{error}</Alert> : null}
-            {success ? <Alert severity="success">{success}</Alert> : null}
-
-            <Box
-              sx={{
-                border: "1px solid",
-                borderColor: "divider",
-                borderRadius: 2.5,
-                p: 2,
-                bgcolor: "background.paper",
-              }}
-            >
-              <Stack spacing={1.25}>
-                <Typography variant="subtitle2" fontWeight={800}>
-                  Archivo actual
+        <DialogContent dividers>
+          {!incidencia ? (
+            <Alert severity="info">No hay incidencia seleccionada.</Alert>
+          ) : (
+            <Stack spacing={2.5}>
+              <Box>
+                <Typography variant="body2" color="text.secondary">
+                  Incidencia
                 </Typography>
+                <Typography fontWeight={800}>
+                  #{incidencia.id} · {incidencia.empleadoNombre}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {String(incidencia.tipo)} · {String(incidencia.estatus)}
+                </Typography>
+              </Box>
 
-                {hasEvidencia ? (
-                  <Stack direction="row" spacing={1.25} alignItems="center">
-                    <Box
+              {error ? <Alert severity="error">{error}</Alert> : null}
+              {success ? <Alert severity="success">{success}</Alert> : null}
+
+              <Box
+                sx={{
+                  border: "1px solid",
+                  borderColor: "divider",
+                  borderRadius: 2.5,
+                  p: 2,
+                  bgcolor: "background.paper",
+                }}
+              >
+                <Stack spacing={1.25}>
+                  <Typography variant="subtitle2" fontWeight={800}>
+                    Archivo actual
+                  </Typography>
+
+                  {hasEvidencia ? (
+                    <Stack direction="row" spacing={1.25} alignItems="center">
+                      <Box
+                        sx={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: 2,
+                          display: "grid",
+                          placeItems: "center",
+                          bgcolor: "action.hover",
+                          color: "text.secondary",
+                          flexShrink: 0,
+                        }}
+                      >
+                        {previewKind === "image" ? (
+                          <ImageRoundedIcon fontSize="small" />
+                        ) : previewKind === "pdf" ? (
+                          <PictureAsPdfRoundedIcon fontSize="small" />
+                        ) : (
+                          <DescriptionRoundedIcon fontSize="small" />
+                        )}
+                      </Box>
+
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography fontWeight={700}>
+                          {incidencia.evidenciaNombreOriginal || "Archivo"}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {incidencia.evidenciaContentType || "-"} ·{" "}
+                          {formatBytes(incidencia.evidenciaTamanoBytes)}
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  ) : (
+                    <Alert severity="info">
+                      Esta incidencia todavía no tiene evidencia.
+                    </Alert>
+                  )}
+                </Stack>
+              </Box>
+
+              <Box
+                sx={{
+                  border: "1px solid",
+                  borderColor: "divider",
+                  borderRadius: 2.5,
+                  p: 2,
+                  bgcolor: "background.paper",
+                }}
+              >
+                <Stack spacing={1.25}>
+                  <Typography variant="subtitle2" fontWeight={800}>
+                    Subir o reemplazar archivo
+                  </Typography>
+
+                  <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                    <Button
+                      variant="outlined"
+                      component="label"
+                      startIcon={<UploadFileRoundedIcon />}
+                      disabled={busy}
                       sx={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: 2,
-                        display: "grid",
-                        placeItems: "center",
-                        bgcolor: "action.hover",
-                        color: "text.secondary",
-                        flexShrink: 0,
+                        alignSelf: "flex-start",
+                        textTransform: "none",
+                        fontWeight: 700,
                       }}
                     >
-                      {previewKind === "image" ? (
-                        <ImageRoundedIcon fontSize="small" />
-                      ) : previewKind === "pdf" ? (
-                        <PictureAsPdfRoundedIcon fontSize="small" />
-                      ) : (
-                        <DescriptionRoundedIcon fontSize="small" />
-                      )}
-                    </Box>
+                      Seleccionar archivo
+                      <input
+                        hidden
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png,.webp"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] ?? null;
+                          setSelectedFile(file);
+                          setError("");
+                          setSuccess("");
+                        }}
+                      />
+                    </Button>
 
-                    <Box sx={{ minWidth: 0 }}>
-                      <Typography fontWeight={700}>
-                        {incidencia.evidenciaNombreOriginal || "Archivo"}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {incidencia.evidenciaContentType || "-"} ·{" "}
-                        {formatBytes(incidencia.evidenciaTamanoBytes)}
-                      </Typography>
-                    </Box>
+                    <Button
+                      variant="contained"
+                      onClick={handleUpload}
+                      disabled={busy || !selectedFile}
+                      startIcon={<UploadFileRoundedIcon />}
+                      sx={{ textTransform: "none", fontWeight: 700 }}
+                    >
+                      {busy
+                        ? "Subiendo..."
+                        : hasEvidencia
+                        ? "Reemplazar archivo"
+                        : "Subir archivo"}
+                    </Button>
                   </Stack>
-                ) : (
-                  <Alert severity="info">
-                    Esta incidencia todavía no tiene evidencia.
-                  </Alert>
-                )}
-              </Stack>
-            </Box>
 
-            <Box
-              sx={{
-                border: "1px solid",
-                borderColor: "divider",
-                borderRadius: 2.5,
-                p: 2,
-                bgcolor: "background.paper",
-              }}
-            >
-              <Stack spacing={1.25}>
-                <Typography variant="subtitle2" fontWeight={800}>
-                  Subir o reemplazar archivo
-                </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Permitidos: PDF, JPG, JPEG, PNG y WEBP. Tamaño máximo: 5 MB.
+                  </Typography>
 
-                <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-                  <Button
-                    variant="outlined"
-                    component="label"
-                    startIcon={<UploadFileRoundedIcon />}
-                    disabled={busy}
-                    sx={{
-                      alignSelf: "flex-start",
-                      textTransform: "none",
-                      fontWeight: 700,
-                    }}
-                  >
-                    Seleccionar archivo
-                    <input
-                      hidden
-                      type="file"
-                      accept=".pdf,.jpg,.jpeg,.png,.webp"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0] ?? null;
-                        setSelectedFile(file);
-                        setError("");
-                        setSuccess("");
+                  {selectedFile ? (
+                    <Box
+                      sx={{
+                        border: "1px dashed",
+                        borderColor: "divider",
+                        borderRadius: 2,
+                        p: 1.5,
                       }}
-                    />
-                  </Button>
+                    >
+                      <Typography fontWeight={700}>{selectedFile.name}</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {selectedFile.type || "archivo"} ·{" "}
+                        {formatBytes(selectedFile.size)}
+                      </Typography>
+                    </Box>
+                  ) : null}
+                </Stack>
+              </Box>
 
-                  <Button
-                    variant="contained"
-                    onClick={handleUpload}
-                    disabled={busy || !selectedFile}
-                    startIcon={<UploadFileRoundedIcon />}
-                    sx={{ textTransform: "none", fontWeight: 700 }}
-                  >
-                    {busy
-                      ? "Subiendo..."
-                      : hasEvidencia
-                      ? "Reemplazar archivo"
-                      : "Subir archivo"}
-                  </Button>
+              <Box
+                sx={{
+                  border: "1px solid",
+                  borderColor: "divider",
+                  borderRadius: 2.5,
+                  p: 2,
+                  bgcolor: "background.paper",
+                }}
+              >
+                <Stack
+                  direction="row"
+                  spacing={1}
+                  alignItems="center"
+                  sx={{ mb: 1.5 }}
+                >
+                  <VisibilityRoundedIcon fontSize="small" />
+                  <Typography variant="subtitle2" fontWeight={800}>
+                    Vista previa
+                  </Typography>
                 </Stack>
 
-                <Typography variant="body2" color="text.secondary">
-                  Permitidos: PDF, JPG, JPEG, PNG y WEBP. Tamaño máximo: 5 MB.
-                </Typography>
-
-                {selectedFile ? (
+                {previewLoading ? (
+                  <Box sx={{ py: 4, display: "flex", justifyContent: "center" }}>
+                    <CircularProgress size={28} />
+                  </Box>
+                ) : !previewUrl ? (
+                  <Alert severity="info">
+                    No hay vista previa disponible todavía. Selecciona un archivo
+                    o usa uno ya guardado.
+                  </Alert>
+                ) : previewKind === "image" ? (
+                  <Box
+                    component="img"
+                    src={previewUrl}
+                    alt="Vista previa de evidencia"
+                    sx={{
+                      width: "100%",
+                      maxHeight: 420,
+                      objectFit: "contain",
+                      borderRadius: 2,
+                      border: "1px solid",
+                      borderColor: "divider",
+                      bgcolor: "#fafafa",
+                    }}
+                  />
+                ) : previewKind === "pdf" ? (
                   <Box
                     sx={{
-                      border: "1px dashed",
+                      border: "1px solid",
                       borderColor: "divider",
                       borderRadius: 2,
-                      p: 1.5,
+                      overflow: "hidden",
+                      height: 420,
                     }}
                   >
-                    <Typography fontWeight={700}>{selectedFile.name}</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {selectedFile.type || "archivo"} ·{" "}
-                      {formatBytes(selectedFile.size)}
-                    </Typography>
+                    <iframe
+                      src={previewUrl}
+                      title="Vista previa PDF"
+                      style={{ width: "100%", height: "100%", border: 0 }}
+                    />
                   </Box>
-                ) : null}
-              </Stack>
-            </Box>
+                ) : (
+                  <Alert
+                    severity="info"
+                    icon={<InsertDriveFileRoundedIcon fontSize="inherit" />}
+                  >
+                    Este tipo de archivo no tiene vista previa en pantalla, pero
+                    sí puedes descargarlo.
+                  </Alert>
+                )}
+              </Box>
+            </Stack>
+          )}
+        </DialogContent>
 
-            <Box
-              sx={{
-                border: "1px solid",
-                borderColor: "divider",
-                borderRadius: 2.5,
-                p: 2,
-                bgcolor: "background.paper",
-              }}
-            >
-              <Stack
-                direction="row"
-                spacing={1}
-                alignItems="center"
-                sx={{ mb: 1.5 }}
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button onClick={onClose} disabled={busy}>
+            Cerrar
+          </Button>
+
+          {incidencia?.tieneEvidencia ? (
+            <>
+              <Button
+                onClick={handleDownload}
+                disabled={busy}
+                startIcon={<DownloadRoundedIcon />}
+                sx={{ textTransform: "none", fontWeight: 700 }}
               >
-                <VisibilityRoundedIcon fontSize="small" />
-                <Typography variant="subtitle2" fontWeight={800}>
-                  Vista previa
-                </Typography>
-              </Stack>
+                Descargar archivo
+              </Button>
 
-              {previewLoading ? (
-                <Box sx={{ py: 4, display: "flex", justifyContent: "center" }}>
-                  <CircularProgress size={28} />
-                </Box>
-              ) : !previewUrl ? (
-                <Alert severity="info">
-                  No hay vista previa disponible todavía. Selecciona un archivo
-                  o usa uno ya guardado.
-                </Alert>
-              ) : previewKind === "image" ? (
-                <Box
-                  component="img"
-                  src={previewUrl}
-                  alt="Vista previa de evidencia"
-                  sx={{
-                    width: "100%",
-                    maxHeight: 420,
-                    objectFit: "contain",
-                    borderRadius: 2,
-                    border: "1px solid",
-                    borderColor: "divider",
-                    bgcolor: "#fafafa",
-                  }}
-                />
-              ) : previewKind === "pdf" ? (
-                <Box
-                  sx={{
-                    border: "1px solid",
-                    borderColor: "divider",
-                    borderRadius: 2,
-                    overflow: "hidden",
-                    height: 420,
-                  }}
-                >
-                  <iframe
-                    src={previewUrl}
-                    title="Vista previa PDF"
-                    style={{ width: "100%", height: "100%", border: 0 }}
-                  />
-                </Box>
-              ) : (
-                <Alert
-                  severity="info"
-                  icon={<InsertDriveFileRoundedIcon fontSize="inherit" />}
-                >
-                  Este tipo de archivo no tiene vista previa en pantalla, pero
-                  sí puedes descargarlo.
-                </Alert>
-              )}
-            </Box>
-          </Stack>
-        )}
-      </DialogContent>
+              <Button
+                color="error"
+                onClick={() => setConfirmDeleteOpen(true)}
+                disabled={busy}
+                startIcon={<DeleteOutlineRoundedIcon />}
+                sx={{ textTransform: "none", fontWeight: 700 }}
+              >
+                Eliminar
+              </Button>
+            </>
+          ) : null}
+        </DialogActions>
+      </Dialog>
 
-      <DialogActions sx={{ px: 3, py: 2 }}>
-        <Button onClick={onClose} disabled={busy}>
-          Cerrar
-        </Button>
-
-        {incidencia?.tieneEvidencia ? (
-          <>
-            <Button
-              onClick={handleDownload}
-              disabled={busy}
-              startIcon={<DownloadRoundedIcon />}
-              sx={{ textTransform: "none", fontWeight: 700 }}
-            >
-              Descargar archivo
-            </Button>
-
-            <Button
-              color="error"
-              onClick={handleDelete}
-              disabled={busy}
-              startIcon={<DeleteOutlineRoundedIcon />}
-              sx={{ textTransform: "none", fontWeight: 700 }}
-            >
-              Eliminar
-            </Button>
-          </>
-        ) : null}
-      </DialogActions>
-    </Dialog>
+      <ConfirmActionDialog
+        open={confirmDeleteOpen}
+        title="Eliminar evidencia"
+        message="Vas a eliminar el archivo de evidencia de esta incidencia. Esta acción no se puede deshacer."
+        confirmText="Eliminar"
+        confirmColor="error"
+        loading={busy}
+        onClose={() => setConfirmDeleteOpen(false)}
+        onConfirm={handleDelete}
+      />
+    </>
   );
 }

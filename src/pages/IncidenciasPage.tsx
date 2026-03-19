@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Alert,
   Box,
@@ -41,6 +41,7 @@ import DescriptionRoundedIcon from "@mui/icons-material/DescriptionRounded";
 import PeopleAltRoundedIcon from "@mui/icons-material/PeopleAltRounded";
 
 import IncidenciaEvidenciaDialog from "../components/IncidenciaEvidenciaDialog";
+import ConfirmActionDialog from "../components/ui/ConfirmActionDialog";
 import type {
   CatalogoOption,
   Incidencia,
@@ -73,6 +74,13 @@ type FormState = {
   fechaFin: string;
   comentario: string;
 };
+
+type PendingAction =
+  | {
+      type: "approve" | "reject";
+      item: Incidencia;
+    }
+  | null;
 
 const initialForm: FormState = {
   empleadoId: "",
@@ -181,7 +189,7 @@ function toForm(item: Incidencia, tipos: CatalogoOption[]): FormState {
   return {
     empleadoId: String(item.empleadoId),
     sucursalId: item.sucursalId ? String(item.sucursalId) : "",
-    tipo: getCatalogSelectValue(item.tipo as string | number, tipos),
+    tipo: getCatalogSelectValue(item.tipo, tipos),
     fechaInicio: item.fechaInicio,
     fechaFin: item.fechaFin,
     comentario: item.comentario ?? "",
@@ -201,7 +209,7 @@ type SummaryCardProps = {
   title: string;
   value: number;
   subtitle: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
 };
 
 function SummaryCard({ title, value, subtitle, icon }: SummaryCardProps) {
@@ -258,6 +266,7 @@ export default function IncidenciasPage() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [confirmLoading, setConfirmLoading] = useState(false);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Incidencia | null>(null);
@@ -267,6 +276,7 @@ export default function IncidenciasPage() {
   const [selectedIncidencia, setSelectedIncidencia] = useState<Incidencia | null>(
     null
   );
+  const [pendingAction, setPendingAction] = useState<PendingAction>(null);
 
   const [filters, setFilters] = useState({
     empleadoId: "",
@@ -300,14 +310,10 @@ export default function IncidenciasPage() {
   );
 
   const summary = useMemo(() => {
-    const pendientes = items.filter((x) =>
-      isPendienteValue(x.estatus as string | number)
-    ).length;
-
+    const pendientes = items.filter((x) => isPendienteValue(x.estatus)).length;
     const aprobadas = items.filter(
       (x) => normalizeEnumValue(x.estatus) === "APROBADA"
     ).length;
-
     const conEvidencia = items.filter((x) => x.tieneEvidencia).length;
 
     return {
@@ -396,9 +402,8 @@ export default function IncidenciasPage() {
         sucursalId: currentFilters.sucursalId
           ? Number(currentFilters.sucursalId)
           : undefined,
-        tipo: (tipoSeleccionado?.clave as IncidenciaQuery["tipo"]) ?? undefined,
-        estatus:
-          (estatusSeleccionado?.clave as IncidenciaQuery["estatus"]) ?? undefined,
+        tipo: tipoSeleccionado?.clave ?? undefined,
+        estatus: estatusSeleccionado?.clave ?? undefined,
         fechaDesde: currentFilters.fechaDesde || undefined,
         fechaHasta: currentFilters.fechaHasta || undefined,
         soloPendientes: currentFilters.soloPendientes || undefined,
@@ -500,7 +505,7 @@ export default function IncidenciasPage() {
     const payload: SaveIncidenciaInput = {
       empleadoId: Number(form.empleadoId),
       sucursalId: form.sucursalId ? Number(form.sucursalId) : null,
-      tipo: ((tipoSeleccionado?.clave ?? form.tipo) as unknown) as SaveIncidenciaInput["tipo"],
+      tipo: tipoSeleccionado?.clave ?? form.tipo,
       fechaInicio: form.fechaInicio,
       fechaFin: form.fechaFin,
       comentario: form.comentario?.trim() || null,
@@ -527,23 +532,42 @@ export default function IncidenciasPage() {
     }
   }
 
-  async function handleApprove(item: Incidencia) {
-    try {
-      await aprobarIncidencia(item.id);
-      notify("success", "Incidencia aprobada correctamente.");
-      await loadItems();
-    } catch (error: any) {
-      notify("error", getErrorMessage(error, "No se pudo aprobar la incidencia."));
-    }
+  function requestApprove(item: Incidencia) {
+    setPendingAction({ type: "approve", item });
   }
 
-  async function handleReject(item: Incidencia) {
+  function requestReject(item: Incidencia) {
+    setPendingAction({ type: "reject", item });
+  }
+
+  async function handleConfirmAction() {
+    if (!pendingAction) return;
+
+    setConfirmLoading(true);
+
     try {
-      await rechazarIncidencia(item.id);
-      notify("success", "Incidencia rechazada correctamente.");
+      if (pendingAction.type === "approve") {
+        await aprobarIncidencia(pendingAction.item.id);
+        notify("success", "Incidencia aprobada correctamente.");
+      } else {
+        await rechazarIncidencia(pendingAction.item.id);
+        notify("success", "Incidencia rechazada correctamente.");
+      }
+
+      setPendingAction(null);
       await loadItems();
     } catch (error: any) {
-      notify("error", getErrorMessage(error, "No se pudo rechazar la incidencia."));
+      notify(
+        "error",
+        getErrorMessage(
+          error,
+          pendingAction.type === "approve"
+            ? "No se pudo aprobar la incidencia."
+            : "No se pudo rechazar la incidencia."
+        )
+      );
+    } finally {
+      setConfirmLoading(false);
     }
   }
 
@@ -843,11 +867,7 @@ export default function IncidenciasPage() {
               </Typography>
             </Box>
 
-            <Chip
-              label={`${items.length} registros`}
-              size="small"
-              variant="outlined"
-            />
+            <Chip label={`${items.length} registros`} size="small" variant="outlined" />
           </Stack>
 
           <Divider sx={{ mb: 2 }} />
@@ -878,9 +898,7 @@ export default function IncidenciasPage() {
                 </TableHead>
                 <TableBody>
                   {items.map((item) => {
-                    const isPendiente = isPendienteValue(
-                      item.estatus as string | number
-                    );
+                    const isPendiente = isPendienteValue(item.estatus);
 
                     return (
                       <TableRow
@@ -909,9 +927,7 @@ export default function IncidenciasPage() {
 
                         <TableCell>{item.sucursalNombre ?? "—"}</TableCell>
 
-                        <TableCell>
-                          {getTipoNombre(item.tipo as string | number, tipos)}
-                        </TableCell>
+                        <TableCell>{getTipoNombre(item.tipo, tipos)}</TableCell>
 
                         <TableCell>
                           <Stack spacing={0.25}>
@@ -927,11 +943,8 @@ export default function IncidenciasPage() {
                         <TableCell>
                           <Chip
                             size="small"
-                            label={getEstatusNombre(
-                              item.estatus as string | number,
-                              estatuses
-                            )}
-                            color={estatusChipColor(item.estatus as string | number)}
+                            label={getEstatusNombre(item.estatus, estatuses)}
+                            color={estatusChipColor(item.estatus)}
                           />
                         </TableCell>
 
@@ -1016,7 +1029,7 @@ export default function IncidenciasPage() {
                               color="success"
                               variant="outlined"
                               startIcon={<CheckCircleOutlineIcon />}
-                              onClick={() => handleApprove(item)}
+                              onClick={() => requestApprove(item)}
                               disabled={!isPendiente}
                               sx={{ textTransform: "none", fontWeight: 700 }}
                             >
@@ -1028,7 +1041,7 @@ export default function IncidenciasPage() {
                               color="error"
                               variant="outlined"
                               startIcon={<CloseIcon />}
-                              onClick={() => handleReject(item)}
+                              onClick={() => requestReject(item)}
                               disabled={!isPendiente}
                               sx={{ textTransform: "none", fontWeight: 700 }}
                             >
@@ -1165,6 +1178,29 @@ export default function IncidenciasPage() {
         incidencia={selectedIncidencia}
         onClose={() => setEvidenciaOpen(false)}
         onChanged={handleEvidenciaChanged}
+      />
+
+      <ConfirmActionDialog
+        open={!!pendingAction}
+        title={
+          pendingAction?.type === "approve"
+            ? "Aprobar incidencia"
+            : "Rechazar incidencia"
+        }
+        message={
+          pendingAction
+            ? `Vas a ${
+                pendingAction.type === "approve" ? "aprobar" : "rechazar"
+              } la incidencia #${pendingAction.item.id} de ${
+                pendingAction.item.empleadoNombre
+              }. Esta acción cambiará su estatus.`
+            : ""
+        }
+        confirmText={pendingAction?.type === "approve" ? "Aprobar" : "Rechazar"}
+        confirmColor={pendingAction?.type === "approve" ? "success" : "error"}
+        loading={confirmLoading}
+        onClose={() => setPendingAction(null)}
+        onConfirm={handleConfirmAction}
       />
 
       <Snackbar
