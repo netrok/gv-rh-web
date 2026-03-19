@@ -12,14 +12,17 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Divider,
   FormControlLabel,
   IconButton,
   MenuItem,
+  Stack,
   Switch,
   Table,
   TableBody,
   TableCell,
   TableHead,
+  TablePagination,
   TableRow,
   TextField,
   Tooltip,
@@ -29,6 +32,11 @@ import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import SyncAltIcon from "@mui/icons-material/SyncAlt";
 import RefreshIcon from "@mui/icons-material/Refresh";
+import BadgeRoundedIcon from "@mui/icons-material/BadgeRounded";
+import ApartmentRoundedIcon from "@mui/icons-material/ApartmentRounded";
+import StoreRoundedIcon from "@mui/icons-material/StoreRounded";
+import PersonOffRoundedIcon from "@mui/icons-material/PersonOffRounded";
+import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -84,7 +92,9 @@ function getErrorMessage(error: unknown) {
       return apiMessage;
     }
 
-    return `${error.response?.status ?? ""} ${error.response?.statusText ?? error.message}`.trim();
+    return `${error.response?.status ?? ""} ${
+      error.response?.statusText ?? error.message
+    }`.trim();
   }
 
   if (error instanceof Error) return error.message;
@@ -125,6 +135,73 @@ function getPuestoDepartamentoId(puesto: Puesto) {
     0;
 
   return Number(maybeDepartamentoId || 0);
+}
+
+function MetricCard({
+  title,
+  value,
+  subtitle,
+  icon,
+  badge,
+}: {
+  title: string;
+  value: number | string;
+  subtitle: string;
+  icon: React.ReactNode;
+  badge?: string;
+}) {
+  return (
+    <Card
+      elevation={0}
+      sx={{
+        borderRadius: 4,
+        height: "100%",
+      }}
+    >
+      <CardContent>
+        <Stack direction="row" justifyContent="space-between" spacing={2}>
+          <Box>
+            <Typography variant="body2" color="text.secondary">
+              {title}
+            </Typography>
+
+            <Typography
+              variant="h4"
+              fontWeight={800}
+              sx={{ mt: 0.75, lineHeight: 1 }}
+            >
+              {value}
+            </Typography>
+
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              {subtitle}
+            </Typography>
+          </Box>
+
+          <Stack alignItems="flex-end" spacing={1}>
+            {badge ? (
+              <Chip size="small" label={badge} color="primary" variant="outlined" />
+            ) : null}
+
+            <Box
+              sx={{
+                width: 44,
+                height: 44,
+                borderRadius: 2.5,
+                display: "grid",
+                placeItems: "center",
+                bgcolor: "action.hover",
+                color: "text.secondary",
+                flexShrink: 0,
+              }}
+            >
+              {icon}
+            </Box>
+          </Stack>
+        </Stack>
+      </CardContent>
+    </Card>
+  );
 }
 
 function EmpleadoDialog({
@@ -429,6 +506,8 @@ export default function EmpleadosPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Empleado | null>(null);
   const [confirmTarget, setConfirmTarget] = useState<Empleado | null>(null);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   const empleadosQuery = useQuery({
     queryKey: ["empleados"],
@@ -589,6 +668,33 @@ export default function EmpleadosPage() {
     sucursalesMap,
   ]);
 
+  const paginatedRows = useMemo(() => {
+    const start = page * rowsPerPage;
+    return filteredRows.slice(start, start + rowsPerPage);
+  }, [filteredRows, page, rowsPerPage]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [search, departamentoFilter, sucursalFilter, statusFilter, filteredRows.length]);
+
+  const activeCount = useMemo(
+    () => filteredRows.filter((row) => row.activo).length,
+    [filteredRows]
+  );
+
+  const inactiveCount = useMemo(
+    () => filteredRows.filter((row) => !row.activo).length,
+    [filteredRows]
+  );
+
+  const assignedBranchCount = useMemo(() => {
+    return new Set(
+      filteredRows
+        .map((row) => row.sucursalId)
+        .filter((value): value is number => Number(value) > 0)
+    ).size;
+  }, [filteredRows]);
+
   const openCreateDialog = () => {
     setEditing(null);
     setDialogOpen(true);
@@ -606,22 +712,30 @@ export default function EmpleadosPage() {
     !puestosQuery.isLoading &&
     !sucursalesQuery.isLoading;
 
+  const loadingAny =
+    empleadosQuery.isLoading ||
+    departamentosQuery.isLoading ||
+    puestosQuery.isLoading ||
+    sucursalesQuery.isLoading;
+
+  const handleRefresh = () => {
+    empleadosQuery.refetch();
+    departamentosQuery.refetch();
+    puestosQuery.refetch();
+    sucursalesQuery.refetch();
+  };
+
   return (
-    <Box sx={{ p: 3 }}>
+    <Box sx={{ display: "grid", gap: 3 }}>
       <PageHeader
         title="Empleados"
-        subtitle="Catálogo de empleados de RH."
+        subtitle="Catálogo operativo del personal registrado en RH."
         actions={[
           {
             label: "Actualizar",
             variant: "outlined",
             startIcon: <RefreshIcon />,
-            onClick: () => {
-              empleadosQuery.refetch();
-              departamentosQuery.refetch();
-              puestosQuery.refetch();
-              sucursalesQuery.refetch();
-            },
+            onClick: handleRefresh,
           },
           {
             label: "Nuevo empleado",
@@ -637,13 +751,73 @@ export default function EmpleadosPage() {
         !departamentosQuery.isLoading &&
         !puestosQuery.isLoading &&
         !sucursalesQuery.isLoading && (
-          <Alert severity="warning" sx={{ mb: 2 }}>
+          <Alert severity="warning">
             Necesitas departamentos y puestos registrados para crear empleados.
           </Alert>
         )}
 
-      <Card sx={{ borderRadius: 3 }}>
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: {
+            xs: "1fr",
+            sm: "repeat(2, 1fr)",
+            xl: "repeat(4, 1fr)",
+          },
+          gap: 2,
+        }}
+      >
+        <MetricCard
+          title="Total"
+          value={filteredRows.length}
+          subtitle="Empleados visibles"
+          icon={<BadgeRoundedIcon fontSize="small" />}
+          badge="RH"
+        />
+        <MetricCard
+          title="Activos"
+          value={activeCount}
+          subtitle="Personal vigente"
+          icon={<BadgeRoundedIcon fontSize="small" />}
+          badge="RH"
+        />
+        <MetricCard
+          title="Inactivos"
+          value={inactiveCount}
+          subtitle="Bajas o suspendidos"
+          icon={<PersonOffRoundedIcon fontSize="small" />}
+          badge="RH"
+        />
+        <MetricCard
+          title="Sucursales"
+          value={assignedBranchCount}
+          subtitle="Con personal asignado"
+          icon={<StoreRoundedIcon fontSize="small" />}
+          badge="RH"
+        />
+      </Box>
+
+      <Card>
         <CardContent>
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            spacing={1}
+            alignItems={{ xs: "flex-start", sm: "center" }}
+            sx={{ mb: 2 }}
+          >
+            <SearchRoundedIcon fontSize="small" />
+            <Box>
+              <Typography variant="h6" fontWeight={700}>
+                Filtros
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Busca por empleado, correo, puesto, sucursal o estatus.
+              </Typography>
+            </Box>
+          </Stack>
+
+          <Divider sx={{ mb: 2 }} />
+
           <Box
             sx={{
               display: "grid",
@@ -652,7 +826,6 @@ export default function EmpleadosPage() {
                 md: "1fr 260px 260px 180px",
               },
               gap: 2,
-              mb: 2,
             }}
           >
             <TextField
@@ -664,7 +837,7 @@ export default function EmpleadosPage() {
 
             <TextField
               select
-              label="Filtrar por departamento"
+              label="Departamento"
               value={departamentoFilter}
               onChange={(e) => setDepartamentoFilter(e.target.value)}
             >
@@ -678,7 +851,7 @@ export default function EmpleadosPage() {
 
             <TextField
               select
-              label="Filtrar por sucursal"
+              label="Sucursal"
               value={sucursalFilter}
               onChange={(e) => setSucursalFilter(e.target.value)}
             >
@@ -701,11 +874,37 @@ export default function EmpleadosPage() {
               <MenuItem value="INACTIVO">Inactivos</MenuItem>
             </TextField>
           </Box>
+        </CardContent>
+      </Card>
 
-          {empleadosQuery.isLoading ||
-          departamentosQuery.isLoading ||
-          puestosQuery.isLoading ||
-          sucursalesQuery.isLoading ? (
+      <Card>
+        <CardContent>
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            justifyContent="space-between"
+            alignItems={{ xs: "flex-start", sm: "center" }}
+            spacing={1}
+            sx={{ mb: 2 }}
+          >
+            <Box>
+              <Typography variant="h6" fontWeight={700}>
+                Listado
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Consulta general del catálogo de empleados y su asignación actual.
+              </Typography>
+            </Box>
+
+            <Chip
+              label={`${paginatedRows.length} visibles de ${filteredRows.length}`}
+              size="small"
+              variant="outlined"
+            />
+          </Stack>
+
+          <Divider sx={{ mb: 2 }} />
+
+          {loadingAny ? (
             <Box sx={{ py: 6, display: "flex", justifyContent: "center" }}>
               <CircularProgress />
             </Box>
@@ -729,93 +928,147 @@ export default function EmpleadosPage() {
               {getErrorMessage(sucursalesQuery.error)}
             </Alert>
           ) : (
-            <Box sx={{ overflowX: "auto" }}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>ID</TableCell>
-                    <TableCell>No. Empleado</TableCell>
-                    <TableCell>Nombre</TableCell>
-                    <TableCell>Departamento</TableCell>
-                    <TableCell>Puesto</TableCell>
-                    <TableCell>Sucursal</TableCell>
-                    <TableCell>Ingreso</TableCell>
-                    <TableCell>Estatus</TableCell>
-                    <TableCell align="right">Acciones</TableCell>
-                  </TableRow>
-                </TableHead>
-
-                <TableBody>
-                  {filteredRows.length === 0 ? (
+            <>
+              <Box sx={{ overflowX: "auto", maxHeight: 620 }}>
+                <Table stickyHeader size="small">
+                  <TableHead>
                     <TableRow>
-                      <TableCell colSpan={9} align="center" sx={{ py: 4 }}>
-                        <Typography color="text.secondary">
-                          No hay empleados para mostrar.
-                        </Typography>
-                      </TableCell>
+                      <TableCell>ID</TableCell>
+                      <TableCell>No. Empleado</TableCell>
+                      <TableCell>Nombre</TableCell>
+                      <TableCell>Departamento</TableCell>
+                      <TableCell>Puesto</TableCell>
+                      <TableCell>Sucursal</TableCell>
+                      <TableCell>Ingreso</TableCell>
+                      <TableCell>Estatus</TableCell>
+                      <TableCell align="right">Acciones</TableCell>
                     </TableRow>
-                  ) : (
-                    filteredRows.map((row) => {
-                      const departamento = row.departamentoId
-                        ? departamentosMap.get(Number(row.departamentoId))
-                        : undefined;
-                      const puesto = row.puestoId
-                        ? puestosMap.get(Number(row.puestoId))
-                        : undefined;
-                      const sucursal = row.sucursalId
-                        ? sucursalesMap.get(Number(row.sucursalId))
-                        : undefined;
+                  </TableHead>
 
-                      return (
-                        <TableRow key={row.id} hover>
-                          <TableCell>{row.id}</TableCell>
-                          <TableCell>{row.numEmpleado}</TableCell>
-                          <TableCell>
-                            {[row.nombres, row.apellidoPaterno, row.apellidoMaterno ?? ""]
-                              .filter(Boolean)
-                              .join(" ")}
-                          </TableCell>
-                          <TableCell>
-                            {departamento
-                              ? `${departamento.clave} - ${departamento.nombre}`
-                              : "-"}
-                          </TableCell>
-                          <TableCell>
-                            {puesto ? `${puesto.clave} - ${puesto.nombre}` : "-"}
-                          </TableCell>
-                          <TableCell>
-                            {sucursal
-                              ? `${sucursal.clave} - ${sucursal.nombre}`
-                              : row.sucursalNombre ?? "-"}
-                          </TableCell>
-                          <TableCell>{formatDate(row.fechaIngreso)}</TableCell>
-                          <TableCell>
-                            <Chip
-                              size="small"
-                              label={row.activo ? "Activo" : "Inactivo"}
-                              color={row.activo ? "success" : "default"}
-                            />
-                          </TableCell>
-                          <TableCell align="right">
-                            <Tooltip title="Editar">
-                              <IconButton onClick={() => openEditDialog(row)}>
-                                <EditIcon />
-                              </IconButton>
-                            </Tooltip>
+                  <TableBody>
+                    {paginatedRows.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={9} align="center" sx={{ py: 5 }}>
+                          <Typography color="text.secondary">
+                            No hay empleados para mostrar.
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      paginatedRows.map((row) => {
+                        const departamento = row.departamentoId
+                          ? departamentosMap.get(Number(row.departamentoId))
+                          : undefined;
+                        const puesto = row.puestoId
+                          ? puestosMap.get(Number(row.puestoId))
+                          : undefined;
+                        const sucursal = row.sucursalId
+                          ? sucursalesMap.get(Number(row.sucursalId))
+                          : undefined;
 
-                            <Tooltip title={row.activo ? "Desactivar" : "Reactivar"}>
-                              <IconButton onClick={() => setConfirmTarget(row)}>
-                                <SyncAltIcon />
-                              </IconButton>
-                            </Tooltip>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })
-                  )}
-                </TableBody>
-              </Table>
-            </Box>
+                        return (
+                          <TableRow
+                            key={row.id}
+                            hover
+                            sx={{
+                              backgroundColor: row.activo
+                                ? "transparent"
+                                : "rgba(0,0,0,0.02)",
+                            }}
+                          >
+                            <TableCell>{row.id}</TableCell>
+
+                            <TableCell>
+                              <Typography fontWeight={700}>
+                                {row.numEmpleado}
+                              </Typography>
+                            </TableCell>
+
+                            <TableCell>
+                              <Stack spacing={0.25}>
+                                <Typography fontWeight={700}>
+                                  {[row.nombres, row.apellidoPaterno, row.apellidoMaterno ?? ""]
+                                    .filter(Boolean)
+                                    .join(" ")}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {row.email || "Sin correo"}
+                                </Typography>
+                              </Stack>
+                            </TableCell>
+
+                            <TableCell>
+                              {departamento ? (
+                                <Chip
+                                  size="small"
+                                  variant="outlined"
+                                  icon={<ApartmentRoundedIcon />}
+                                  label={`${departamento.clave} - ${departamento.nombre}`}
+                                />
+                              ) : (
+                                "-"
+                              )}
+                            </TableCell>
+
+                            <TableCell>
+                              {puesto ? `${puesto.clave} - ${puesto.nombre}` : "-"}
+                            </TableCell>
+
+                            <TableCell>
+                              {sucursal
+                                ? `${sucursal.clave} - ${sucursal.nombre}`
+                                : row.sucursalNombre ?? "-"}
+                            </TableCell>
+
+                            <TableCell>{formatDate(row.fechaIngreso)}</TableCell>
+
+                            <TableCell>
+                              <Chip
+                                size="small"
+                                label={row.activo ? "Activo" : "Inactivo"}
+                                color={row.activo ? "success" : "default"}
+                                variant={row.activo ? "filled" : "outlined"}
+                              />
+                            </TableCell>
+
+                            <TableCell align="right">
+                              <Tooltip title="Editar">
+                                <IconButton onClick={() => openEditDialog(row)}>
+                                  <EditIcon />
+                                </IconButton>
+                              </Tooltip>
+
+                              <Tooltip title={row.activo ? "Desactivar" : "Reactivar"}>
+                                <IconButton onClick={() => setConfirmTarget(row)}>
+                                  <SyncAltIcon />
+                                </IconButton>
+                              </Tooltip>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </Box>
+
+              <TablePagination
+                component="div"
+                count={filteredRows.length}
+                page={page}
+                onPageChange={(_, newPage) => setPage(newPage)}
+                rowsPerPage={rowsPerPage}
+                onRowsPerPageChange={(e) => {
+                  setRowsPerPage(Number(e.target.value));
+                  setPage(0);
+                }}
+                rowsPerPageOptions={[5, 10, 25, 50]}
+                labelRowsPerPage="Filas por página"
+                labelDisplayedRows={({ from, to, count }) =>
+                  `${from}-${to} de ${count !== -1 ? count : `más de ${to}`}`
+                }
+              />
+            </>
           )}
         </CardContent>
       </Card>

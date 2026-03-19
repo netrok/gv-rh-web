@@ -24,6 +24,7 @@ import {
   TableBody,
   TableCell,
   TableHead,
+  TablePagination,
   TableRow,
   TextField,
   Tooltip,
@@ -190,9 +191,7 @@ function formatBytes(value?: number | null): string {
     unitIndex += 1;
   }
 
-  return `${size.toFixed(size >= 10 || unitIndex === 0 ? 0 : 1)} ${
-    units[unitIndex]
-  }`;
+  return `${size.toFixed(size >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
 }
 
 function findCatalogOption(
@@ -228,9 +227,7 @@ function getEstatusNombre(
   estatus: string | number,
   estatuses: CatalogoOption[]
 ): string {
-  return (
-    findCatalogOption(estatus, estatuses)?.nombre ?? formatEnumLabel(estatus)
-  );
+  return findCatalogOption(estatus, estatuses)?.nombre ?? formatEnumLabel(estatus);
 }
 
 function estatusChipColor(
@@ -242,6 +239,56 @@ function estatusChipColor(
   if (normalized === "2" || normalized === "APROBADA") return "success";
   if (normalized === "3" || normalized === "RECHAZADA") return "error";
   return "default";
+}
+
+function tipoChipSx(tipo: string | number) {
+  const normalized = normalizeEnumValue(tipo);
+
+  if (normalized === "FALTA" || normalized === "1") {
+    return {
+      bgcolor: "rgba(211, 47, 47, 0.08)",
+      color: "error.main",
+      borderColor: "rgba(211, 47, 47, 0.28)",
+    };
+  }
+
+  if (normalized === "RETARDO" || normalized === "2") {
+    return {
+      bgcolor: "rgba(237, 108, 2, 0.08)",
+      color: "warning.main",
+      borderColor: "rgba(237, 108, 2, 0.28)",
+    };
+  }
+
+  if (normalized === "PERMISO" || normalized === "3") {
+    return {
+      bgcolor: "rgba(2, 136, 209, 0.08)",
+      color: "info.main",
+      borderColor: "rgba(2, 136, 209, 0.28)",
+    };
+  }
+
+  if (normalized === "VACACIONES" || normalized === "4") {
+    return {
+      bgcolor: "rgba(46, 125, 50, 0.08)",
+      color: "success.main",
+      borderColor: "rgba(46, 125, 50, 0.28)",
+    };
+  }
+
+  if (normalized === "INCAPACIDAD" || normalized === "5") {
+    return {
+      bgcolor: "rgba(156, 39, 176, 0.08)",
+      color: "secondary.main",
+      borderColor: "rgba(156, 39, 176, 0.28)",
+    };
+  }
+
+  return {
+    bgcolor: "rgba(0, 0, 0, 0.04)",
+    color: "text.primary",
+    borderColor: "divider",
+  };
 }
 
 function isPendienteValue(estatus: string | number): boolean {
@@ -410,6 +457,9 @@ export default function IncidenciasPage() {
     message: "",
   });
 
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+
   const canManageIncidencias = hasSomeRole(userRoles, ["ADMIN", "RRHH"]);
   const canApproveReject = hasSomeRole(userRoles, ["ADMIN", "RRHH"]);
   const canExport = hasSomeRole(userRoles, ["ADMIN", "RRHH"]);
@@ -450,12 +500,28 @@ export default function IncidenciasPage() {
     };
   }, [items]);
 
+  const paginatedItems = useMemo(() => {
+    const start = page * rowsPerPage;
+    return items.slice(start, start + rowsPerPage);
+  }, [items, page, rowsPerPage]);
+
   function notify(severity: SnackbarState["severity"], message: string) {
     setSnackbar({ open: true, severity, message });
   }
 
   function closeSnackbar() {
     setSnackbar((prev) => ({ ...prev, open: false }));
+  }
+
+  function handleChangePage(_event: unknown, newPage: number) {
+    setPage(newPage);
+  }
+
+  function handleChangeRowsPerPage(
+    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) {
+    setRowsPerPage(Number(event.target.value));
+    setPage(0);
   }
 
   function buildQueryFromFilters(currentFilters = filters): IncidenciaQuery {
@@ -506,10 +572,7 @@ export default function IncidenciasPage() {
     ) {
       setEstatuses(estatusResult.value);
     } else if (estatusResult.status === "rejected") {
-      console.error(
-        "Error cargando estatus de incidencia:",
-        estatusResult.reason
-      );
+      console.error("Error cargando estatus de incidencia:", estatusResult.reason);
     }
 
     if (empleadosResult.status === "fulfilled") {
@@ -582,6 +645,10 @@ export default function IncidenciasPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    setPage(0);
+  }, [items.length]);
 
   function openCreate() {
     setEditing(null);
@@ -1137,11 +1204,7 @@ export default function IncidenciasPage() {
                 >
                   {loadingList ? "Aplicando..." : "Aplicar filtros"}
                 </Button>
-                <Button
-                  variant="outlined"
-                  onClick={clearFilters}
-                  disabled={pageBusy}
-                >
+                <Button variant="outlined" onClick={clearFilters} disabled={pageBusy}>
                   Limpiar
                 </Button>
               </Stack>
@@ -1169,7 +1232,7 @@ export default function IncidenciasPage() {
             </Box>
 
             <Chip
-              label={`${items.length} registros`}
+              label={`${paginatedItems.length} visibles de ${items.length}`}
               size="small"
               variant="outlined"
             />
@@ -1188,266 +1251,278 @@ export default function IncidenciasPage() {
               </Alert>
             </Box>
           ) : (
-            <Box sx={{ overflowX: "auto" }}>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>ID</TableCell>
-                    <TableCell>Empleado</TableCell>
-                    <TableCell>Sucursal</TableCell>
-                    <TableCell>Tipo</TableCell>
-                    <TableCell>Periodo</TableCell>
-                    <TableCell>Estatus</TableCell>
-                    <TableCell>Evidencia</TableCell>
-                    <TableCell>Comentario</TableCell>
-                    <TableCell align="right">Acciones</TableCell>
-                  </TableRow>
-                </TableHead>
+            <>
+              <Box sx={{ overflowX: "auto", maxHeight: 560 }}>
+                <Table stickyHeader size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>ID</TableCell>
+                      <TableCell>Empleado</TableCell>
+                      <TableCell>Sucursal</TableCell>
+                      <TableCell>Tipo</TableCell>
+                      <TableCell>Periodo</TableCell>
+                      <TableCell>Estatus</TableCell>
+                      <TableCell>Evidencia</TableCell>
+                      <TableCell>Comentario</TableCell>
+                      <TableCell align="right">Acciones</TableCell>
+                    </TableRow>
+                  </TableHead>
 
-                <TableBody>
-                  {items.map((item) => {
-                    const isPendiente = isPendienteValue(item.estatus);
-                    const isThisPendingRow =
-                      pendingAction?.item.id === item.id && confirmLoading;
+                  <TableBody>
+                    {paginatedItems.map((item) => {
+                      const isPendiente = isPendienteValue(item.estatus);
+                      const isThisPendingRow =
+                        pendingAction?.item.id === item.id && confirmLoading;
 
-                    return (
-                      <TableRow
-                        key={item.id}
-                        hover
-                        sx={{
-                          backgroundColor: isPendiente
-                            ? "rgba(255, 244, 229, 0.35)"
-                            : "transparent",
-                        }}
-                      >
-                        <TableCell>
-                          <Typography fontWeight={700}>#{item.id}</Typography>
-                        </TableCell>
+                      return (
+                        <TableRow
+                          key={item.id}
+                          hover
+                          sx={{
+                            backgroundColor: isPendiente
+                              ? "rgba(255, 244, 229, 0.35)"
+                              : "transparent",
+                          }}
+                        >
+                          <TableCell>
+                            <Typography fontWeight={700}>#{item.id}</Typography>
+                          </TableCell>
 
-                        <TableCell>
-                          <Stack spacing={0.25}>
-                            <Typography fontWeight={600}>
-                              {item.empleadoNombre}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              Empleado #{item.empleadoId}
-                            </Typography>
-                          </Stack>
-                        </TableCell>
+                          <TableCell>
+                            <Stack spacing={0.25}>
+                              <Typography fontWeight={600}>
+                                {item.empleadoNombre}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                Empleado #{item.empleadoId}
+                              </Typography>
+                            </Stack>
+                          </TableCell>
 
-                        <TableCell>{item.sucursalNombre ?? "—"}</TableCell>
+                          <TableCell>{item.sucursalNombre ?? "—"}</TableCell>
 
-                        <TableCell>{getTipoNombre(item.tipo, tipos)}</TableCell>
-
-                        <TableCell>
-                          <Stack spacing={0.25}>
-                            <Typography variant="body2">
-                              Inicio: {formatDate(item.fechaInicio)}
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              Fin: {formatDate(item.fechaFin)}
-                            </Typography>
-                          </Stack>
-                        </TableCell>
-
-                        <TableCell>
-                          <Chip
-                            size="small"
-                            label={getEstatusNombre(item.estatus, estatuses)}
-                            color={estatusChipColor(item.estatus)}
-                          />
-                        </TableCell>
-
-                        <TableCell>
-                          {item.tieneEvidencia ? (
-                            <Tooltip
-                              arrow
-                              title={
-                                <Box>
-                                  <Typography variant="body2" fontWeight={700}>
-                                    {item.evidenciaNombreOriginal ||
-                                      "Archivo adjunto"}
-                                  </Typography>
-                                  <Typography variant="caption" display="block">
-                                    Tipo:{" "}
-                                    {item.evidenciaContentType || "No disponible"}
-                                  </Typography>
-                                  <Typography variant="caption" display="block">
-                                    Tamaño:{" "}
-                                    {formatBytes(item.evidenciaTamanoBytes)}
-                                  </Typography>
-                                </Box>
-                              }
-                            >
-                              <Box
-                                onClick={() => handleOpenEvidencia(item)}
-                                sx={{
-                                  maxWidth: 220,
-                                  width: "fit-content",
-                                  border: "1px solid",
-                                  borderColor: "divider",
-                                  borderRadius: 2,
-                                  px: 1,
-                                  py: 0.75,
-                                  bgcolor: "action.hover",
-                                  cursor: "pointer",
-                                  transition: "all .15s ease",
-                                  "&:hover": {
-                                    borderColor: "success.main",
-                                    boxShadow: "0 2px 10px rgba(0,0,0,0.06)",
-                                  },
-                                }}
-                              >
-                                <Stack
-                                  direction="row"
-                                  spacing={1}
-                                  alignItems="center"
-                                >
-                                  <Box
-                                    sx={{
-                                      width: 28,
-                                      height: 28,
-                                      borderRadius: 1.5,
-                                      display: "grid",
-                                      placeItems: "center",
-                                      bgcolor: "background.paper",
-                                      color: "success.main",
-                                      flexShrink: 0,
-                                    }}
-                                  >
-                                    {getEvidenceIcon(item)}
-                                  </Box>
-
-                                  <Box sx={{ minWidth: 0 }}>
-                                    <Typography
-                                      variant="caption"
-                                      fontWeight={700}
-                                      display="block"
-                                    >
-                                      Con evidencia
-                                    </Typography>
-                                    <Typography
-                                      variant="caption"
-                                      color="text.secondary"
-                                      sx={{
-                                        display: "block",
-                                        whiteSpace: "nowrap",
-                                        overflow: "hidden",
-                                        textOverflow: "ellipsis",
-                                        maxWidth: 150,
-                                      }}
-                                    >
-                                      {item.evidenciaNombreOriginal || "Archivo"}
-                                    </Typography>
-                                  </Box>
-                                </Stack>
-                              </Box>
-                            </Tooltip>
-                          ) : (
+                          <TableCell>
                             <Chip
                               size="small"
                               variant="outlined"
-                              label="Sin evidencia"
+                              label={getTipoNombre(item.tipo, tipos)}
+                              sx={tipoChipSx(item.tipo)}
                             />
-                          )}
-                        </TableCell>
+                          </TableCell>
 
-                        <TableCell sx={{ maxWidth: 260 }}>
-                          <Typography
-                            variant="body2"
-                            sx={{
-                              display: "-webkit-box",
-                              WebkitLineClamp: 3,
-                              WebkitBoxOrient: "vertical",
-                              overflow: "hidden",
-                            }}
-                          >
-                            {item.comentario || "—"}
-                          </Typography>
-                        </TableCell>
+                          <TableCell>
+                            <Stack spacing={0.25}>
+                              <Typography variant="body2">
+                                Inicio: {formatDate(item.fechaInicio)}
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                Fin: {formatDate(item.fechaFin)}
+                              </Typography>
+                            </Stack>
+                          </TableCell>
 
-                        <TableCell align="right">
-                          <Stack
-                            direction="row"
-                            spacing={1}
-                            justifyContent="flex-end"
-                            flexWrap="wrap"
-                            useFlexGap
-                          >
-                            <Button
+                          <TableCell>
+                            <Chip
                               size="small"
-                              variant="outlined"
-                              startIcon={<AttachFileRoundedIcon />}
-                              onClick={() => handleOpenEvidencia(item)}
-                              sx={{ textTransform: "none", fontWeight: 700 }}
+                              label={getEstatusNombre(item.estatus, estatuses)}
+                              color={estatusChipColor(item.estatus)}
+                            />
+                          </TableCell>
+
+                          <TableCell>
+                            {item.tieneEvidencia ? (
+                              <Tooltip
+                                arrow
+                                title={
+                                  <Box>
+                                    <Typography variant="body2" fontWeight={700}>
+                                      {item.evidenciaNombreOriginal || "Archivo adjunto"}
+                                    </Typography>
+                                    <Typography variant="caption" display="block">
+                                      Tipo: {item.evidenciaContentType || "No disponible"}
+                                    </Typography>
+                                    <Typography variant="caption" display="block">
+                                      Tamaño: {formatBytes(item.evidenciaTamanoBytes)}
+                                    </Typography>
+                                  </Box>
+                                }
+                              >
+                                <Box
+                                  onClick={() => handleOpenEvidencia(item)}
+                                  sx={{
+                                    maxWidth: 220,
+                                    width: "fit-content",
+                                    border: "1px solid",
+                                    borderColor: "divider",
+                                    borderRadius: 2,
+                                    px: 1,
+                                    py: 0.75,
+                                    bgcolor: "action.hover",
+                                    cursor: "pointer",
+                                    transition: "all .15s ease",
+                                    "&:hover": {
+                                      borderColor: "success.main",
+                                      boxShadow: "0 2px 10px rgba(0,0,0,0.06)",
+                                    },
+                                  }}
+                                >
+                                  <Stack direction="row" spacing={1} alignItems="center">
+                                    <Box
+                                      sx={{
+                                        width: 28,
+                                        height: 28,
+                                        borderRadius: 1.5,
+                                        display: "grid",
+                                        placeItems: "center",
+                                        bgcolor: "background.paper",
+                                        color: "success.main",
+                                        flexShrink: 0,
+                                      }}
+                                    >
+                                      {getEvidenceIcon(item)}
+                                    </Box>
+
+                                    <Box sx={{ minWidth: 0 }}>
+                                      <Typography
+                                        variant="caption"
+                                        fontWeight={700}
+                                        display="block"
+                                      >
+                                        Con evidencia
+                                      </Typography>
+                                      <Typography
+                                        variant="caption"
+                                        color="text.secondary"
+                                        sx={{
+                                          display: "block",
+                                          whiteSpace: "nowrap",
+                                          overflow: "hidden",
+                                          textOverflow: "ellipsis",
+                                          maxWidth: 150,
+                                        }}
+                                      >
+                                        {item.evidenciaNombreOriginal || "Archivo"}
+                                      </Typography>
+                                    </Box>
+                                  </Stack>
+                                </Box>
+                              </Tooltip>
+                            ) : (
+                              <Chip size="small" variant="outlined" label="Sin evidencia" />
+                            )}
+                          </TableCell>
+
+                          <TableCell sx={{ maxWidth: 260 }}>
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                display: "-webkit-box",
+                                WebkitLineClamp: 3,
+                                WebkitBoxOrient: "vertical",
+                                overflow: "hidden",
+                              }}
                             >
-                              {item.tieneEvidencia
-                                ? "Gestionar evidencia"
-                                : "Subir evidencia"}
-                            </Button>
+                              {item.comentario || "—"}
+                            </Typography>
+                          </TableCell>
 
-                            {canManageIncidencias && (
+                          <TableCell align="right">
+                            <Stack
+                              direction="row"
+                              spacing={1}
+                              justifyContent="flex-end"
+                              flexWrap="wrap"
+                              useFlexGap
+                            >
                               <Button
                                 size="small"
                                 variant="outlined"
-                                startIcon={<EditIcon />}
-                                onClick={() => openEdit(item)}
-                                disabled={!isPendiente || isThisPendingRow}
+                                startIcon={<AttachFileRoundedIcon />}
+                                onClick={() => handleOpenEvidencia(item)}
                                 sx={{ textTransform: "none", fontWeight: 700 }}
                               >
-                                Editar
+                                {item.tieneEvidencia
+                                  ? "Gestionar evidencia"
+                                  : "Subir evidencia"}
                               </Button>
-                            )}
 
-                            {canApproveReject && (
-                              <Button
-                                size="small"
-                                color="success"
-                                variant="outlined"
-                                startIcon={
-                                  isThisPendingRow &&
-                                  pendingAction?.type === "approve" ? (
-                                    <CircularProgress size={16} />
-                                  ) : (
-                                    <CheckCircleOutlineIcon />
-                                  )
-                                }
-                                onClick={() => requestApprove(item)}
-                                disabled={!isPendiente || confirmLoading}
-                                sx={{ textTransform: "none", fontWeight: 700 }}
-                              >
-                                Aprobar
-                              </Button>
-                            )}
+                              {canManageIncidencias && (
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  startIcon={<EditIcon />}
+                                  onClick={() => openEdit(item)}
+                                  disabled={!isPendiente || isThisPendingRow}
+                                  sx={{ textTransform: "none", fontWeight: 700 }}
+                                >
+                                  Editar
+                                </Button>
+                              )}
 
-                            {canApproveReject && (
-                              <Button
-                                size="small"
-                                color="error"
-                                variant="outlined"
-                                startIcon={
-                                  isThisPendingRow &&
-                                  pendingAction?.type === "reject" ? (
-                                    <CircularProgress size={16} />
-                                  ) : (
-                                    <CloseIcon />
-                                  )
-                                }
-                                onClick={() => requestReject(item)}
-                                disabled={!isPendiente || confirmLoading}
-                                sx={{ textTransform: "none", fontWeight: 700 }}
-                              >
-                                Rechazar
-                              </Button>
-                            )}
-                          </Stack>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </Box>
+                              {canApproveReject && (
+                                <Button
+                                  size="small"
+                                  color="success"
+                                  variant="outlined"
+                                  startIcon={
+                                    isThisPendingRow &&
+                                    pendingAction?.type === "approve" ? (
+                                      <CircularProgress size={16} />
+                                    ) : (
+                                      <CheckCircleOutlineIcon />
+                                    )
+                                  }
+                                  onClick={() => requestApprove(item)}
+                                  disabled={!isPendiente || confirmLoading}
+                                  sx={{ textTransform: "none", fontWeight: 700 }}
+                                >
+                                  Aprobar
+                                </Button>
+                              )}
+
+                              {canApproveReject && (
+                                <Button
+                                  size="small"
+                                  color="error"
+                                  variant="outlined"
+                                  startIcon={
+                                    isThisPendingRow &&
+                                    pendingAction?.type === "reject" ? (
+                                      <CircularProgress size={16} />
+                                    ) : (
+                                      <CloseIcon />
+                                    )
+                                  }
+                                  onClick={() => requestReject(item)}
+                                  disabled={!isPendiente || confirmLoading}
+                                  sx={{ textTransform: "none", fontWeight: 700 }}
+                                >
+                                  Rechazar
+                                </Button>
+                              )}
+                            </Stack>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </Box>
+
+              <TablePagination
+                component="div"
+                count={items.length}
+                page={page}
+                onPageChange={handleChangePage}
+                rowsPerPage={rowsPerPage}
+                onRowsPerPageChange={handleChangeRowsPerPage}
+                rowsPerPageOptions={[5, 10, 25, 50]}
+                labelRowsPerPage="Filas por página"
+                labelDisplayedRows={({ from, to, count }) =>
+                  `${from}-${to} de ${count !== -1 ? count : `más de ${to}`}`
+                }
+              />
+            </>
           )}
         </CardContent>
       </Card>
@@ -1593,12 +1668,8 @@ export default function IncidenciasPage() {
               }. Esta acción cambiará su estatus.`
             : ""
         }
-        confirmText={
-          pendingAction?.type === "approve" ? "Aprobar" : "Rechazar"
-        }
-        confirmColor={
-          pendingAction?.type === "approve" ? "success" : "error"
-        }
+        confirmText={pendingAction?.type === "approve" ? "Aprobar" : "Rechazar"}
+        confirmColor={pendingAction?.type === "approve" ? "success" : "error"}
         loading={confirmLoading}
         onClose={() => {
           if (!confirmLoading) setPendingAction(null);
@@ -1612,11 +1683,7 @@ export default function IncidenciasPage() {
         onClose={closeSnackbar}
         anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
       >
-        <Alert
-          severity={snackbar.severity}
-          onClose={closeSnackbar}
-          variant="filled"
-        >
+        <Alert severity={snackbar.severity} onClose={closeSnackbar} variant="filled">
           {snackbar.message}
         </Alert>
       </Snackbar>

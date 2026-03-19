@@ -18,13 +18,13 @@ import {
   TableRow,
   Typography,
 } from "@mui/material";
+import { alpha } from "@mui/material/styles";
 import DashboardRoundedIcon from "@mui/icons-material/DashboardRounded";
 import ApartmentRoundedIcon from "@mui/icons-material/ApartmentRounded";
 import WorkOutlineRoundedIcon from "@mui/icons-material/WorkOutlineRounded";
 import GavelRoundedIcon from "@mui/icons-material/GavelRounded";
 import StoreRoundedIcon from "@mui/icons-material/StoreRounded";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
-import HistoryRoundedIcon from "@mui/icons-material/HistoryRounded";
 import LoginRoundedIcon from "@mui/icons-material/LoginRounded";
 import EditNoteRoundedIcon from "@mui/icons-material/EditNoteRounded";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
@@ -62,7 +62,6 @@ import {
 import type { AuditItem } from "../api/audit.api";
 
 const colors = {
-  pageBg: "#f5f7fb",
   cardBg: "#ffffff",
   softBg: "#f8fafc",
   softBg2: "#fbfdff",
@@ -70,8 +69,8 @@ const colors = {
   borderSoft: "#dbe3ee",
   text: "#111827",
   subtext: "#6b7280",
-  heroFrom: "#111827",
-  heroTo: "#1f2937",
+  heroFrom: "#0b1630",
+  heroTo: "#14233f",
   heroGlass: "rgba(255,255,255,0.08)",
   heroGlassBorder: "rgba(255,255,255,0.12)",
   heroMuted: "rgba(255,255,255,0.76)",
@@ -269,6 +268,52 @@ function getTipoIcon(tipo?: string | null): ReactNode {
     default:
       return <BadgeRoundedIcon fontSize="small" />;
   }
+}
+
+type SectionCardProps = {
+  title: string;
+  subtitle: string;
+  action?: ReactNode;
+  children: ReactNode;
+};
+
+function SectionCard({ title, subtitle, action, children }: SectionCardProps) {
+  return (
+    <Card
+      elevation={0}
+      sx={{
+        borderRadius: 4,
+        border: `1px solid ${colors.border}`,
+        backgroundColor: colors.cardBg,
+        boxShadow: colors.shadow,
+      }}
+    >
+      <CardContent sx={{ p: 2.5 }}>
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          justifyContent="space-between"
+          alignItems={{ xs: "flex-start", sm: "center" }}
+          spacing={1}
+          sx={{ mb: 2 }}
+        >
+          <Box>
+            <Typography variant="h6" fontWeight={800} sx={{ color: colors.text }}>
+              {title}
+            </Typography>
+            <Typography variant="body2" sx={{ color: colors.subtext }}>
+              {subtitle}
+            </Typography>
+          </Box>
+
+          {action}
+        </Stack>
+
+        <Divider sx={{ mb: 2, borderColor: colors.border }} />
+
+        {children}
+      </CardContent>
+    </Card>
+  );
 }
 
 type PrimaryKpiCardProps = {
@@ -558,6 +603,65 @@ function SummaryListCard({
   );
 }
 
+function QuickActionCard({
+  label,
+  description,
+  icon,
+  onClick,
+}: {
+  label: string;
+  description: string;
+  icon: ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <Box
+      onClick={onClick}
+      sx={{
+        border: `1px solid ${colors.border}`,
+        borderRadius: 3,
+        p: 1.5,
+        cursor: "pointer",
+        transition: "all .15s ease",
+        backgroundColor: colors.softBg2,
+        "&:hover": {
+          transform: "translateY(-1px)",
+          boxShadow: colors.shadow,
+          borderColor: colors.borderSoft,
+        },
+      }}
+    >
+      <Stack direction="row" spacing={1.25} alignItems="center">
+        <Box
+          sx={{
+            width: 38,
+            height: 38,
+            borderRadius: 2.5,
+            display: "grid",
+            placeItems: "center",
+            backgroundColor: colors.accentSoft2,
+            color: colors.accentText,
+            flexShrink: 0,
+          }}
+        >
+          {icon}
+        </Box>
+
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography fontWeight={800} sx={{ color: colors.text }}>
+            {label}
+          </Typography>
+          <Typography variant="body2" sx={{ color: colors.subtext }}>
+            {description}
+          </Typography>
+        </Box>
+
+        <ChevronRightRoundedIcon sx={{ color: colors.subtext }} />
+      </Stack>
+    </Box>
+  );
+}
+
 export default function DashboardPage() {
   const navigate = useNavigate();
   const { roles = [] } = useAuth();
@@ -681,25 +785,19 @@ export default function DashboardPage() {
   };
 
   return (
-    <Stack
-      spacing={3}
-      sx={{
-        backgroundColor: colors.pageBg,
-        p: { xs: 2, md: 3 },
-      }}
-    >
+    <Box sx={{ display: "grid", gap: 3 }}>
       <Card
         elevation={0}
         sx={{
-          borderRadius: 5,
-          border: `1px solid ${colors.border}`,
+          borderRadius: 6,
+          border: "none",
           background: `linear-gradient(135deg, ${colors.heroFrom} 0%, ${colors.heroTo} 100%)`,
           color: "#fff",
           overflow: "hidden",
-          boxShadow: "0 16px 40px rgba(15, 23, 42, 0.18)",
+          boxShadow: "0 18px 44px rgba(10, 22, 48, 0.24)",
         }}
       >
-        <CardContent sx={{ p: { xs: 2.5, md: 3.5 } }}>
+        <CardContent sx={{ p: { xs: 3, md: 4 } }}>
           <Box
             sx={{
               display: "grid",
@@ -712,8 +810,8 @@ export default function DashboardPage() {
               <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
                 <Box
                   sx={{
-                    width: 34,
-                    height: 34,
+                    width: 36,
+                    height: 36,
                     borderRadius: 2.5,
                     display: "grid",
                     placeItems: "center",
@@ -726,19 +824,27 @@ export default function DashboardPage() {
 
                 <Typography
                   variant="overline"
-                  sx={{ color: colors.heroMuted, letterSpacing: 1.2 }}
+                  sx={{ color: colors.heroMuted, letterSpacing: 1.2, fontWeight: 800 }}
                 >
-                  Dashboard RH
+                  DASHBOARD RH
                 </Typography>
               </Stack>
 
-              <Typography variant="h4" fontWeight={900} sx={{ lineHeight: 1.05 }}>
+              <Typography
+                variant="h3"
+                sx={{
+                  fontWeight: 900,
+                  fontSize: { xs: 34, md: 48 },
+                  lineHeight: 1.05,
+                  letterSpacing: -1,
+                }}
+              >
                 Tablero principal de operación
               </Typography>
 
               <Typography
                 sx={{
-                  mt: 1.25,
+                  mt: 1.5,
                   color: colors.heroText,
                   maxWidth: 760,
                 }}
@@ -785,78 +891,65 @@ export default function DashboardPage() {
 
             <Box
               sx={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 1.5,
-                alignItems: { xs: "stretch", lg: "flex-end" },
+                width: { xs: "100%", lg: 320 },
+                justifySelf: { lg: "end" },
+                p: 2.25,
+                borderRadius: 5,
+                border: `1px solid ${colors.heroGlassBorder}`,
+                backgroundColor: colors.heroGlass,
+                backdropFilter: "blur(8px)",
               }}
             >
-              <Box
-                sx={{
-                  width: { xs: "100%", lg: 320 },
-                  p: 2,
-                  borderRadius: 4,
-                  border: `1px solid ${colors.heroGlassBorder}`,
-                  backgroundColor: colors.heroGlass,
-                  backdropFilter: "blur(6px)",
-                }}
-              >
-                <Typography
-                  variant="body2"
-                  sx={{ color: colors.heroMuted, mb: 0.75 }}
+              <Typography variant="body2" sx={{ color: colors.heroMuted, mb: 0.75 }}>
+                Resumen rápido
+              </Typography>
+
+              <Typography variant="h2" fontWeight={900} sx={{ lineHeight: 1 }}>
+                {quickActions.length}
+              </Typography>
+
+              <Typography variant="body2" sx={{ color: colors.heroText, mt: 0.75 }}>
+                módulos disponibles para tu sesión actual
+              </Typography>
+
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={1} sx={{ mt: 2 }}>
+                <Button
+                  variant="contained"
+                  startIcon={<PendingActionsOutlinedIcon />}
+                  onClick={() => navigate("/incidencias")}
+                  sx={{
+                    textTransform: "none",
+                    fontWeight: 800,
+                    borderRadius: 999,
+                    backgroundColor: "#ffffff",
+                    color: colors.text,
+                    "&:hover": {
+                      backgroundColor: "#f3f4f6",
+                    },
+                  }}
                 >
-                  Resumen rápido
-                </Typography>
+                  Ver incidencias
+                </Button>
 
-                <Typography variant="h3" fontWeight={900} sx={{ lineHeight: 1 }}>
-                  {quickActions.length}
-                </Typography>
-
-                <Typography
-                  variant="body2"
-                  sx={{ color: colors.heroText, mt: 0.75 }}
+                <Button
+                  variant="outlined"
+                  startIcon={<RefreshRoundedIcon />}
+                  onClick={refreshAll}
+                  sx={{
+                    textTransform: "none",
+                    fontWeight: 800,
+                    borderRadius: 999,
+                    color: "#fff",
+                    borderColor: colors.heroGlassBorder,
+                    "&:hover": {
+                      borderColor: "rgba(255,255,255,0.30)",
+                      backgroundColor: alpha("#ffffff", 0.04),
+                    },
+                  }}
                 >
-                  módulos disponibles para tu sesión actual
-                </Typography>
-
-                <Stack direction={{ xs: "column", sm: "row" }} spacing={1} sx={{ mt: 2 }}>
-                  <Button
-                    variant="contained"
-                    startIcon={<PendingActionsOutlinedIcon />}
-                    onClick={() => navigate("/incidencias")}
-                    sx={{
-                      textTransform: "none",
-                      fontWeight: 800,
-                      borderRadius: 999,
-                      backgroundColor: "#ffffff",
-                      color: colors.text,
-                      "&:hover": {
-                        backgroundColor: "#f3f4f6",
-                      },
-                    }}
-                  >
-                    Ver incidencias
-                  </Button>
-
-                  <Button
-                    variant="outlined"
-                    startIcon={<RefreshRoundedIcon />}
-                    onClick={refreshAll}
-                    sx={{
-                      textTransform: "none",
-                      fontWeight: 800,
-                      borderRadius: 999,
-                      color: "#fff",
-                      borderColor: colors.heroGlassBorder,
-                      "&:hover": {
-                        borderColor: "rgba(255,255,255,0.30)",
-                      },
-                    }}
-                  >
-                    Actualizar
-                  </Button>
-                </Stack>
-              </Box>
+                  Actualizar
+                </Button>
+              </Stack>
             </Box>
           </Box>
         </CardContent>
@@ -888,94 +981,32 @@ export default function DashboardPage() {
         </Stack>
       )}
 
-      <Card
-        elevation={0}
-        sx={{
-          borderRadius: 4,
-          border: `1px solid ${colors.border}`,
-          backgroundColor: colors.cardBg,
-          boxShadow: colors.shadow,
-        }}
+      <SectionCard
+        title="Accesos rápidos"
+        subtitle="Atajos directos a los módulos más usados."
       >
-        <CardContent sx={{ p: 2.25 }}>
-          <Stack
-            direction={{ xs: "column", sm: "row" }}
-            justifyContent="space-between"
-            alignItems={{ xs: "flex-start", sm: "center" }}
-            spacing={1}
-            sx={{ mb: 2 }}
-          >
-            <Box>
-              <Typography variant="subtitle1" fontWeight={800} sx={{ color: colors.text }}>
-                Accesos rápidos
-              </Typography>
-              <Typography variant="body2" sx={{ color: colors.subtext }}>
-                Atajos directos a los módulos más usados.
-              </Typography>
-            </Box>
-          </Stack>
-
-          <Box
-            sx={{
-              display: "grid",
-              gridTemplateColumns: {
-                xs: "1fr",
-                sm: "repeat(2, 1fr)",
-                xl: "repeat(3, 1fr)",
-              },
-              gap: 1.25,
-            }}
-          >
-            {quickActions.map((action) => (
-              <Box
-                key={action.to}
-                onClick={() => navigate(action.to)}
-                sx={{
-                  border: `1px solid ${colors.border}`,
-                  borderRadius: 3,
-                  p: 1.5,
-                  cursor: "pointer",
-                  transition: "all .15s ease",
-                  backgroundColor: colors.softBg2,
-                  "&:hover": {
-                    transform: "translateY(-1px)",
-                    boxShadow: colors.shadow,
-                    borderColor: colors.borderSoft,
-                  },
-                }}
-              >
-                <Stack direction="row" spacing={1.25} alignItems="center">
-                  <Box
-                    sx={{
-                      width: 38,
-                      height: 38,
-                      borderRadius: 2.5,
-                      display: "grid",
-                      placeItems: "center",
-                      backgroundColor: colors.accentSoft2,
-                      color: colors.accentText,
-                      flexShrink: 0,
-                    }}
-                  >
-                    {action.icon}
-                  </Box>
-
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography fontWeight={800} sx={{ color: colors.text }}>
-                      {action.label}
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: colors.subtext }}>
-                      {action.description}
-                    </Typography>
-                  </Box>
-
-                  <ChevronRightRoundedIcon sx={{ color: colors.subtext }} />
-                </Stack>
-              </Box>
-            ))}
-          </Box>
-        </CardContent>
-      </Card>
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: {
+              xs: "1fr",
+              sm: "repeat(2, 1fr)",
+              xl: "repeat(3, 1fr)",
+            },
+            gap: 1.25,
+          }}
+        >
+          {quickActions.map((action) => (
+            <QuickActionCard
+              key={action.to}
+              label={action.label}
+              description={action.description}
+              icon={action.icon}
+              onClick={() => navigate(action.to)}
+            />
+          ))}
+        </Box>
+      </SectionCard>
 
       <Box
         sx={{
@@ -1045,267 +1076,184 @@ export default function DashboardPage() {
         />
       </Box>
 
-      <Card
-        elevation={0}
-        sx={{
-          borderRadius: 4,
-          border: `1px solid ${colors.border}`,
-          backgroundColor: colors.cardBg,
-          boxShadow: colors.shadow,
-        }}
-      >
-        <CardContent sx={{ p: 2.5 }}>
-          <Stack
-            direction={{ xs: "column", sm: "row" }}
-            justifyContent="space-between"
-            alignItems={{ xs: "flex-start", sm: "center" }}
-            spacing={1}
-            sx={{ mb: 2 }}
+      <SectionCard
+        title="Incidencias recientes"
+        subtitle="Últimos movimientos registrados en el módulo."
+        action={
+          <Button
+            size="small"
+            onClick={() => navigate("/incidencias")}
+            sx={{ textTransform: "none", fontWeight: 800 }}
           >
-            <Box>
-              <Stack direction="row" spacing={1} alignItems="center">
-                <Box
-                  sx={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 2.5,
-                    display: "grid",
-                    placeItems: "center",
-                    backgroundColor: colors.accentSoft2,
-                    color: colors.accentText,
-                  }}
-                >
-                  <PendingActionsOutlinedIcon fontSize="small" />
-                </Box>
-
-                <Box>
-                  <Typography variant="h6" fontWeight={800} sx={{ color: colors.text }}>
-                    Incidencias recientes
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: colors.subtext }}>
-                    Últimos movimientos registrados en el módulo.
-                  </Typography>
-                </Box>
-              </Stack>
-            </Box>
-
-            <Button
-              size="small"
-              onClick={() => navigate("/incidencias")}
-              sx={{ textTransform: "none", fontWeight: 800 }}
-            >
-              Ver todas
-            </Button>
-          </Stack>
-
-          <Divider sx={{ mb: 2, borderColor: colors.border }} />
-
-          {dashboardQuery.isLoading ? (
-            <Box sx={{ py: 5, display: "flex", justifyContent: "center" }}>
-              <CircularProgress />
-            </Box>
-          ) : recientes.length === 0 ? (
-            <Typography variant="body2" sx={{ color: colors.subtext }}>
-              No hay incidencias recientes.
-            </Typography>
-          ) : (
-            <Box sx={{ overflowX: "auto" }}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>
-                      <strong>Empleado</strong>
-                    </TableCell>
-                    <TableCell>
-                      <strong>Número</strong>
-                    </TableCell>
-                    <TableCell>
-                      <strong>Tipo</strong>
-                    </TableCell>
-                    <TableCell>
-                      <strong>Estatus</strong>
-                    </TableCell>
-                    <TableCell>
-                      <strong>Inicio</strong>
-                    </TableCell>
-                    <TableCell>
-                      <strong>Fin</strong>
-                    </TableCell>
-                    <TableCell>
-                      <strong>Creada</strong>
-                    </TableCell>
-                  </TableRow>
-                </TableHead>
-
-                <TableBody>
-                  {recientes.map((item) => (
-                    <TableRow key={item.id} hover>
-                      <TableCell>
-                        <Stack spacing={0.25}>
-                          <Typography fontWeight={700} sx={{ color: colors.text }}>
-                            {item.empleadoNombre}
-                          </Typography>
-                          <Typography variant="caption" sx={{ color: colors.subtext }}>
-                            ID #{item.empleadoId}
-                          </Typography>
-                        </Stack>
-                      </TableCell>
-
-                      <TableCell>{item.numEmpleado}</TableCell>
-
-                      <TableCell>
-                        <Stack direction="row" spacing={1} alignItems="center">
-                          <Box
-                            sx={{
-                              width: 28,
-                              height: 28,
-                              borderRadius: 2,
-                              display: "grid",
-                              placeItems: "center",
-                              backgroundColor: colors.softBg,
-                              color: colors.neutralIconText,
-                              flexShrink: 0,
-                            }}
-                          >
-                            {getTipoIcon(item.tipo)}
-                          </Box>
-                          <Typography variant="body2" sx={{ color: colors.text }}>
-                            {formatEnumLabel(item.tipo)}
-                          </Typography>
-                        </Stack>
-                      </TableCell>
-
-                      <TableCell>
-                        <Chip
-                          icon={getStatusIcon(item.estatus)}
-                          label={formatEnumLabel(item.estatus)}
-                          size="small"
-                          color={getStatusColor(item.estatus)}
-                          variant="outlined"
-                        />
-                      </TableCell>
-
-                      <TableCell>{formatDateOnly(item.fechaInicio)}</TableCell>
-                      <TableCell>{formatDateOnly(item.fechaFin)}</TableCell>
-                      <TableCell>{formatDateTime(item.createdAtUtc)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </Box>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card
-        elevation={0}
-        sx={{
-          borderRadius: 4,
-          border: `1px solid ${colors.border}`,
-          overflow: "hidden",
-          backgroundColor: colors.cardBg,
-          boxShadow: colors.shadow,
-        }}
+            Ver todas
+          </Button>
+        }
       >
-        <CardContent sx={{ p: 0 }}>
-          <Box
-            sx={{
-              px: 2.5,
-              py: 1.75,
-              borderBottom: `1px solid ${colors.border}`,
-              backgroundColor: colors.softBg,
-            }}
-          >
-            <Stack direction="row" spacing={1} alignItems="center">
-              <HistoryRoundedIcon fontSize="small" />
-              <Typography variant="subtitle1" fontWeight={800} sx={{ color: colors.text }}>
-                Auditoría reciente
-              </Typography>
-            </Stack>
+        {dashboardQuery.isLoading ? (
+          <Box sx={{ py: 5, display: "flex", justifyContent: "center" }}>
+            <CircularProgress />
           </Box>
+        ) : recientes.length === 0 ? (
+          <Typography variant="body2" sx={{ color: colors.subtext }}>
+            No hay incidencias recientes.
+          </Typography>
+        ) : (
+          <Box sx={{ overflowX: "auto" }}>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell><strong>Empleado</strong></TableCell>
+                  <TableCell><strong>Número</strong></TableCell>
+                  <TableCell><strong>Tipo</strong></TableCell>
+                  <TableCell><strong>Estatus</strong></TableCell>
+                  <TableCell><strong>Inicio</strong></TableCell>
+                  <TableCell><strong>Fin</strong></TableCell>
+                  <TableCell><strong>Creada</strong></TableCell>
+                </TableRow>
+              </TableHead>
 
-          <Box sx={{ p: 2.5 }}>
-            {!canSeeAudit ? (
-              <Alert severity="info">
-                Tu rol actual no tiene acceso a la bitácora de auditoría.
-              </Alert>
-            ) : statsQuery.isLoading ? (
-              <Box sx={{ py: 4, display: "flex", justifyContent: "center" }}>
-                <CircularProgress />
-              </Box>
-            ) : recentAudit.length === 0 ? (
-              <Alert severity="info">No hay actividad reciente para mostrar.</Alert>
-            ) : (
-              <Stack spacing={1.25}>
-                {recentAudit.map((row) => (
+              <TableBody>
+                {recientes.map((item) => (
+                  <TableRow key={item.id} hover>
+                    <TableCell>
+                      <Stack spacing={0.25}>
+                        <Typography fontWeight={700} sx={{ color: colors.text }}>
+                          {item.empleadoNombre}
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: colors.subtext }}>
+                          ID #{item.empleadoId}
+                        </Typography>
+                      </Stack>
+                    </TableCell>
+
+                    <TableCell>{item.numEmpleado}</TableCell>
+
+                    <TableCell>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Box
+                          sx={{
+                            width: 28,
+                            height: 28,
+                            borderRadius: 2,
+                            display: "grid",
+                            placeItems: "center",
+                            backgroundColor: colors.softBg,
+                            color: colors.neutralIconText,
+                            flexShrink: 0,
+                          }}
+                        >
+                          {getTipoIcon(item.tipo)}
+                        </Box>
+                        <Typography variant="body2" sx={{ color: colors.text }}>
+                          {formatEnumLabel(item.tipo)}
+                        </Typography>
+                      </Stack>
+                    </TableCell>
+
+                    <TableCell>
+                      <Chip
+                        icon={getStatusIcon(item.estatus)}
+                        label={formatEnumLabel(item.estatus)}
+                        size="small"
+                        color={getStatusColor(item.estatus)}
+                        variant="outlined"
+                      />
+                    </TableCell>
+
+                    <TableCell>{formatDateOnly(item.fechaInicio)}</TableCell>
+                    <TableCell>{formatDateOnly(item.fechaFin)}</TableCell>
+                    <TableCell>{formatDateTime(item.createdAtUtc)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Box>
+        )}
+      </SectionCard>
+
+      <SectionCard
+        title="Auditoría reciente"
+        subtitle="Actividad y trazabilidad del sistema."
+      >
+        {!canSeeAudit ? (
+          <Alert severity="info">
+            Tu rol actual no tiene acceso a la bitácora de auditoría.
+          </Alert>
+        ) : statsQuery.isLoading ? (
+          <Box sx={{ py: 4, display: "flex", justifyContent: "center" }}>
+            <CircularProgress />
+          </Box>
+        ) : recentAudit.length === 0 ? (
+          <Alert severity="info">No hay actividad reciente para mostrar.</Alert>
+        ) : (
+          <Stack spacing={1.25}>
+            {recentAudit.map((row) => (
+              <Box
+                key={row.id}
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: { xs: "1fr", md: "1fr auto" },
+                  gap: 1.5,
+                  alignItems: "center",
+                  px: 1.5,
+                  py: 1.5,
+                  borderRadius: 3,
+                  border: `1px solid ${colors.border}`,
+                  backgroundColor: colors.softBg2,
+                }}
+              >
+                <Stack direction="row" spacing={1.25} alignItems="flex-start">
                   <Box
-                    key={row.id}
                     sx={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 2.5,
                       display: "grid",
-                      gridTemplateColumns: { xs: "1fr", md: "1fr auto" },
-                      gap: 1.5,
-                      alignItems: "center",
-                      px: 1.5,
-                      py: 1.5,
-                      borderRadius: 3,
-                      border: `1px solid ${colors.border}`,
-                      backgroundColor: colors.softBg2,
+                      placeItems: "center",
+                      backgroundColor: colors.softBg,
+                      color: colors.neutralIconText,
+                      flexShrink: 0,
                     }}
                   >
-                    <Stack direction="row" spacing={1.25} alignItems="flex-start">
-                      <Box
-                        sx={{
-                          width: 36,
-                          height: 36,
-                          borderRadius: 2.5,
-                          display: "grid",
-                          placeItems: "center",
-                          backgroundColor: colors.softBg,
-                          color: colors.neutralIconText,
-                          flexShrink: 0,
-                        }}
-                      >
-                        {getActionIcon(row.action)}
-                      </Box>
+                    {getActionIcon(row.action)}
+                  </Box>
 
-                      <Box>
-                        <Stack
-                          direction={{ xs: "column", sm: "row" }}
-                          spacing={1}
-                          alignItems={{ xs: "flex-start", sm: "center" }}
-                          sx={{ mb: 0.5 }}
-                        >
-                          <Typography fontWeight={800} sx={{ color: colors.text }}>
-                            {row.entityName || "Sistema"}
-                          </Typography>
+                  <Box>
+                    <Stack
+                      direction={{ xs: "column", sm: "row" }}
+                      spacing={1}
+                      alignItems={{ xs: "flex-start", sm: "center" }}
+                      sx={{ mb: 0.5 }}
+                    >
+                      <Typography fontWeight={800} sx={{ color: colors.text }}>
+                        {row.entityName || "Sistema"}
+                      </Typography>
 
-                          <Chip
-                            size="small"
-                            label={row.action}
-                            color={getActionColor(row.action)}
-                          />
-                        </Stack>
-
-                        <Typography variant="body2" sx={{ color: colors.subtext }}>
-                          Usuario: {row.userEmail ?? "-"} · Rol: {row.userRole ?? "-"} ·
-                          Registro: {row.recordId ?? "-"}
-                        </Typography>
-                      </Box>
+                      <Chip
+                        size="small"
+                        label={row.action}
+                        color={getActionColor(row.action)}
+                      />
                     </Stack>
 
-                    <Typography
-                      variant="body2"
-                      sx={{ textAlign: { md: "right" }, color: colors.subtext }}
-                    >
-                      {formatDateTime(row.occurredAtUtc)}
+                    <Typography variant="body2" sx={{ color: colors.subtext }}>
+                      Usuario: {row.userEmail ?? "-"} · Rol: {row.userRole ?? "-"} ·
+                      Registro: {row.recordId ?? "-"}
                     </Typography>
                   </Box>
-                ))}
-              </Stack>
-            )}
-          </Box>
-        </CardContent>
-      </Card>
-    </Stack>
+                </Stack>
+
+                <Typography
+                  variant="body2"
+                  sx={{ textAlign: { md: "right" }, color: colors.subtext }}
+                >
+                  {formatDateTime(row.occurredAtUtc)}
+                </Typography>
+              </Box>
+            ))}
+          </Stack>
+        )}
+      </SectionCard>
+    </Box>
   );
 }

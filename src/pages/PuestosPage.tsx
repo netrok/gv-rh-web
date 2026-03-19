@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import axios from "axios";
 import {
   Alert,
@@ -12,6 +12,7 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Divider,
   FormControlLabel,
   IconButton,
   MenuItem,
@@ -21,6 +22,7 @@ import {
   TableBody,
   TableCell,
   TableHead,
+  TablePagination,
   TableRow,
   TextField,
   Tooltip,
@@ -30,6 +32,11 @@ import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import SyncAltIcon from "@mui/icons-material/SyncAlt";
 import RefreshIcon from "@mui/icons-material/Refresh";
+import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
+import WorkOutlineRoundedIcon from "@mui/icons-material/WorkOutlineRounded";
+import ApartmentRoundedIcon from "@mui/icons-material/ApartmentRounded";
+import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
+import DoNotDisturbOnRoundedIcon from "@mui/icons-material/DoNotDisturbOnRounded";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -60,9 +67,7 @@ const puestoSchema = z.object({
     .min(1, "El nombre es obligatorio")
     .max(150, "Máximo 150 caracteres")
     .transform((v) => v.trim()),
-  departamentoId: z.coerce
-    .number()
-    .min(1, "Debes seleccionar un departamento"),
+  departamentoId: z.coerce.number().min(1, "Debes seleccionar un departamento"),
   activo: z.boolean(),
 });
 
@@ -80,11 +85,80 @@ function getErrorMessage(error: unknown) {
       return apiMessage;
     }
 
-    return `${error.response?.status ?? ""} ${error.response?.statusText ?? error.message}`.trim();
+    return `${error.response?.status ?? ""} ${
+      error.response?.statusText ?? error.message
+    }`.trim();
   }
 
   if (error instanceof Error) return error.message;
   return "Ocurrió un error inesperado.";
+}
+
+function MetricCard({
+  title,
+  value,
+  subtitle,
+  icon,
+  badge,
+}: {
+  title: string;
+  value: number | string;
+  subtitle: string;
+  icon: ReactNode;
+  badge?: string;
+}) {
+  return (
+    <Card
+      elevation={0}
+      sx={{
+        borderRadius: 4,
+        height: "100%",
+      }}
+    >
+      <CardContent>
+        <Stack direction="row" justifyContent="space-between" spacing={2}>
+          <Box>
+            <Typography variant="body2" color="text.secondary">
+              {title}
+            </Typography>
+
+            <Typography
+              variant="h4"
+              fontWeight={800}
+              sx={{ mt: 0.75, lineHeight: 1 }}
+            >
+              {value}
+            </Typography>
+
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              {subtitle}
+            </Typography>
+          </Box>
+
+          <Stack alignItems="flex-end" spacing={1}>
+            {badge ? (
+              <Chip size="small" label={badge} color="primary" variant="outlined" />
+            ) : null}
+
+            <Box
+              sx={{
+                width: 44,
+                height: 44,
+                borderRadius: 2.5,
+                display: "grid",
+                placeItems: "center",
+                bgcolor: "action.hover",
+                color: "text.secondary",
+                flexShrink: 0,
+              }}
+            >
+              {icon}
+            </Box>
+          </Stack>
+        </Stack>
+      </CardContent>
+    </Card>
+  );
 }
 
 function PuestoDialog({
@@ -157,6 +231,7 @@ function PuestoDialog({
             {...register("clave")}
             error={!!errors.clave}
             helperText={errors.clave?.message}
+            autoFocus
           />
 
           <TextField
@@ -186,7 +261,10 @@ function PuestoDialog({
               <Switch
                 checked={activo}
                 onChange={(_, checked) =>
-                  setValue("activo", checked, { shouldDirty: true })
+                  setValue("activo", checked, {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  })
                 }
               />
             }
@@ -217,9 +295,12 @@ export default function PuestosPage() {
 
   const [search, setSearch] = useState("");
   const [departamentoFilter, setDepartamentoFilter] = useState("");
+  const [soloActivos, setSoloActivos] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Puesto | null>(null);
   const [confirmTarget, setConfirmTarget] = useState<Puesto | null>(null);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   const puestosQuery = useQuery({
     queryKey: ["puestos"],
@@ -234,7 +315,7 @@ export default function PuestosPage() {
   const departamentos = departamentosQuery.data ?? [];
 
   const departamentosMap = useMemo(() => {
-    return new Map(departamentos.map((d) => [d.id, d]));
+    return new Map(departamentos.map((d) => [Number(d.id), d]));
   }, [departamentos]);
 
   const saveMutation = useMutation({
@@ -245,11 +326,12 @@ export default function PuestosPage() {
 
       return createPuesto(values);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["puestos"] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["puestos"] });
+      const wasEdit = !!editing;
       setDialogOpen(false);
       setEditing(null);
-      showSnackbar(editing ? "Puesto actualizado." : "Puesto creado.", "success");
+      showSnackbar(wasEdit ? "Puesto actualizado." : "Puesto creado.", "success");
     },
     onError: (error) => {
       showSnackbar(getErrorMessage(error), "error");
@@ -265,8 +347,8 @@ export default function PuestosPage() {
         activo: !row.activo,
       });
     },
-    onSuccess: (_, row) => {
-      queryClient.invalidateQueries({ queryKey: ["puestos"] });
+    onSuccess: async (_, row) => {
+      await queryClient.invalidateQueries({ queryKey: ["puestos"] });
       showSnackbar(
         row.activo ? "Puesto desactivado." : "Puesto reactivado.",
         "success"
@@ -284,23 +366,52 @@ export default function PuestosPage() {
     const term = search.trim().toLowerCase();
 
     return rows.filter((row) => {
-      const departamento = departamentosMap.get(row.departamentoId);
+      const departamento = departamentosMap.get(Number(row.departamentoId));
       const departamentoNombre = departamento?.nombre?.toLowerCase() ?? "";
+      const departamentoClave = departamento?.clave?.toLowerCase() ?? "";
 
-      const departamentoIdMatches = departamentoFilter
-        ? row.departamentoId === Number(departamentoFilter)
+      const departamentoMatches = departamentoFilter
+        ? Number(row.departamentoId) === Number(departamentoFilter)
         : true;
+
+      const activosMatches = soloActivos ? row.activo : true;
 
       const searchMatches = !term
         ? true
         : row.clave.toLowerCase().includes(term) ||
           row.nombre.toLowerCase().includes(term) ||
           departamentoNombre.includes(term) ||
+          departamentoClave.includes(term) ||
           (row.activo ? "activo" : "inactivo").includes(term);
 
-      return departamentoIdMatches && searchMatches;
+      return departamentoMatches && activosMatches && searchMatches;
     });
-  }, [puestosQuery.data, search, departamentoFilter, departamentosMap]);
+  }, [puestosQuery.data, search, departamentoFilter, soloActivos, departamentosMap]);
+
+  const paginatedRows = useMemo(() => {
+    const start = page * rowsPerPage;
+    return filteredRows.slice(start, start + rowsPerPage);
+  }, [filteredRows, page, rowsPerPage]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [search, departamentoFilter, soloActivos, filteredRows.length]);
+
+  const activeCount = useMemo(
+    () => filteredRows.filter((row) => row.activo).length,
+    [filteredRows]
+  );
+
+  const inactiveCount = useMemo(
+    () => filteredRows.filter((row) => !row.activo).length,
+    [filteredRows]
+  );
+
+  const uniqueDepartamentosCount = useMemo(() => {
+    return new Set(
+      filteredRows.map((row) => Number(row.departamentoId)).filter((id) => id > 0)
+    ).size;
+  }, [filteredRows]);
 
   const openCreateDialog = () => {
     setEditing(null);
@@ -314,11 +425,14 @@ export default function PuestosPage() {
 
   const canOpenDialog = departamentos.length > 0;
 
+  const loadingAny =
+    puestosQuery.isLoading || departamentosQuery.isLoading;
+
   return (
-    <Box sx={{ p: 3 }}>
+    <Box sx={{ display: "grid", gap: 3 }}>
       <PageHeader
         title="Puestos"
-        subtitle="Catálogo de puestos vinculados a departamentos."
+        subtitle="Catálogo de puestos vinculados a departamentos y estructura operativa."
         actions={[
           {
             label: "Actualizar",
@@ -340,19 +454,79 @@ export default function PuestosPage() {
       />
 
       {!canOpenDialog && !departamentosQuery.isLoading && (
-        <Alert severity="warning" sx={{ mb: 2 }}>
+        <Alert severity="warning">
           Necesitas al menos un departamento activo para registrar puestos.
         </Alert>
       )}
 
-      <Card sx={{ borderRadius: 3 }}>
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: {
+            xs: "1fr",
+            sm: "repeat(2, 1fr)",
+            xl: "repeat(4, 1fr)",
+          },
+          gap: 2,
+        }}
+      >
+        <MetricCard
+          title="Total"
+          value={filteredRows.length}
+          subtitle="Puestos visibles"
+          icon={<WorkOutlineRoundedIcon fontSize="small" />}
+          badge="RH"
+        />
+        <MetricCard
+          title="Activos"
+          value={activeCount}
+          subtitle="Disponibles para asignación"
+          icon={<CheckCircleRoundedIcon fontSize="small" />}
+          badge="RH"
+        />
+        <MetricCard
+          title="Inactivos"
+          value={inactiveCount}
+          subtitle="Deshabilitados"
+          icon={<DoNotDisturbOnRoundedIcon fontSize="small" />}
+          badge="RH"
+        />
+        <MetricCard
+          title="Departamentos"
+          value={uniqueDepartamentosCount}
+          subtitle="Con puestos visibles"
+          icon={<ApartmentRoundedIcon fontSize="small" />}
+          badge="RH"
+        />
+      </Box>
+
+      <Card>
         <CardContent>
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            spacing={1}
+            alignItems={{ xs: "flex-start", sm: "center" }}
+            sx={{ mb: 2 }}
+          >
+            <SearchRoundedIcon fontSize="small" />
+            <Box>
+              <Typography variant="h6" fontWeight={700}>
+                Filtros
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Busca por clave, nombre, departamento o estado del puesto.
+              </Typography>
+            </Box>
+          </Stack>
+
+          <Divider sx={{ mb: 2 }} />
+
           <Box
             sx={{
               display: "grid",
-              gridTemplateColumns: { xs: "1fr", md: "1fr 280px" },
+              gridTemplateColumns: { xs: "1fr", md: "1fr 280px 220px 180px" },
               gap: 2,
-              mb: 2,
+              alignItems: "center",
             }}
           >
             <TextField
@@ -364,7 +538,7 @@ export default function PuestosPage() {
 
             <TextField
               select
-              label="Filtrar por departamento"
+              label="Departamento"
               value={departamentoFilter}
               onChange={(e) => setDepartamentoFilter(e.target.value)}
             >
@@ -375,16 +549,67 @@ export default function PuestosPage() {
                 </MenuItem>
               ))}
             </TextField>
-          </Box>
 
-          {puestosQuery.isLoading || departamentosQuery.isLoading ? (
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={soloActivos}
+                  onChange={(_, checked) => setSoloActivos(checked)}
+                />
+              }
+              label="Mostrar solo activos"
+            />
+
+            <Button
+              variant="text"
+              color="inherit"
+              onClick={() => {
+                setSearch("");
+                setDepartamentoFilter("");
+                setSoloActivos(false);
+              }}
+              sx={{ textTransform: "none", fontWeight: 700, justifySelf: "start" }}
+            >
+              Limpiar filtros
+            </Button>
+          </Box>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent>
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            justifyContent="space-between"
+            alignItems={{ xs: "flex-start", sm: "center" }}
+            spacing={1}
+            sx={{ mb: 2 }}
+          >
+            <Box>
+              <Typography variant="h6" fontWeight={700}>
+                Listado
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Consulta general del catálogo de puestos y su departamento asociado.
+              </Typography>
+            </Box>
+
+            <Chip
+              label={`${paginatedRows.length} visibles de ${filteredRows.length}`}
+              size="small"
+              variant="outlined"
+            />
+          </Stack>
+
+          <Divider sx={{ mb: 2 }} />
+
+          {loadingAny ? (
             <Box sx={{ py: 6, display: "flex", justifyContent: "center" }}>
               <CircularProgress />
             </Box>
           ) : puestosQuery.isError ? (
             <Alert severity="error">
-              No se pudo cargar el catálogo.{" "}
-              {getErrorMessage(puestosQuery.error)}
+              No se pudo cargar el catálogo. {getErrorMessage(puestosQuery.error)}
             </Alert>
           ) : departamentosQuery.isError ? (
             <Alert severity="error">
@@ -392,73 +617,113 @@ export default function PuestosPage() {
               {getErrorMessage(departamentosQuery.error)}
             </Alert>
           ) : (
-            <Box sx={{ overflowX: "auto" }}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>ID</TableCell>
-                    <TableCell>Clave</TableCell>
-                    <TableCell>Nombre</TableCell>
-                    <TableCell>Departamento</TableCell>
-                    <TableCell>Estatus</TableCell>
-                    <TableCell align="right">Acciones</TableCell>
-                  </TableRow>
-                </TableHead>
-
-                <TableBody>
-                  {filteredRows.length === 0 ? (
+            <>
+              <Box sx={{ overflowX: "auto", maxHeight: 620 }}>
+                <Table stickyHeader size="small">
+                  <TableHead>
                     <TableRow>
-                      <TableCell colSpan={6} align="center" sx={{ py: 4 }}>
-                        <Typography color="text.secondary">
-                          No hay puestos para mostrar.
-                        </Typography>
-                      </TableCell>
+                      <TableCell>ID</TableCell>
+                      <TableCell>Clave</TableCell>
+                      <TableCell>Nombre</TableCell>
+                      <TableCell>Departamento</TableCell>
+                      <TableCell>Estatus</TableCell>
+                      <TableCell align="right">Acciones</TableCell>
                     </TableRow>
-                  ) : (
-                    filteredRows.map((row) => {
-                      const departamento = departamentosMap.get(
-                        row.departamentoId
-                      );
+                  </TableHead>
 
-                      return (
-                        <TableRow key={row.id} hover>
-                          <TableCell>{row.id}</TableCell>
-                          <TableCell>{row.clave}</TableCell>
-                          <TableCell>{row.nombre}</TableCell>
-                          <TableCell>
-                            {departamento
-                              ? `${departamento.clave} - ${departamento.nombre}`
-                              : row.departamentoId}
-                          </TableCell>
-                          <TableCell>
-                            <Chip
-                              size="small"
-                              label={row.activo ? "Activo" : "Inactivo"}
-                              color={row.activo ? "success" : "default"}
-                            />
-                          </TableCell>
-                          <TableCell align="right">
-                            <Tooltip title="Editar">
-                              <IconButton onClick={() => openEditDialog(row)}>
-                                <EditIcon />
-                              </IconButton>
-                            </Tooltip>
+                  <TableBody>
+                    {paginatedRows.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} align="center" sx={{ py: 5 }}>
+                          <Typography color="text.secondary">
+                            No hay puestos para mostrar.
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      paginatedRows.map((row) => {
+                        const departamento = departamentosMap.get(
+                          Number(row.departamentoId)
+                        );
 
-                            <Tooltip
-                              title={row.activo ? "Desactivar" : "Reactivar"}
-                            >
-                              <IconButton onClick={() => setConfirmTarget(row)}>
-                                <SyncAltIcon />
-                              </IconButton>
-                            </Tooltip>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })
-                  )}
-                </TableBody>
-              </Table>
-            </Box>
+                        return (
+                          <TableRow
+                            key={row.id}
+                            hover
+                            sx={{
+                              backgroundColor: row.activo
+                                ? "transparent"
+                                : "rgba(0,0,0,0.02)",
+                            }}
+                          >
+                            <TableCell>{row.id}</TableCell>
+
+                            <TableCell>
+                              <Typography fontWeight={700}>{row.clave}</Typography>
+                            </TableCell>
+
+                            <TableCell>{row.nombre}</TableCell>
+
+                            <TableCell>
+                              {departamento ? (
+                                <Chip
+                                  size="small"
+                                  variant="outlined"
+                                  icon={<ApartmentRoundedIcon />}
+                                  label={`${departamento.clave} - ${departamento.nombre}`}
+                                />
+                              ) : (
+                                row.departamentoId
+                              )}
+                            </TableCell>
+
+                            <TableCell>
+                              <Chip
+                                size="small"
+                                label={row.activo ? "Activo" : "Inactivo"}
+                                color={row.activo ? "success" : "default"}
+                                variant={row.activo ? "filled" : "outlined"}
+                              />
+                            </TableCell>
+
+                            <TableCell align="right">
+                              <Tooltip title="Editar">
+                                <IconButton onClick={() => openEditDialog(row)}>
+                                  <EditIcon />
+                                </IconButton>
+                              </Tooltip>
+
+                              <Tooltip title={row.activo ? "Desactivar" : "Reactivar"}>
+                                <IconButton onClick={() => setConfirmTarget(row)}>
+                                  <SyncAltIcon />
+                                </IconButton>
+                              </Tooltip>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </Box>
+
+              <TablePagination
+                component="div"
+                count={filteredRows.length}
+                page={page}
+                onPageChange={(_, newPage) => setPage(newPage)}
+                rowsPerPage={rowsPerPage}
+                onRowsPerPageChange={(e) => {
+                  setRowsPerPage(Number(e.target.value));
+                  setPage(0);
+                }}
+                rowsPerPageOptions={[5, 10, 25, 50]}
+                labelRowsPerPage="Filas por página"
+                labelDisplayedRows={({ from, to, count }) =>
+                  `${from}-${to} de ${count !== -1 ? count : `más de ${to}`}`
+                }
+              />
+            </>
           )}
         </CardContent>
       </Card>

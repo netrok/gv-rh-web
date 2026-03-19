@@ -1,4 +1,4 @@
-import { useMemo, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from "react";
 import {
   Alert,
   Box,
@@ -11,8 +11,8 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Divider,
   FormControlLabel,
-  Grid,
   IconButton,
   Stack,
   Switch,
@@ -20,25 +20,26 @@ import {
   TableBody,
   TableCell,
   TableHead,
+  TablePagination,
   TableRow,
   TextField,
   Tooltip,
   Typography,
 } from "@mui/material";
-import ApartmentRoundedIcon from "@mui/icons-material/ApartmentRounded";
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import ClearRoundedIcon from "@mui/icons-material/ClearRounded";
+import StoreRoundedIcon from "@mui/icons-material/StoreRounded";
+import GroupsRoundedIcon from "@mui/icons-material/GroupsRounded";
+import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
+import DoNotDisturbOnRoundedIcon from "@mui/icons-material/DoNotDisturbOnRounded";
 import axios from "axios";
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import PageHeader from "../components/ui/PageHeader";
 import {
   createSucursal,
   deleteSucursal,
@@ -91,6 +92,73 @@ function normalizePayload(form: FormState): SucursalCreateDto {
   };
 }
 
+function MetricCard({
+  title,
+  value,
+  subtitle,
+  icon,
+  badge,
+}: {
+  title: string;
+  value: number | string;
+  subtitle: string;
+  icon: ReactNode;
+  badge?: string;
+}) {
+  return (
+    <Card
+      elevation={0}
+      sx={{
+        borderRadius: 4,
+        height: "100%",
+      }}
+    >
+      <CardContent>
+        <Stack direction="row" justifyContent="space-between" spacing={2}>
+          <Box>
+            <Typography variant="body2" color="text.secondary">
+              {title}
+            </Typography>
+
+            <Typography
+              variant="h4"
+              fontWeight={800}
+              sx={{ mt: 0.75, lineHeight: 1 }}
+            >
+              {value}
+            </Typography>
+
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              {subtitle}
+            </Typography>
+          </Box>
+
+          <Stack alignItems="flex-end" spacing={1}>
+            {badge ? (
+              <Chip size="small" label={badge} color="primary" variant="outlined" />
+            ) : null}
+
+            <Box
+              sx={{
+                width: 44,
+                height: 44,
+                borderRadius: 2.5,
+                display: "grid",
+                placeItems: "center",
+                bgcolor: "action.hover",
+                color: "text.secondary",
+                flexShrink: 0,
+              }}
+            >
+              {icon}
+            </Box>
+          </Stack>
+        </Stack>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function SucursalesPage() {
   const queryClient = useQueryClient();
 
@@ -101,6 +169,8 @@ export default function SucursalesPage() {
   const [form, setForm] = useState<FormState>(initialForm);
   const [submitError, setSubmitError] = useState("");
   const [actionError, setActionError] = useState("");
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   const queryParams = useMemo(
     () => ({
@@ -150,6 +220,30 @@ export default function SucursalesPage() {
 
   const rows = sucursalesQuery.data ?? [];
 
+  const paginatedRows = useMemo(() => {
+    const start = page * rowsPerPage;
+    return rows.slice(start, start + rowsPerPage);
+  }, [rows, page, rowsPerPage]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [q, soloActivas, rows.length]);
+
+  const activeCount = useMemo(
+    () => rows.filter((row) => row.activo).length,
+    [rows]
+  );
+
+  const inactiveCount = useMemo(
+    () => rows.filter((row) => !row.activo).length,
+    [rows]
+  );
+
+  const empleadosActivosTotal = useMemo(
+    () => rows.reduce((acc, row) => acc + Number(row.empleadosActivos || 0), 0),
+    [rows]
+  );
+
   function handleOpenCreate() {
     setEditing(null);
     setForm(initialForm);
@@ -184,8 +278,7 @@ export default function SucursalesPage() {
     ) => {
       setForm((prev) => ({
         ...prev,
-        [field]:
-          field === "activo" ? Boolean(checked) : event.target.value,
+        [field]: field === "activo" ? Boolean(checked) : event.target.value,
       }));
     };
   }
@@ -217,183 +310,186 @@ export default function SucursalesPage() {
   async function handleDelete(item: SucursalDto) {
     setActionError("");
 
-    const ok = window.confirm(
-      `¿Desactivar la sucursal "${item.nombre}"?`
-    );
-
+    const ok = window.confirm(`¿Desactivar la sucursal "${item.nombre}"?`);
     if (!ok) return;
 
     await deleteMutation.mutateAsync(item.id);
   }
 
-  const busy =
-    createMutation.isPending || updateMutation.isPending;
+  const busy = createMutation.isPending || updateMutation.isPending;
+  const loading = sucursalesQuery.isLoading;
+  const fetching = sucursalesQuery.isFetching;
 
   return (
-    <Box>
-      <Stack
-        direction={{ xs: "column", lg: "row" }}
-        justifyContent="space-between"
-        alignItems={{ xs: "flex-start", lg: "center" }}
-        spacing={2}
-        sx={{ mb: 2.5 }}
-      >
-        <Box>
-          <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.75 }}>
-            <ApartmentRoundedIcon fontSize="small" />
-            <Typography variant="overline" sx={{ color: "text.secondary" }}>
-              Catálogo organizacional
-            </Typography>
-          </Stack>
+    <Box sx={{ display: "grid", gap: 3 }}>
+      <PageHeader
+        title="Sucursales"
+        subtitle="Administra las sedes y su disponibilidad operativa dentro del sistema."
+        actions={[
+          {
+            label: fetching ? "Actualizando..." : "Actualizar",
+            variant: "outlined",
+            startIcon: <RefreshRoundedIcon />,
+            onClick: () => sucursalesQuery.refetch(),
+            disabled: fetching,
+          },
+          {
+            label: "Nueva sucursal",
+            variant: "contained",
+            startIcon: <AddRoundedIcon />,
+            onClick: handleOpenCreate,
+          },
+        ]}
+      />
 
-          <Typography variant="h4" fontWeight={800} sx={{ lineHeight: 1.1, mb: 0.5 }}>
-            Sucursales
-          </Typography>
-
-          <Typography variant="body2" color="text.secondary">
-            Administra las sedes y asigna empleados a su ubicación operativa.
-          </Typography>
-        </Box>
-
-        <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25}>
-          <Button
-            variant="outlined"
-            startIcon={<RefreshRoundedIcon />}
-            onClick={() => sucursalesQuery.refetch()}
-            disabled={sucursalesQuery.isFetching}
-            sx={{ borderRadius: 999, textTransform: "none", fontWeight: 700 }}
-          >
-            {sucursalesQuery.isFetching ? "Actualizando..." : "Actualizar"}
-          </Button>
-
-          <Button
-            variant="contained"
-            startIcon={<AddRoundedIcon />}
-            onClick={handleOpenCreate}
-            sx={{ borderRadius: 999, textTransform: "none", fontWeight: 700, boxShadow: "none" }}
-          >
-            Nueva sucursal
-          </Button>
-        </Stack>
-      </Stack>
-
-      <Card
-        elevation={0}
+      <Box
         sx={{
-          mb: 2.5,
-          borderRadius: 4,
-          border: "1px solid #e5e7eb",
+          display: "grid",
+          gridTemplateColumns: {
+            xs: "1fr",
+            sm: "repeat(2, 1fr)",
+            xl: "repeat(4, 1fr)",
+          },
+          gap: 2,
         }}
       >
-        <CardContent sx={{ p: 2.5 }}>
-          <Grid container spacing={2} alignItems="center">
-            <Grid size={{ xs: 12, md: 5 }}>
-              <TextField
-                fullWidth
-                size="small"
-                label="Buscar"
-                placeholder="clave, nombre, dirección o teléfono"
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                InputProps={{
-                  startAdornment: <SearchRoundedIcon fontSize="small" sx={{ mr: 1, color: "text.secondary" }} />,
-                }}
-              />
-            </Grid>
+        <MetricCard
+          title="Total"
+          value={rows.length}
+          subtitle="Sucursales visibles"
+          icon={<StoreRoundedIcon fontSize="small" />}
+          badge="RH"
+        />
+        <MetricCard
+          title="Activas"
+          value={activeCount}
+          subtitle="Operando en sistema"
+          icon={<CheckCircleRoundedIcon fontSize="small" />}
+          badge="RH"
+        />
+        <MetricCard
+          title="Inactivas"
+          value={inactiveCount}
+          subtitle="Deshabilitadas"
+          icon={<DoNotDisturbOnRoundedIcon fontSize="small" />}
+          badge="RH"
+        />
+        <MetricCard
+          title="Empleados activos"
+          value={empleadosActivosTotal}
+          subtitle="Suma en sucursales visibles"
+          icon={<GroupsRoundedIcon fontSize="small" />}
+          badge="RH"
+        />
+      </Box>
 
-            <Grid size={{ xs: 12, md: 4 }}>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={soloActivas}
-                    onChange={(_, checked) => setSoloActivas(checked)}
-                  />
-                }
-                label="Mostrar solo activas"
-              />
-            </Grid>
+      <Card>
+        <CardContent>
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            spacing={1}
+            alignItems={{ xs: "flex-start", sm: "center" }}
+            sx={{ mb: 2 }}
+          >
+            <SearchRoundedIcon fontSize="small" />
+            <Box>
+              <Typography variant="h6" fontWeight={700}>
+                Filtros
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Busca por clave, nombre, dirección o teléfono y filtra el estado.
+              </Typography>
+            </Box>
+          </Stack>
 
-            <Grid size={{ xs: 12, md: 3 }}>
-              <Button
-                variant="text"
-                color="inherit"
-                startIcon={<ClearRoundedIcon />}
-                onClick={() => {
-                  setQ("");
-                  setSoloActivas(true);
-                }}
-                sx={{ textTransform: "none", fontWeight: 700 }}
-              >
-                Limpiar filtros
-              </Button>
-            </Grid>
-          </Grid>
+          <Divider sx={{ mb: 2 }} />
+
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: {
+                xs: "1fr",
+                md: "1fr 280px 180px",
+              },
+              gap: 2,
+              alignItems: "center",
+            }}
+          >
+            <TextField
+              fullWidth
+              label="Buscar"
+              placeholder="clave, nombre, dirección o teléfono"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={soloActivas}
+                  onChange={(_, checked) => setSoloActivas(checked)}
+                />
+              }
+              label="Mostrar solo activas"
+            />
+
+            <Button
+              variant="text"
+              color="inherit"
+              startIcon={<ClearRoundedIcon />}
+              onClick={() => {
+                setQ("");
+                setSoloActivas(true);
+              }}
+              sx={{ textTransform: "none", fontWeight: 700, justifySelf: "start" }}
+            >
+              Limpiar filtros
+            </Button>
+          </Box>
         </CardContent>
       </Card>
 
-      {actionError ? (
-        <Alert severity="error" sx={{ mb: 2.5 }}>
-          {actionError}
-        </Alert>
-      ) : null}
+      {actionError ? <Alert severity="error">{actionError}</Alert> : null}
 
-      <Card
-        elevation={0}
-        sx={{
-          borderRadius: 4,
-          border: "1px solid #e5e7eb",
-          overflow: "hidden",
-        }}
-      >
-        <CardContent sx={{ p: 0 }}>
-          {sucursalesQuery.isLoading ? (
-            <Box sx={{ p: 5, display: "flex", justifyContent: "center" }}>
+      <Card>
+        <CardContent>
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            justifyContent="space-between"
+            alignItems={{ xs: "flex-start", sm: "center" }}
+            spacing={1}
+            sx={{ mb: 2 }}
+          >
+            <Box>
+              <Typography variant="h6" fontWeight={700}>
+                Catálogo de sucursales
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Revisión general de sedes, estado y personal activo asignado.
+              </Typography>
+            </Box>
+
+            <Chip
+              size="small"
+              variant="outlined"
+              label={`${paginatedRows.length} visibles de ${rows.length}`}
+            />
+          </Stack>
+
+          <Divider sx={{ mb: 2 }} />
+
+          {loading ? (
+            <Box sx={{ py: 6, display: "flex", justifyContent: "center" }}>
               <CircularProgress />
             </Box>
           ) : sucursalesQuery.isError ? (
-            <Box sx={{ p: 3 }}>
-              <Alert severity="error">{getErrorMessage(sucursalesQuery.error)}</Alert>
-            </Box>
+            <Alert severity="error">{getErrorMessage(sucursalesQuery.error)}</Alert>
           ) : (
             <>
-              <Box
-                sx={{
-                  px: 2.5,
-                  py: 1.5,
-                  borderBottom: "1px solid #e5e7eb",
-                  backgroundColor: "#f8fafc",
-                }}
-              >
-                <Stack
-                  direction={{ xs: "column", sm: "row" }}
-                  justifyContent="space-between"
-                  spacing={1}
-                >
-                  <Typography variant="subtitle2" fontWeight={700}>
-                    Catálogo de sucursales
-                  </Typography>
-
-                  <Chip
-                    size="small"
-                    label={`${rows.length} registro${rows.length === 1 ? "" : "s"}`}
-                    variant="outlined"
-                  />
-                </Stack>
-              </Box>
-
-              <Box sx={{ overflowX: "auto" }}>
-                <Table size="small">
+              <Box sx={{ overflowX: "auto", maxHeight: 620 }}>
+                <Table stickyHeader size="small">
                   <TableHead>
-                    <TableRow
-                      sx={{
-                        "& th": {
-                          backgroundColor: "#f8fafc",
-                          color: "#475569",
-                          fontWeight: 700,
-                          whiteSpace: "nowrap",
-                        },
-                      }}
-                    >
+                    <TableRow>
                       <TableCell>Clave</TableCell>
                       <TableCell>Nombre</TableCell>
                       <TableCell>Dirección</TableCell>
@@ -405,7 +501,7 @@ export default function SucursalesPage() {
                   </TableHead>
 
                   <TableBody>
-                    {rows.length === 0 ? (
+                    {paginatedRows.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={7} align="center" sx={{ py: 5 }}>
                           <Typography color="text.secondary">
@@ -414,12 +510,32 @@ export default function SucursalesPage() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      rows.map((row) => (
-                        <TableRow key={row.id} hover>
-                          <TableCell>{row.clave}</TableCell>
-                          <TableCell>{row.nombre}</TableCell>
+                      paginatedRows.map((row) => (
+                        <TableRow
+                          key={row.id}
+                          hover
+                          sx={{
+                            backgroundColor: row.activo
+                              ? "transparent"
+                              : "rgba(0,0,0,0.02)",
+                          }}
+                        >
+                          <TableCell>
+                            <Typography fontWeight={700}>{row.clave}</Typography>
+                          </TableCell>
+
+                          <TableCell>
+                            <Stack spacing={0.25}>
+                              <Typography fontWeight={700}>{row.nombre}</Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                ID #{row.id}
+                              </Typography>
+                            </Stack>
+                          </TableCell>
+
                           <TableCell>{row.direccion ?? "-"}</TableCell>
                           <TableCell>{row.telefono ?? "-"}</TableCell>
+
                           <TableCell>
                             <Chip
                               size="small"
@@ -428,7 +544,9 @@ export default function SucursalesPage() {
                               variant={row.activo ? "filled" : "outlined"}
                             />
                           </TableCell>
+
                           <TableCell>{row.empleadosActivos}</TableCell>
+
                           <TableCell align="center">
                             <Tooltip title="Editar">
                               <IconButton
@@ -458,6 +576,23 @@ export default function SucursalesPage() {
                   </TableBody>
                 </Table>
               </Box>
+
+              <TablePagination
+                component="div"
+                count={rows.length}
+                page={page}
+                onPageChange={(_, newPage) => setPage(newPage)}
+                rowsPerPage={rowsPerPage}
+                onRowsPerPageChange={(e) => {
+                  setRowsPerPage(Number(e.target.value));
+                  setPage(0);
+                }}
+                rowsPerPageOptions={[5, 10, 25, 50]}
+                labelRowsPerPage="Filas por página"
+                labelDisplayedRows={({ from, to, count }) =>
+                  `${from}-${to} de ${count !== -1 ? count : `más de ${to}`}`
+                }
+              />
             </>
           )}
         </CardContent>
@@ -477,28 +612,30 @@ export default function SucursalesPage() {
           <Stack spacing={2} sx={{ pt: 1 }}>
             {submitError ? <Alert severity="error">{submitError}</Alert> : null}
 
-            <Grid container spacing={2}>
-              <Grid size={{ xs: 12, md: 4 }}>
-                <TextField
-                  fullWidth
-                  label="Clave"
-                  value={form.clave}
-                  onChange={handleChange("clave")}
-                  inputProps={{ maxLength: 20 }}
-                />
-              </Grid>
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: { xs: "1fr", md: "160px 1fr" },
+                gap: 2,
+              }}
+            >
+              <TextField
+                fullWidth
+                label="Clave"
+                value={form.clave}
+                onChange={handleChange("clave")}
+                inputProps={{ maxLength: 20 }}
+              />
 
-              <Grid size={{ xs: 12, md: 8 }}>
-                <TextField
-                  fullWidth
-                  label="Nombre"
-                  value={form.nombre}
-                  onChange={handleChange("nombre")}
-                  inputProps={{ maxLength: 150 }}
-                />
-              </Grid>
+              <TextField
+                fullWidth
+                label="Nombre"
+                value={form.nombre}
+                onChange={handleChange("nombre")}
+                inputProps={{ maxLength: 150 }}
+              />
 
-              <Grid size={{ xs: 12 }}>
+              <Box sx={{ gridColumn: "1 / -1" }}>
                 <TextField
                   fullWidth
                   label="Dirección"
@@ -506,19 +643,17 @@ export default function SucursalesPage() {
                   onChange={handleChange("direccion")}
                   inputProps={{ maxLength: 250 }}
                 />
-              </Grid>
+              </Box>
 
-              <Grid size={{ xs: 12, md: 6 }}>
-                <TextField
-                  fullWidth
-                  label="Teléfono"
-                  value={form.telefono}
-                  onChange={handleChange("telefono")}
-                  inputProps={{ maxLength: 30 }}
-                />
-              </Grid>
+              <TextField
+                fullWidth
+                label="Teléfono"
+                value={form.telefono}
+                onChange={handleChange("telefono")}
+                inputProps={{ maxLength: 30 }}
+              />
 
-              <Grid size={{ xs: 12, md: 6 }}>
+              <Box sx={{ display: "flex", alignItems: "center" }}>
                 <FormControlLabel
                   control={
                     <Switch
@@ -528,26 +663,17 @@ export default function SucursalesPage() {
                   }
                   label="Sucursal activa"
                 />
-              </Grid>
-            </Grid>
+              </Box>
+            </Box>
           </Stack>
         </DialogContent>
 
         <DialogActions sx={{ px: 3, py: 2 }}>
-          <Button
-            onClick={handleCloseDialog}
-            disabled={busy}
-            sx={{ textTransform: "none", fontWeight: 700 }}
-          >
+          <Button onClick={handleCloseDialog} disabled={busy}>
             Cancelar
           </Button>
 
-          <Button
-            variant="contained"
-            onClick={handleSubmit}
-            disabled={busy}
-            sx={{ textTransform: "none", fontWeight: 700, boxShadow: "none" }}
-          >
+          <Button variant="contained" onClick={handleSubmit} disabled={busy}>
             {busy ? "Guardando..." : editing ? "Guardar cambios" : "Crear sucursal"}
           </Button>
         </DialogActions>
