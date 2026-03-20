@@ -1,20 +1,18 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import axios from "axios";
 import {
   Alert,
   Box,
   Button,
-  Card,
-  CardContent,
   Chip,
   CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
-  Divider,
   FormControlLabel,
   IconButton,
+  InputAdornment,
   MenuItem,
   Stack,
   Switch,
@@ -28,19 +26,22 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
+import { alpha } from "@mui/material/styles";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
-import SyncAltIcon from "@mui/icons-material/SyncAlt";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import WorkOutlineRoundedIcon from "@mui/icons-material/WorkOutlineRounded";
-import ApartmentRoundedIcon from "@mui/icons-material/ApartmentRounded";
+import ApartmentOutlinedIcon from "@mui/icons-material/ApartmentOutlined";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import DoNotDisturbOnRoundedIcon from "@mui/icons-material/DoNotDisturbOnRounded";
+import BlockRoundedIcon from "@mui/icons-material/BlockRounded";
+import AccountTreeRoundedIcon from "@mui/icons-material/AccountTreeRounded";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
+
 import {
   createPuesto,
   getPuestos,
@@ -52,9 +53,13 @@ import {
   getDepartamentos,
   type Departamento,
 } from "../api/departamentos.api";
-import PageHeader from "../components/ui/PageHeader";
+import AppPage from "../components/ui/AppPage";
+import HeroBanner from "../components/ui/HeroBanner";
+import MetricCard from "../components/ui/MetricCard";
+import SectionCard from "../components/ui/SectionCard";
 import ConfirmDialog from "../components/ui/ConfirmDialog";
 import { useAppSnackbar } from "../features/ui/AppSnackbarContext";
+import { useAuth } from "../features/auth/AuthContext";
 
 const puestoSchema = z.object({
   clave: z
@@ -94,71 +99,92 @@ function getErrorMessage(error: unknown) {
   return "Ocurrió un error inesperado.";
 }
 
-function MetricCard({
-  title,
-  value,
-  subtitle,
-  icon,
-  badge,
-}: {
-  title: string;
-  value: number | string;
-  subtitle: string;
-  icon: ReactNode;
-  badge?: string;
-}) {
-  return (
-    <Card
-      elevation={0}
-      sx={{
-        borderRadius: 4,
-        height: "100%",
-      }}
-    >
-      <CardContent>
-        <Stack direction="row" justifyContent="space-between" spacing={2}>
-          <Box>
-            <Typography variant="body2" color="text.secondary">
-              {title}
-            </Typography>
+function normalizeRoles(roles?: string[] | null): string[] {
+  return (roles ?? []).map((role) => String(role).trim().toUpperCase());
+}
 
-            <Typography
-              variant="h4"
-              fontWeight={800}
-              sx={{ mt: 0.75, lineHeight: 1 }}
-            >
-              {value}
-            </Typography>
+function puestoStatusChipSx(activo: boolean) {
+  if (activo) {
+    return {
+      bgcolor: "rgba(46, 125, 50, 0.10)",
+      color: "success.dark",
+      borderColor: "rgba(46, 125, 50, 0.34)",
+      fontWeight: 800,
+    };
+  }
 
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-              {subtitle}
-            </Typography>
-          </Box>
+  return {
+    bgcolor: "rgba(100, 116, 139, 0.08)",
+    color: "text.secondary",
+    borderColor: "rgba(100, 116, 139, 0.24)",
+    fontWeight: 800,
+  };
+}
 
-          <Stack alignItems="flex-end" spacing={1}>
-            {badge ? (
-              <Chip size="small" label={badge} color="primary" variant="outlined" />
-            ) : null}
+function departmentChipSx() {
+  return {
+    bgcolor: alpha("#1d4ed8", 0.05),
+    color: "#1d4ed8",
+    borderColor: alpha("#1d4ed8", 0.18),
+    fontWeight: 800,
+  };
+}
 
-            <Box
-              sx={{
-                width: 44,
-                height: 44,
-                borderRadius: 2.5,
-                display: "grid",
-                placeItems: "center",
-                bgcolor: "action.hover",
-                color: "text.secondary",
-                flexShrink: 0,
-              }}
-            >
-              {icon}
-            </Box>
-          </Stack>
-        </Stack>
-      </CardContent>
-    </Card>
-  );
+function actionIconButtonSx(kind: "edit" | "toggle-active" | "toggle-inactive") {
+  if (kind === "edit") {
+    return {
+      width: 36,
+      height: 36,
+      borderRadius: "12px",
+      border: `1px solid ${alpha("#1d4ed8", 0.14)}`,
+      backgroundColor: alpha("#1d4ed8", 0.05),
+      color: "#1d4ed8",
+      "&:hover": {
+        backgroundColor: alpha("#1d4ed8", 0.10),
+        borderColor: alpha("#1d4ed8", 0.24),
+      },
+    };
+  }
+
+  if (kind === "toggle-active") {
+    return {
+      width: 36,
+      height: 36,
+      borderRadius: "12px",
+      border: `1px solid ${alpha("#d97706", 0.18)}`,
+      backgroundColor: alpha("#d97706", 0.06),
+      color: "#b45309",
+      "&:hover": {
+        backgroundColor: alpha("#d97706", 0.10),
+        borderColor: alpha("#d97706", 0.28),
+      },
+    };
+  }
+
+  return {
+    width: 36,
+    height: 36,
+    borderRadius: "12px",
+    border: `1px solid ${alpha("#15803d", 0.18)}`,
+    backgroundColor: alpha("#15803d", 0.06),
+    color: "#15803d",
+    "&:hover": {
+      backgroundColor: alpha("#15803d", 0.10),
+      borderColor: alpha("#15803d", 0.28),
+    },
+  };
+}
+
+function filterToggleBoxSx() {
+  return {
+    minHeight: 40,
+    px: 1.25,
+    borderRadius: "14px",
+    border: `1px solid ${alpha("#0f172a", 0.08)}`,
+    backgroundColor: alpha("#0f172a", 0.02),
+    display: "flex",
+    alignItems: "center",
+  };
 }
 
 function PuestoDialog({
@@ -292,6 +318,7 @@ function PuestoDialog({
 export default function PuestosPage() {
   const queryClient = useQueryClient();
   const { showSnackbar } = useAppSnackbar();
+  const { roles } = useAuth();
 
   const [search, setSearch] = useState("");
   const [departamentoFilter, setDepartamentoFilter] = useState("");
@@ -301,6 +328,8 @@ export default function PuestosPage() {
   const [confirmTarget, setConfirmTarget] = useState<Puesto | null>(null);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+
+  const normalizedRoles = useMemo(() => normalizeRoles(roles), [roles]);
 
   const puestosQuery = useQuery({
     queryKey: ["puestos"],
@@ -413,6 +442,14 @@ export default function PuestosPage() {
     ).size;
   }, [filteredRows]);
 
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (search.trim()) count += 1;
+    if (departamentoFilter) count += 1;
+    if (soloActivos) count += 1;
+    return count;
+  }, [search, departamentoFilter, soloActivos]);
+
   const openCreateDialog = () => {
     setEditing(null);
     setDialogOpen(true);
@@ -424,33 +461,110 @@ export default function PuestosPage() {
   };
 
   const canOpenDialog = departamentos.length > 0;
+  const loadingAny = puestosQuery.isLoading || departamentosQuery.isLoading;
 
-  const loadingAny =
-    puestosQuery.isLoading || departamentosQuery.isLoading;
+  const handleRefresh = () => {
+    void puestosQuery.refetch();
+    void departamentosQuery.refetch();
+  };
 
   return (
-    <Box sx={{ display: "grid", gap: 3 }}>
-      <PageHeader
-        title="Puestos"
-        subtitle="Catálogo de puestos vinculados a departamentos y estructura operativa."
-        actions={[
-          {
-            label: "Actualizar",
-            variant: "outlined",
-            startIcon: <RefreshIcon />,
-            onClick: () => {
-              puestosQuery.refetch();
-              departamentosQuery.refetch();
-            },
-          },
-          {
-            label: "Nuevo puesto",
-            variant: "contained",
-            startIcon: <AddIcon />,
-            onClick: openCreateDialog,
-            disabled: !canOpenDialog,
-          },
-        ]}
+    <AppPage
+      eyebrow="Recursos Humanos"
+      title="Puestos"
+      subtitle="Catálogo de puestos vinculados a departamentos y estructura operativa."
+      actions={
+        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+          <Button
+            variant="outlined"
+            startIcon={<RefreshIcon />}
+            onClick={handleRefresh}
+            disabled={loadingAny}
+          >
+            Actualizar
+          </Button>
+
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={openCreateDialog}
+            disabled={!canOpenDialog}
+          >
+            Nuevo puesto
+          </Button>
+        </Stack>
+      }
+    >
+      <HeroBanner
+        eyebrow="Catálogo RH"
+        title="Gestión de puestos"
+        subtitle="Administra los puestos del sistema, su disponibilidad operativa y su relación con la estructura departamental."
+        badge="RH"
+        actions={
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            {normalizedRoles.length > 0 ? (
+              normalizedRoles.map((role) => (
+                <Chip
+                  key={role}
+                  label={role}
+                  size="small"
+                  variant="outlined"
+                  sx={{
+                    color: "#ffffff",
+                    borderColor: alpha("#ffffff", 0.18),
+                    backgroundColor: alpha("#ffffff", 0.08),
+                    fontWeight: 800,
+                  }}
+                />
+              ))
+            ) : (
+              <Chip
+                label="Sin roles detectados"
+                size="small"
+                variant="outlined"
+                sx={{
+                  color: "#ffffff",
+                  borderColor: alpha("#ffffff", 0.18),
+                  backgroundColor: alpha("#ffffff", 0.08),
+                  fontWeight: 800,
+                }}
+              />
+            )}
+          </Stack>
+        }
+        aside={
+          <Stack spacing={1.5}>
+            <Typography variant="body2" sx={{ color: alpha("#ffffff", 0.78) }}>
+              Resumen rápido
+            </Typography>
+
+            <Stack direction="row" spacing={2.5}>
+              <Box>
+                <Typography variant="h4" sx={{ fontWeight: 900, lineHeight: 1 }}>
+                  {filteredRows.length}
+                </Typography>
+                <Typography variant="caption" sx={{ color: alpha("#ffffff", 0.8) }}>
+                  visibles
+                </Typography>
+              </Box>
+
+              <Box>
+                <Typography variant="h4" sx={{ fontWeight: 900, lineHeight: 1 }}>
+                  {activeCount}
+                </Typography>
+                <Typography variant="caption" sx={{ color: alpha("#ffffff", 0.8) }}>
+                  activos
+                </Typography>
+              </Box>
+            </Stack>
+
+            <Typography variant="body2" sx={{ color: alpha("#ffffff", 0.84) }}>
+              {canOpenDialog
+                ? "Hay departamentos disponibles para crear y asignar puestos."
+                : "Falta al menos un departamento para poder registrar puestos."}
+            </Typography>
+          </Stack>
+        }
       />
 
       {!canOpenDialog && !departamentosQuery.isLoading && (
@@ -467,7 +581,7 @@ export default function PuestosPage() {
             sm: "repeat(2, 1fr)",
             xl: "repeat(4, 1fr)",
           },
-          gap: 2,
+          gap: { xs: 2, md: 2.25 },
         }}
       >
         <MetricCard
@@ -477,6 +591,7 @@ export default function PuestosPage() {
           icon={<WorkOutlineRoundedIcon fontSize="small" />}
           badge="RH"
         />
+
         <MetricCard
           title="Activos"
           value={activeCount}
@@ -484,6 +599,7 @@ export default function PuestosPage() {
           icon={<CheckCircleRoundedIcon fontSize="small" />}
           badge="RH"
         />
+
         <MetricCard
           title="Inactivos"
           value={inactiveCount}
@@ -491,56 +607,66 @@ export default function PuestosPage() {
           icon={<DoNotDisturbOnRoundedIcon fontSize="small" />}
           badge="RH"
         />
+
         <MetricCard
           title="Departamentos"
           value={uniqueDepartamentosCount}
           subtitle="Con puestos visibles"
-          icon={<ApartmentRoundedIcon fontSize="small" />}
+          icon={<AccountTreeRoundedIcon fontSize="small" />}
           badge="RH"
         />
       </Box>
 
-      <Card>
-        <CardContent>
-          <Stack
-            direction={{ xs: "column", sm: "row" }}
-            spacing={1}
-            alignItems={{ xs: "flex-start", sm: "center" }}
-            sx={{ mb: 2 }}
-          >
-            <SearchRoundedIcon fontSize="small" />
-            <Box>
-              <Typography variant="h6" fontWeight={700}>
-                Filtros
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Busca por clave, nombre, departamento o estado del puesto.
-              </Typography>
-            </Box>
-          </Stack>
-
-          <Divider sx={{ mb: 2 }} />
-
-          <Box
-            sx={{
-              display: "grid",
-              gridTemplateColumns: { xs: "1fr", md: "1fr 280px 220px 180px" },
-              gap: 2,
-              alignItems: "center",
-            }}
-          >
+      <SectionCard
+        title="Filtros"
+        subtitle="Busca por clave, nombre, departamento o estado del puesto."
+        actions={
+          <Chip
+            size="small"
+            variant="outlined"
+            label={
+              activeFiltersCount > 0
+                ? `${activeFiltersCount} filtro${activeFiltersCount > 1 ? "s" : ""} activo${activeFiltersCount > 1 ? "s" : ""}`
+                : "Sin filtros"
+            }
+          />
+        }
+      >
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: {
+              xs: "1fr",
+              md: "repeat(12, 1fr)",
+            },
+            gap: 2,
+            alignItems: "center",
+          }}
+        >
+          <Box sx={{ gridColumn: { xs: "span 1", md: "span 5" } }}>
             <TextField
               label="Buscar"
               placeholder="Clave, nombre, departamento o estatus"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              fullWidth
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchRoundedIcon fontSize="small" color="action" />
+                  </InputAdornment>
+                ),
+              }}
             />
+          </Box>
 
+          <Box sx={{ gridColumn: { xs: "span 1", md: "span 3" } }}>
             <TextField
               select
               label="Departamento"
               value={departamentoFilter}
               onChange={(e) => setDepartamentoFilter(e.target.value)}
+              fullWidth
             >
               <MenuItem value="">Todos</MenuItem>
               {departamentos.map((dep) => (
@@ -549,184 +675,219 @@ export default function PuestosPage() {
                 </MenuItem>
               ))}
             </TextField>
+          </Box>
 
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={soloActivos}
-                  onChange={(_, checked) => setSoloActivos(checked)}
-                />
-              }
-              label="Mostrar solo activos"
-            />
+          <Box sx={{ gridColumn: { xs: "span 1", md: "span 2" } }}>
+            <Box sx={filterToggleBoxSx()}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={soloActivos}
+                    onChange={(_, checked) => setSoloActivos(checked)}
+                  />
+                }
+                label="Solo activos"
+                sx={{ m: 0 }}
+              />
+            </Box>
+          </Box>
 
+          <Box sx={{ gridColumn: { xs: "span 1", md: "span 2" } }}>
             <Button
-              variant="text"
+              variant="outlined"
               color="inherit"
               onClick={() => {
                 setSearch("");
                 setDepartamentoFilter("");
                 setSoloActivos(false);
               }}
-              sx={{ textTransform: "none", fontWeight: 700, justifySelf: "start" }}
+              sx={{ textTransform: "none", fontWeight: 700 }}
             >
               Limpiar filtros
             </Button>
           </Box>
-        </CardContent>
-      </Card>
+        </Box>
+      </SectionCard>
 
-      <Card>
-        <CardContent>
-          <Stack
-            direction={{ xs: "column", sm: "row" }}
-            justifyContent="space-between"
-            alignItems={{ xs: "flex-start", sm: "center" }}
-            spacing={1}
-            sx={{ mb: 2 }}
-          >
-            <Box>
-              <Typography variant="h6" fontWeight={700}>
-                Listado
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Consulta general del catálogo de puestos y su departamento asociado.
-              </Typography>
-            </Box>
+      <SectionCard
+        title="Listado"
+        subtitle="Consulta general del catálogo de puestos y su departamento asociado."
+        actions={
+          <Chip
+            label={`${paginatedRows.length} visibles de ${filteredRows.length}`}
+            size="small"
+            variant="outlined"
+          />
+        }
+      >
+        {loadingAny ? (
+          <Box sx={{ py: 6, display: "flex", justifyContent: "center" }}>
+            <CircularProgress />
+          </Box>
+        ) : puestosQuery.isError ? (
+          <Alert severity="error">
+            No se pudo cargar el catálogo. {getErrorMessage(puestosQuery.error)}
+          </Alert>
+        ) : departamentosQuery.isError ? (
+          <Alert severity="error">
+            No se pudo cargar el catálogo de departamentos.{" "}
+            {getErrorMessage(departamentosQuery.error)}
+          </Alert>
+        ) : (
+          <>
+            <Box sx={{ overflowX: "auto", maxHeight: 620 }}>
+              <Table stickyHeader size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ width: 70 }}>ID</TableCell>
+                    <TableCell sx={{ width: 160 }}>Clave</TableCell>
+                    <TableCell sx={{ minWidth: 240 }}>Nombre</TableCell>
+                    <TableCell sx={{ minWidth: 220 }}>Departamento</TableCell>
+                    <TableCell sx={{ width: 130 }}>Estatus</TableCell>
+                    <TableCell align="right" sx={{ width: 120 }}>
+                      Acciones
+                    </TableCell>
+                  </TableRow>
+                </TableHead>
 
-            <Chip
-              label={`${paginatedRows.length} visibles de ${filteredRows.length}`}
-              size="small"
-              variant="outlined"
-            />
-          </Stack>
-
-          <Divider sx={{ mb: 2 }} />
-
-          {loadingAny ? (
-            <Box sx={{ py: 6, display: "flex", justifyContent: "center" }}>
-              <CircularProgress />
-            </Box>
-          ) : puestosQuery.isError ? (
-            <Alert severity="error">
-              No se pudo cargar el catálogo. {getErrorMessage(puestosQuery.error)}
-            </Alert>
-          ) : departamentosQuery.isError ? (
-            <Alert severity="error">
-              No se pudo cargar el catálogo de departamentos.{" "}
-              {getErrorMessage(departamentosQuery.error)}
-            </Alert>
-          ) : (
-            <>
-              <Box sx={{ overflowX: "auto", maxHeight: 620 }}>
-                <Table stickyHeader size="small">
-                  <TableHead>
+                <TableBody>
+                  {paginatedRows.length === 0 ? (
                     <TableRow>
-                      <TableCell>ID</TableCell>
-                      <TableCell>Clave</TableCell>
-                      <TableCell>Nombre</TableCell>
-                      <TableCell>Departamento</TableCell>
-                      <TableCell>Estatus</TableCell>
-                      <TableCell align="right">Acciones</TableCell>
+                      <TableCell colSpan={6} align="center" sx={{ py: 5 }}>
+                        <Typography color="text.secondary">
+                          No hay puestos para mostrar.
+                        </Typography>
+                      </TableCell>
                     </TableRow>
-                  </TableHead>
+                  ) : (
+                    paginatedRows.map((row) => {
+                      const departamento = departamentosMap.get(
+                        Number(row.departamentoId)
+                      );
 
-                  <TableBody>
-                    {paginatedRows.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={6} align="center" sx={{ py: 5 }}>
-                          <Typography color="text.secondary">
-                            No hay puestos para mostrar.
-                          </Typography>
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      paginatedRows.map((row) => {
-                        const departamento = departamentosMap.get(
-                          Number(row.departamentoId)
-                        );
+                      return (
+                        <TableRow
+                          key={row.id}
+                          hover
+                          sx={{
+                            backgroundColor: row.activo
+                              ? "transparent"
+                              : "rgba(0,0,0,0.02)",
+                          }}
+                        >
+                          <TableCell>{row.id}</TableCell>
 
-                        return (
-                          <TableRow
-                            key={row.id}
-                            hover
-                            sx={{
-                              backgroundColor: row.activo
-                                ? "transparent"
-                                : "rgba(0,0,0,0.02)",
-                            }}
-                          >
-                            <TableCell>{row.id}</TableCell>
+                          <TableCell>
+                            <Typography fontWeight={700}>{row.clave}</Typography>
+                          </TableCell>
 
-                            <TableCell>
-                              <Typography fontWeight={700}>{row.clave}</Typography>
-                            </TableCell>
+                          <TableCell>
+                            <Typography fontWeight={600}>{row.nombre}</Typography>
+                          </TableCell>
 
-                            <TableCell>{row.nombre}</TableCell>
+                          <TableCell>
+                            {departamento ? (
+                              <Tooltip
+                                arrow
+                                title={`${departamento.clave} - ${departamento.nombre}`}
+                              >
+                                <Stack spacing={0.35} sx={{ minWidth: 0 }}>
+                                  <Chip
+                                    size="small"
+                                    variant="outlined"
+                                    icon={<ApartmentOutlinedIcon />}
+                                    label={departamento.clave}
+                                    sx={departmentChipSx()}
+                                  />
+                                  <Typography
+                                    variant="caption"
+                                    color="text.secondary"
+                                    sx={{
+                                      display: "block",
+                                      maxWidth: 180,
+                                      whiteSpace: "nowrap",
+                                      overflow: "hidden",
+                                      textOverflow: "ellipsis",
+                                    }}
+                                  >
+                                    {departamento.nombre}
+                                  </Typography>
+                                </Stack>
+                              </Tooltip>
+                            ) : (
+                              row.departamentoId
+                            )}
+                          </TableCell>
 
-                            <TableCell>
-                              {departamento ? (
-                                <Chip
-                                  size="small"
-                                  variant="outlined"
-                                  icon={<ApartmentRoundedIcon />}
-                                  label={`${departamento.clave} - ${departamento.nombre}`}
-                                />
-                              ) : (
-                                row.departamentoId
-                              )}
-                            </TableCell>
+                          <TableCell>
+                            <Chip
+                              size="small"
+                              variant="outlined"
+                              label={row.activo ? "Activo" : "Inactivo"}
+                              sx={puestoStatusChipSx(row.activo)}
+                            />
+                          </TableCell>
 
-                            <TableCell>
-                              <Chip
-                                size="small"
-                                label={row.activo ? "Activo" : "Inactivo"}
-                                color={row.activo ? "success" : "default"}
-                                variant={row.activo ? "filled" : "outlined"}
-                              />
-                            </TableCell>
-
-                            <TableCell align="right">
+                          <TableCell align="right">
+                            <Stack
+                              direction="row"
+                              spacing={0.75}
+                              justifyContent="flex-end"
+                            >
                               <Tooltip title="Editar">
-                                <IconButton onClick={() => openEditDialog(row)}>
-                                  <EditIcon />
+                                <IconButton
+                                  onClick={() => openEditDialog(row)}
+                                  sx={actionIconButtonSx("edit")}
+                                >
+                                  <EditIcon fontSize="small" />
                                 </IconButton>
                               </Tooltip>
 
                               <Tooltip title={row.activo ? "Desactivar" : "Reactivar"}>
-                                <IconButton onClick={() => setConfirmTarget(row)}>
-                                  <SyncAltIcon />
+                                <IconButton
+                                  onClick={() => setConfirmTarget(row)}
+                                  sx={actionIconButtonSx(
+                                    row.activo ? "toggle-active" : "toggle-inactive"
+                                  )}
+                                >
+                                  {row.activo ? (
+                                    <BlockRoundedIcon fontSize="small" />
+                                  ) : (
+                                    <CheckCircleRoundedIcon fontSize="small" />
+                                  )}
                                 </IconButton>
                               </Tooltip>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })
-                    )}
-                  </TableBody>
-                </Table>
-              </Box>
+                            </Stack>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </Box>
 
-              <TablePagination
-                component="div"
-                count={filteredRows.length}
-                page={page}
-                onPageChange={(_, newPage) => setPage(newPage)}
-                rowsPerPage={rowsPerPage}
-                onRowsPerPageChange={(e) => {
-                  setRowsPerPage(Number(e.target.value));
-                  setPage(0);
-                }}
-                rowsPerPageOptions={[5, 10, 25, 50]}
-                labelRowsPerPage="Filas por página"
-                labelDisplayedRows={({ from, to, count }) =>
-                  `${from}-${to} de ${count !== -1 ? count : `más de ${to}`}`
-                }
-              />
-            </>
-          )}
-        </CardContent>
-      </Card>
+            <TablePagination
+              component="div"
+              count={filteredRows.length}
+              page={page}
+              onPageChange={(_, newPage) => setPage(newPage)}
+              rowsPerPage={rowsPerPage}
+              onRowsPerPageChange={(
+                e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+              ) => {
+                setRowsPerPage(Number(e.target.value));
+                setPage(0);
+              }}
+              rowsPerPageOptions={[5, 10, 25, 50]}
+              labelRowsPerPage="Filas por página"
+              labelDisplayedRows={({ from, to, count }) =>
+                `${from}-${to} de ${count !== -1 ? count : `más de ${to}`}`
+              }
+            />
+          </>
+        )}
+      </SectionCard>
 
       <PuestoDialog
         open={dialogOpen}
@@ -763,6 +924,6 @@ export default function PuestosPage() {
         confirmText={confirmTarget?.activo ? "Desactivar" : "Reactivar"}
         confirmColor={confirmTarget?.activo ? "warning" : "success"}
       />
-    </Box>
+    </AppPage>
   );
 }
