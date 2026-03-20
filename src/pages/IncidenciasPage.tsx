@@ -1,17 +1,20 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type ChangeEvent,
+  type ReactNode,
+} from "react";
 import {
   Alert,
   Box,
   Button,
-  Card,
-  CardContent,
   Chip,
   CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
-  Divider,
   FormControl,
   FormControlLabel,
   InputLabel,
@@ -30,13 +33,13 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
+import { alpha } from "@mui/material/styles";
 import AddIcon from "@mui/icons-material/Add";
 import AttachFileRoundedIcon from "@mui/icons-material/AttachFileRounded";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import CloseIcon from "@mui/icons-material/Close";
 import EditIcon from "@mui/icons-material/Edit";
 import RefreshIcon from "@mui/icons-material/Refresh";
-import FilterAltOutlinedIcon from "@mui/icons-material/FilterAltOutlined";
 import PendingActionsRoundedIcon from "@mui/icons-material/PendingActionsRounded";
 import TaskAltRoundedIcon from "@mui/icons-material/TaskAltRounded";
 import DescriptionRoundedIcon from "@mui/icons-material/DescriptionRounded";
@@ -47,6 +50,10 @@ import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded";
 
 import IncidenciaEvidenciaDialog from "../components/IncidenciaEvidenciaDialog";
 import ConfirmActionDialog from "../components/ui/ConfirmActionDialog";
+import AppPage from "../components/ui/AppPage";
+import HeroBanner from "../components/ui/HeroBanner";
+import MetricCard from "../components/ui/MetricCard";
+import SectionCard from "../components/ui/SectionCard";
 import { useAuth } from "../features/auth/AuthContext";
 import type {
   CatalogoOption,
@@ -230,17 +237,6 @@ function getEstatusNombre(
   return findCatalogOption(estatus, estatuses)?.nombre ?? formatEnumLabel(estatus);
 }
 
-function estatusChipColor(
-  estatus: string | number
-): "default" | "warning" | "success" | "error" {
-  const normalized = normalizeEnumValue(estatus);
-
-  if (normalized === "1" || normalized === "PENDIENTE") return "warning";
-  if (normalized === "2" || normalized === "APROBADA") return "success";
-  if (normalized === "3" || normalized === "RECHAZADA") return "error";
-  return "default";
-}
-
 function tipoChipSx(tipo: string | number) {
   const normalized = normalizeEnumValue(tipo);
 
@@ -249,6 +245,7 @@ function tipoChipSx(tipo: string | number) {
       bgcolor: "rgba(211, 47, 47, 0.08)",
       color: "error.main",
       borderColor: "rgba(211, 47, 47, 0.28)",
+      fontWeight: 800,
     };
   }
 
@@ -257,6 +254,7 @@ function tipoChipSx(tipo: string | number) {
       bgcolor: "rgba(237, 108, 2, 0.08)",
       color: "warning.main",
       borderColor: "rgba(237, 108, 2, 0.28)",
+      fontWeight: 800,
     };
   }
 
@@ -265,6 +263,7 @@ function tipoChipSx(tipo: string | number) {
       bgcolor: "rgba(2, 136, 209, 0.08)",
       color: "info.main",
       borderColor: "rgba(2, 136, 209, 0.28)",
+      fontWeight: 800,
     };
   }
 
@@ -273,6 +272,7 @@ function tipoChipSx(tipo: string | number) {
       bgcolor: "rgba(46, 125, 50, 0.08)",
       color: "success.main",
       borderColor: "rgba(46, 125, 50, 0.28)",
+      fontWeight: 800,
     };
   }
 
@@ -281,6 +281,7 @@ function tipoChipSx(tipo: string | number) {
       bgcolor: "rgba(156, 39, 176, 0.08)",
       color: "secondary.main",
       borderColor: "rgba(156, 39, 176, 0.28)",
+      fontWeight: 800,
     };
   }
 
@@ -288,6 +289,45 @@ function tipoChipSx(tipo: string | number) {
     bgcolor: "rgba(0, 0, 0, 0.04)",
     color: "text.primary",
     borderColor: "divider",
+    fontWeight: 800,
+  };
+}
+
+function estatusChipSx(estatus: string | number) {
+  const normalized = normalizeEnumValue(estatus);
+
+  if (normalized === "1" || normalized === "PENDIENTE") {
+    return {
+      bgcolor: "rgba(237, 108, 2, 0.10)",
+      color: "warning.dark",
+      borderColor: "rgba(237, 108, 2, 0.34)",
+      fontWeight: 800,
+    };
+  }
+
+  if (normalized === "2" || normalized === "APROBADA") {
+    return {
+      bgcolor: "rgba(46, 125, 50, 0.10)",
+      color: "success.dark",
+      borderColor: "rgba(46, 125, 50, 0.34)",
+      fontWeight: 800,
+    };
+  }
+
+  if (normalized === "3" || normalized === "RECHAZADA") {
+    return {
+      bgcolor: "rgba(211, 47, 47, 0.10)",
+      color: "error.dark",
+      borderColor: "rgba(211, 47, 47, 0.34)",
+      fontWeight: 800,
+    };
+  }
+
+  return {
+    bgcolor: "rgba(0, 0, 0, 0.04)",
+    color: "text.primary",
+    borderColor: "divider",
+    fontWeight: 800,
   };
 }
 
@@ -367,62 +407,20 @@ function normalizeIncidenciasResponse(data: unknown): Incidencia[] {
   return [];
 }
 
-type SummaryCardProps = {
-  title: string;
-  value: number;
-  subtitle: string;
-  icon: ReactNode;
-};
-
-function SummaryCard({ title, value, subtitle, icon }: SummaryCardProps) {
-  return (
-    <Card
-      elevation={0}
-      sx={{
-        borderRadius: 3,
-        border: "1px solid",
-        borderColor: "divider",
-        height: "100%",
-      }}
-    >
-      <CardContent>
-        <Stack direction="row" justifyContent="space-between" spacing={2}>
-          <Box>
-            <Typography variant="body2" color="text.secondary">
-              {title}
-            </Typography>
-            <Typography
-              variant="h4"
-              fontWeight={800}
-              sx={{ mt: 0.75, lineHeight: 1 }}
-            >
-              {value}
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-              {subtitle}
-            </Typography>
-          </Box>
-
-          <Box
-            sx={{
-              width: 44,
-              height: 44,
-              borderRadius: 2.5,
-              display: "grid",
-              placeItems: "center",
-              bgcolor: "action.hover",
-              color: "text.secondary",
-              flexShrink: 0,
-            }}
-          >
-            {icon}
-          </Box>
-        </Stack>
-      </CardContent>
-    </Card>
-  );
-}
-
+/**
+ * IncidenciasPage
+ * -----------------------------------------------------------------------------
+ * Refactor visual:
+ * - AppPage = estructura general
+ * - HeroBanner = contexto operativo del módulo
+ * - MetricCard = KPIs rápidos
+ * - SectionCard = filtros y listado
+ *
+ * Ajuste semántico:
+ * - Los chips de estatus usan sx propio, igual que los tipos.
+ * - Así PENDIENTE / APROBADA / RECHAZADA conservan su color real
+ *   aunque el theme global de MuiChip sea más corporativo/neutral.
+ */
 export default function IncidenciasPage() {
   const { roles: userRoles } = useAuth();
 
@@ -459,6 +457,8 @@ export default function IncidenciasPage() {
 
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+
+  const normalizedRoles = useMemo(() => normalizeRoles(userRoles), [userRoles]);
 
   const canManageIncidencias = hasSomeRole(userRoles, ["ADMIN", "RRHH"]);
   const canApproveReject = hasSomeRole(userRoles, ["ADMIN", "RRHH"]);
@@ -500,6 +500,48 @@ export default function IncidenciasPage() {
     };
   }, [items]);
 
+  const summaryCards = useMemo(
+    () => [
+      {
+        title: "Total",
+        value: summary.total,
+        subtitle: "Incidencias visibles",
+        icon: <PeopleAltRoundedIcon fontSize="small" />,
+      },
+      {
+        title: "Pendientes",
+        value: summary.pendientes,
+        subtitle: "Esperando revisión",
+        icon: <PendingActionsRoundedIcon fontSize="small" />,
+      },
+      {
+        title: "Aprobadas",
+        value: summary.aprobadas,
+        subtitle: "Ya resueltas",
+        icon: <TaskAltRoundedIcon fontSize="small" />,
+      },
+      {
+        title: "Con evidencia",
+        value: summary.conEvidencia,
+        subtitle: "Con archivo adjunto",
+        icon: <DescriptionRoundedIcon fontSize="small" />,
+      },
+    ],
+    [summary]
+  );
+
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (filters.empleadoId) count += 1;
+    if (filters.sucursalId) count += 1;
+    if (filters.tipo) count += 1;
+    if (filters.estatus) count += 1;
+    if (filters.fechaDesde) count += 1;
+    if (filters.fechaHasta) count += 1;
+    if (filters.soloPendientes) count += 1;
+    return count;
+  }, [filters]);
+
   const paginatedItems = useMemo(() => {
     const start = page * rowsPerPage;
     return items.slice(start, start + rowsPerPage);
@@ -518,7 +560,7 @@ export default function IncidenciasPage() {
   }
 
   function handleChangeRowsPerPage(
-    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) {
     setRowsPerPage(Number(event.target.value));
     setPage(0);
@@ -902,28 +944,15 @@ export default function IncidenciasPage() {
   }
 
   return (
-    <Box sx={{ display: "grid", gap: 3 }}>
-      <Stack
-        direction={{ xs: "column", md: "row" }}
-        justifyContent="space-between"
-        alignItems={{ xs: "stretch", md: "center" }}
-        spacing={2}
-      >
-        <Box>
-          <Typography variant="h4" fontWeight={800}>
-            Incidencias
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
-            Control de incidencias y asistencias con evidencia documental.
-          </Typography>
-        </Box>
-
+    <AppPage
+      eyebrow="Recursos Humanos"
+      title="Incidencias"
+      subtitle="Control de incidencias y asistencias con evidencia documental, filtros operativos y exportación."
+      actions={
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
           <Button
             variant="outlined"
-            startIcon={
-              loadingList ? <CircularProgress size={18} /> : <RefreshIcon />
-            }
+            startIcon={loadingList ? <CircularProgress size={18} /> : <RefreshIcon />}
             onClick={handleRefresh}
             disabled={pageBusy}
           >
@@ -975,7 +1004,79 @@ export default function IncidenciasPage() {
             </Button>
           )}
         </Stack>
-      </Stack>
+      }
+    >
+      <HeroBanner
+        eyebrow="Módulo operativo"
+        title="Seguimiento de incidencias"
+        subtitle="Registra, revisa, aprueba y documenta incidencias del personal con control por estatus, fechas y evidencia adjunta."
+        badge={canManageIncidencias ? "Gestión habilitada" : "Consulta"}
+        actions={
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            {normalizedRoles.length > 0 ? (
+              normalizedRoles.map((role) => (
+                <Chip
+                  key={role}
+                  label={role}
+                  size="small"
+                  variant="outlined"
+                  sx={{
+                    color: "#ffffff",
+                    borderColor: alpha("#ffffff", 0.18),
+                    backgroundColor: alpha("#ffffff", 0.08),
+                    fontWeight: 800,
+                  }}
+                />
+              ))
+            ) : (
+              <Chip
+                label="Sin roles detectados"
+                size="small"
+                variant="outlined"
+                sx={{
+                  color: "#ffffff",
+                  borderColor: alpha("#ffffff", 0.18),
+                  backgroundColor: alpha("#ffffff", 0.08),
+                  fontWeight: 800,
+                }}
+              />
+            )}
+          </Stack>
+        }
+        aside={
+          <Stack spacing={1.5}>
+            <Typography variant="body2" sx={{ color: alpha("#ffffff", 0.78) }}>
+              Resumen rápido
+            </Typography>
+
+            <Stack direction="row" spacing={2}>
+              <Box>
+                <Typography variant="h4" sx={{ fontWeight: 900, lineHeight: 1 }}>
+                  {summary.total}
+                </Typography>
+                <Typography variant="caption" sx={{ color: alpha("#ffffff", 0.8) }}>
+                  visibles
+                </Typography>
+              </Box>
+
+              <Box>
+                <Typography variant="h4" sx={{ fontWeight: 900, lineHeight: 1 }}>
+                  {summary.pendientes}
+                </Typography>
+                <Typography variant="caption" sx={{ color: alpha("#ffffff", 0.8) }}>
+                  pendientes
+                </Typography>
+              </Box>
+            </Stack>
+
+            <Typography variant="body2" sx={{ color: alpha("#ffffff", 0.84) }}>
+              {canExport
+                ? "Exportación habilitada para tu sesión actual."
+                : "Consulta disponible según tu rol actual."}
+            </Typography>
+          </Stack>
+        }
+      />
 
       <Box
         sx={{
@@ -985,547 +1086,510 @@ export default function IncidenciasPage() {
             sm: "repeat(2, 1fr)",
             xl: "repeat(4, 1fr)",
           },
-          gap: 2,
+          gap: { xs: 2, md: 2.25 },
         }}
       >
-        <SummaryCard
-          title="Total"
-          value={summary.total}
-          subtitle="Incidencias visibles"
-          icon={<PeopleAltRoundedIcon fontSize="small" />}
-        />
-        <SummaryCard
-          title="Pendientes"
-          value={summary.pendientes}
-          subtitle="Esperando revisión"
-          icon={<PendingActionsRoundedIcon fontSize="small" />}
-        />
-        <SummaryCard
-          title="Aprobadas"
-          value={summary.aprobadas}
-          subtitle="Ya resueltas"
-          icon={<TaskAltRoundedIcon fontSize="small" />}
-        />
-        <SummaryCard
-          title="Con evidencia"
-          value={summary.conEvidencia}
-          subtitle="Con archivo adjunto"
-          icon={<DescriptionRoundedIcon fontSize="small" />}
-        />
+        {summaryCards.map((card) => (
+          <MetricCard
+            key={card.title}
+            title={card.title}
+            value={card.value}
+            subtitle={card.subtitle}
+            icon={card.icon}
+          />
+        ))}
       </Box>
 
-      <Card>
-        <CardContent>
-          <Stack
-            direction={{ xs: "column", sm: "row" }}
-            spacing={1}
-            alignItems={{ xs: "flex-start", sm: "center" }}
-            sx={{ mb: 2 }}
-          >
-            <FilterAltOutlinedIcon fontSize="small" />
-            <Box>
-              <Typography variant="h6" fontWeight={700}>
-                Filtros
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Refina el listado por empleado, sucursal, tipo, estatus o fechas.
-              </Typography>
-            </Box>
-          </Stack>
+      <SectionCard
+        title="Filtros"
+        subtitle="Refina el listado por empleado, sucursal, tipo, estatus o fechas."
+        actions={
+          <Chip
+            size="small"
+            variant="outlined"
+            label={
+              activeFiltersCount > 0
+                ? `${activeFiltersCount} filtro${
+                    activeFiltersCount > 1 ? "s" : ""
+                  } activo${activeFiltersCount > 1 ? "s" : ""}`
+                : "Sin filtros"
+            }
+          />
+        }
+      >
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: {
+              xs: "1fr",
+              md: "repeat(12, 1fr)",
+            },
+            gap: 2,
+          }}
+        >
+          <Box sx={{ gridColumn: { xs: "span 1", md: "span 4" } }}>
+            <FormControl fullWidth>
+              <InputLabel>Empleado</InputLabel>
+              <Select
+                label="Empleado"
+                value={filters.empleadoId}
+                onChange={(e) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    empleadoId: e.target.value,
+                  }))
+                }
+              >
+                <MenuItem value="">Todos</MenuItem>
+                {empleadoOptions.map((e) => (
+                  <MenuItem key={e.id} value={String(e.id)}>
+                    {e.nombreCompleto}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
 
-          <Divider sx={{ mb: 2 }} />
+          <Box sx={{ gridColumn: { xs: "span 1", md: "span 4" } }}>
+            <FormControl fullWidth>
+              <InputLabel>Sucursal</InputLabel>
+              <Select
+                label="Sucursal"
+                value={filters.sucursalId}
+                onChange={(e) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    sucursalId: e.target.value,
+                  }))
+                }
+              >
+                <MenuItem value="">Todas</MenuItem>
+                {sucursales.map((s) => (
+                  <MenuItem key={s.id} value={String(s.id)}>
+                    {s.nombre}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
+
+          <Box sx={{ gridColumn: { xs: "span 1", md: "span 4" } }}>
+            <FormControl fullWidth>
+              <InputLabel>Tipo</InputLabel>
+              <Select
+                label="Tipo"
+                value={filters.tipo}
+                onChange={(e) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    tipo: e.target.value,
+                  }))
+                }
+              >
+                <MenuItem value="">Todos</MenuItem>
+                {tipos.map((t) => (
+                  <MenuItem key={t.id} value={String(t.id)}>
+                    {t.nombre}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
+
+          <Box sx={{ gridColumn: { xs: "span 1", md: "span 4" } }}>
+            <FormControl fullWidth>
+              <InputLabel>Estatus</InputLabel>
+              <Select
+                label="Estatus"
+                value={filters.estatus}
+                onChange={(e) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    estatus: e.target.value,
+                  }))
+                }
+              >
+                <MenuItem value="">Todos</MenuItem>
+                {estatuses.map((x) => (
+                  <MenuItem key={x.id} value={String(x.id)}>
+                    {x.nombre}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
+
+          <Box sx={{ gridColumn: { xs: "span 1", md: "span 3" } }}>
+            <TextField
+              label="Fecha desde"
+              type="date"
+              fullWidth
+              InputLabelProps={{ shrink: true }}
+              value={filters.fechaDesde}
+              onChange={(e) =>
+                setFilters((prev) => ({
+                  ...prev,
+                  fechaDesde: e.target.value,
+                }))
+              }
+            />
+          </Box>
+
+          <Box sx={{ gridColumn: { xs: "span 1", md: "span 3" } }}>
+            <TextField
+              label="Fecha hasta"
+              type="date"
+              fullWidth
+              InputLabelProps={{ shrink: true }}
+              value={filters.fechaHasta}
+              onChange={(e) =>
+                setFilters((prev) => ({
+                  ...prev,
+                  fechaHasta: e.target.value,
+                }))
+              }
+            />
+          </Box>
 
           <Box
             sx={{
-              display: "grid",
-              gridTemplateColumns: {
-                xs: "1fr",
-                md: "repeat(12, 1fr)",
-              },
-              gap: 2,
+              gridColumn: { xs: "span 1", md: "span 2" },
+              display: "flex",
+              alignItems: "center",
             }}
           >
-            <Box sx={{ gridColumn: { xs: "span 1", md: "span 4" } }}>
-              <FormControl fullWidth>
-                <InputLabel>Empleado</InputLabel>
-                <Select
-                  label="Empleado"
-                  value={filters.empleadoId}
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={filters.soloPendientes}
                   onChange={(e) =>
                     setFilters((prev) => ({
                       ...prev,
-                      empleadoId: e.target.value,
+                      soloPendientes: e.target.checked,
                     }))
                   }
-                >
-                  <MenuItem value="">Todos</MenuItem>
-                  {empleadoOptions.map((e) => (
-                    <MenuItem key={e.id} value={String(e.id)}>
-                      {e.nombreCompleto}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Box>
-
-            <Box sx={{ gridColumn: { xs: "span 1", md: "span 4" } }}>
-              <FormControl fullWidth>
-                <InputLabel>Sucursal</InputLabel>
-                <Select
-                  label="Sucursal"
-                  value={filters.sucursalId}
-                  onChange={(e) =>
-                    setFilters((prev) => ({
-                      ...prev,
-                      sucursalId: e.target.value,
-                    }))
-                  }
-                >
-                  <MenuItem value="">Todas</MenuItem>
-                  {sucursales.map((s) => (
-                    <MenuItem key={s.id} value={String(s.id)}>
-                      {s.nombre}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Box>
-
-            <Box sx={{ gridColumn: { xs: "span 1", md: "span 4" } }}>
-              <FormControl fullWidth>
-                <InputLabel>Tipo</InputLabel>
-                <Select
-                  label="Tipo"
-                  value={filters.tipo}
-                  onChange={(e) =>
-                    setFilters((prev) => ({
-                      ...prev,
-                      tipo: e.target.value,
-                    }))
-                  }
-                >
-                  <MenuItem value="">Todos</MenuItem>
-                  {tipos.map((t) => (
-                    <MenuItem key={t.id} value={String(t.id)}>
-                      {t.nombre}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Box>
-
-            <Box sx={{ gridColumn: { xs: "span 1", md: "span 4" } }}>
-              <FormControl fullWidth>
-                <InputLabel>Estatus</InputLabel>
-                <Select
-                  label="Estatus"
-                  value={filters.estatus}
-                  onChange={(e) =>
-                    setFilters((prev) => ({
-                      ...prev,
-                      estatus: e.target.value,
-                    }))
-                  }
-                >
-                  <MenuItem value="">Todos</MenuItem>
-                  {estatuses.map((x) => (
-                    <MenuItem key={x.id} value={String(x.id)}>
-                      {x.nombre}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Box>
-
-            <Box sx={{ gridColumn: { xs: "span 1", md: "span 3" } }}>
-              <TextField
-                label="Fecha desde"
-                type="date"
-                fullWidth
-                InputLabelProps={{ shrink: true }}
-                value={filters.fechaDesde}
-                onChange={(e) =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    fechaDesde: e.target.value,
-                  }))
-                }
-              />
-            </Box>
-
-            <Box sx={{ gridColumn: { xs: "span 1", md: "span 3" } }}>
-              <TextField
-                label="Fecha hasta"
-                type="date"
-                fullWidth
-                InputLabelProps={{ shrink: true }}
-                value={filters.fechaHasta}
-                onChange={(e) =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    fechaHasta: e.target.value,
-                  }))
-                }
-              />
-            </Box>
-
-            <Box
-              sx={{
-                gridColumn: { xs: "span 1", md: "span 2" },
-                display: "flex",
-                alignItems: "center",
-              }}
-            >
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={filters.soloPendientes}
-                    onChange={(e) =>
-                      setFilters((prev) => ({
-                        ...prev,
-                        soloPendientes: e.target.checked,
-                      }))
-                    }
-                  />
-                }
-                label="Solo pendientes"
-              />
-            </Box>
-
-            <Box sx={{ gridColumn: { xs: "span 1", md: "span 12" } }}>
-              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                <Button
-                  variant="contained"
-                  onClick={applyFilters}
-                  disabled={pageBusy}
-                  startIcon={
-                    loadingList ? <CircularProgress size={18} /> : undefined
-                  }
-                >
-                  {loadingList ? "Aplicando..." : "Aplicar filtros"}
-                </Button>
-                <Button variant="outlined" onClick={clearFilters} disabled={pageBusy}>
-                  Limpiar
-                </Button>
-              </Stack>
-            </Box>
-          </Box>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent>
-          <Stack
-            direction={{ xs: "column", sm: "row" }}
-            justifyContent="space-between"
-            alignItems={{ xs: "flex-start", sm: "center" }}
-            spacing={1}
-            sx={{ mb: 2 }}
-          >
-            <Box>
-              <Typography variant="h6" fontWeight={700}>
-                Listado
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Revisa estatus, evidencia y acciones disponibles por incidencia.
-              </Typography>
-            </Box>
-
-            <Chip
-              label={`${paginatedItems.length} visibles de ${items.length}`}
-              size="small"
-              variant="outlined"
+                />
+              }
+              label="Solo pendientes"
             />
-          </Stack>
+          </Box>
 
-          <Divider sx={{ mb: 2 }} />
+          <Box sx={{ gridColumn: { xs: "span 1", md: "span 12" } }}>
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              <Button
+                variant="contained"
+                onClick={applyFilters}
+                disabled={pageBusy}
+                startIcon={loadingList ? <CircularProgress size={18} /> : undefined}
+              >
+                {loadingList ? "Aplicando..." : "Aplicar filtros"}
+              </Button>
 
-          {bootstrapping || loadingList ? (
-            <Box sx={{ py: 6, display: "flex", justifyContent: "center" }}>
-              <CircularProgress />
-            </Box>
-          ) : items.length === 0 ? (
-            <Box sx={{ py: 4 }}>
-              <Alert severity="info">
-                No hay incidencias con los filtros seleccionados.
-              </Alert>
-            </Box>
-          ) : (
-            <>
-              <Box sx={{ overflowX: "auto", maxHeight: 560 }}>
-                <Table stickyHeader size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>ID</TableCell>
-                      <TableCell>Empleado</TableCell>
-                      <TableCell>Sucursal</TableCell>
-                      <TableCell>Tipo</TableCell>
-                      <TableCell>Periodo</TableCell>
-                      <TableCell>Estatus</TableCell>
-                      <TableCell>Evidencia</TableCell>
-                      <TableCell>Comentario</TableCell>
-                      <TableCell align="right">Acciones</TableCell>
-                    </TableRow>
-                  </TableHead>
+              <Button variant="outlined" onClick={clearFilters} disabled={pageBusy}>
+                Limpiar
+              </Button>
+            </Stack>
+          </Box>
+        </Box>
+      </SectionCard>
 
-                  <TableBody>
-                    {paginatedItems.map((item) => {
-                      const isPendiente = isPendienteValue(item.estatus);
-                      const isThisPendingRow =
-                        pendingAction?.item.id === item.id && confirmLoading;
+      <SectionCard
+        title="Listado"
+        subtitle="Revisa estatus, evidencia y acciones disponibles por incidencia."
+        actions={
+          <Chip
+            label={`${paginatedItems.length} visibles de ${items.length}`}
+            size="small"
+            variant="outlined"
+          />
+        }
+      >
+        {bootstrapping || loadingList ? (
+          <Box sx={{ py: 6, display: "flex", justifyContent: "center" }}>
+            <CircularProgress />
+          </Box>
+        ) : items.length === 0 ? (
+          <Box sx={{ py: 2 }}>
+            <Alert severity="info">
+              No hay incidencias con los filtros seleccionados.
+            </Alert>
+          </Box>
+        ) : (
+          <>
+            <Box sx={{ overflowX: "auto", maxHeight: 560 }}>
+              <Table stickyHeader size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>ID</TableCell>
+                    <TableCell>Empleado</TableCell>
+                    <TableCell>Sucursal</TableCell>
+                    <TableCell>Tipo</TableCell>
+                    <TableCell>Periodo</TableCell>
+                    <TableCell>Estatus</TableCell>
+                    <TableCell>Evidencia</TableCell>
+                    <TableCell>Comentario</TableCell>
+                    <TableCell align="right">Acciones</TableCell>
+                  </TableRow>
+                </TableHead>
 
-                      return (
-                        <TableRow
-                          key={item.id}
-                          hover
-                          sx={{
-                            backgroundColor: isPendiente
-                              ? "rgba(255, 244, 229, 0.35)"
-                              : "transparent",
-                          }}
-                        >
-                          <TableCell>
-                            <Typography fontWeight={700}>#{item.id}</Typography>
-                          </TableCell>
+                <TableBody>
+                  {paginatedItems.map((item) => {
+                    const isPendiente = isPendienteValue(item.estatus);
+                    const isThisPendingRow =
+                      pendingAction?.item.id === item.id && confirmLoading;
 
-                          <TableCell>
-                            <Stack spacing={0.25}>
-                              <Typography fontWeight={600}>
-                                {item.empleadoNombre}
-                              </Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                Empleado #{item.empleadoId}
-                              </Typography>
-                            </Stack>
-                          </TableCell>
+                    return (
+                      <TableRow
+                        key={item.id}
+                        hover
+                        sx={{
+                          backgroundColor: isPendiente
+                            ? "rgba(255, 244, 229, 0.35)"
+                            : "transparent",
+                        }}
+                      >
+                        <TableCell>
+                          <Typography fontWeight={700}>#{item.id}</Typography>
+                        </TableCell>
 
-                          <TableCell>{item.sucursalNombre ?? "—"}</TableCell>
+                        <TableCell>
+                          <Stack spacing={0.25}>
+                            <Typography fontWeight={600}>
+                              {item.empleadoNombre}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              Empleado #{item.empleadoId}
+                            </Typography>
+                          </Stack>
+                        </TableCell>
 
-                          <TableCell>
-                            <Chip
-                              size="small"
-                              variant="outlined"
-                              label={getTipoNombre(item.tipo, tipos)}
-                              sx={tipoChipSx(item.tipo)}
-                            />
-                          </TableCell>
+                        <TableCell>{item.sucursalNombre ?? "—"}</TableCell>
 
-                          <TableCell>
-                            <Stack spacing={0.25}>
-                              <Typography variant="body2">
-                                Inicio: {formatDate(item.fechaInicio)}
-                              </Typography>
-                              <Typography variant="body2" color="text.secondary">
-                                Fin: {formatDate(item.fechaFin)}
-                              </Typography>
-                            </Stack>
-                          </TableCell>
+                        <TableCell>
+                          <Chip
+                            size="small"
+                            variant="outlined"
+                            label={getTipoNombre(item.tipo, tipos)}
+                            sx={tipoChipSx(item.tipo)}
+                          />
+                        </TableCell>
 
-                          <TableCell>
-                            <Chip
-                              size="small"
-                              label={getEstatusNombre(item.estatus, estatuses)}
-                              color={estatusChipColor(item.estatus)}
-                            />
-                          </TableCell>
+                        <TableCell>
+                          <Stack spacing={0.25}>
+                            <Typography variant="body2">
+                              Inicio: {formatDate(item.fechaInicio)}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              Fin: {formatDate(item.fechaFin)}
+                            </Typography>
+                          </Stack>
+                        </TableCell>
 
-                          <TableCell>
-                            {item.tieneEvidencia ? (
-                              <Tooltip
-                                arrow
-                                title={
-                                  <Box>
-                                    <Typography variant="body2" fontWeight={700}>
-                                      {item.evidenciaNombreOriginal || "Archivo adjunto"}
-                                    </Typography>
-                                    <Typography variant="caption" display="block">
-                                      Tipo: {item.evidenciaContentType || "No disponible"}
-                                    </Typography>
-                                    <Typography variant="caption" display="block">
-                                      Tamaño: {formatBytes(item.evidenciaTamanoBytes)}
-                                    </Typography>
-                                  </Box>
-                                }
+                        <TableCell>
+                          <Chip
+                            size="small"
+                            variant="outlined"
+                            label={getEstatusNombre(item.estatus, estatuses)}
+                            sx={estatusChipSx(item.estatus)}
+                          />
+                        </TableCell>
+
+                        <TableCell>
+                          {item.tieneEvidencia ? (
+                            <Tooltip
+                              arrow
+                              title={
+                                <Box>
+                                  <Typography variant="body2" fontWeight={700}>
+                                    {item.evidenciaNombreOriginal || "Archivo adjunto"}
+                                  </Typography>
+                                  <Typography variant="caption" display="block">
+                                    Tipo: {item.evidenciaContentType || "No disponible"}
+                                  </Typography>
+                                  <Typography variant="caption" display="block">
+                                    Tamaño: {formatBytes(item.evidenciaTamanoBytes)}
+                                  </Typography>
+                                </Box>
+                              }
+                            >
+                              <Box
+                                onClick={() => handleOpenEvidencia(item)}
+                                sx={{
+                                  maxWidth: 220,
+                                  width: "fit-content",
+                                  border: "1px solid",
+                                  borderColor: "divider",
+                                  borderRadius: 2,
+                                  px: 1,
+                                  py: 0.75,
+                                  bgcolor: "action.hover",
+                                  cursor: "pointer",
+                                  transition: "all .15s ease",
+                                  "&:hover": {
+                                    borderColor: "success.main",
+                                    boxShadow: "0 2px 10px rgba(0,0,0,0.06)",
+                                  },
+                                }}
                               >
-                                <Box
-                                  onClick={() => handleOpenEvidencia(item)}
-                                  sx={{
-                                    maxWidth: 220,
-                                    width: "fit-content",
-                                    border: "1px solid",
-                                    borderColor: "divider",
-                                    borderRadius: 2,
-                                    px: 1,
-                                    py: 0.75,
-                                    bgcolor: "action.hover",
-                                    cursor: "pointer",
-                                    transition: "all .15s ease",
-                                    "&:hover": {
-                                      borderColor: "success.main",
-                                      boxShadow: "0 2px 10px rgba(0,0,0,0.06)",
-                                    },
-                                  }}
-                                >
-                                  <Stack direction="row" spacing={1} alignItems="center">
-                                    <Box
+                                <Stack direction="row" spacing={1} alignItems="center">
+                                  <Box
+                                    sx={{
+                                      width: 28,
+                                      height: 28,
+                                      borderRadius: 1.5,
+                                      display: "grid",
+                                      placeItems: "center",
+                                      bgcolor: "background.paper",
+                                      color: "success.main",
+                                      flexShrink: 0,
+                                    }}
+                                  >
+                                    {getEvidenceIcon(item)}
+                                  </Box>
+
+                                  <Box sx={{ minWidth: 0 }}>
+                                    <Typography
+                                      variant="caption"
+                                      fontWeight={700}
+                                      display="block"
+                                    >
+                                      Con evidencia
+                                    </Typography>
+                                    <Typography
+                                      variant="caption"
+                                      color="text.secondary"
                                       sx={{
-                                        width: 28,
-                                        height: 28,
-                                        borderRadius: 1.5,
-                                        display: "grid",
-                                        placeItems: "center",
-                                        bgcolor: "background.paper",
-                                        color: "success.main",
-                                        flexShrink: 0,
+                                        display: "block",
+                                        whiteSpace: "nowrap",
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis",
+                                        maxWidth: 150,
                                       }}
                                     >
-                                      {getEvidenceIcon(item)}
-                                    </Box>
+                                      {item.evidenciaNombreOriginal || "Archivo"}
+                                    </Typography>
+                                  </Box>
+                                </Stack>
+                              </Box>
+                            </Tooltip>
+                          ) : (
+                            <Chip size="small" variant="outlined" label="Sin evidencia" />
+                          )}
+                        </TableCell>
 
-                                    <Box sx={{ minWidth: 0 }}>
-                                      <Typography
-                                        variant="caption"
-                                        fontWeight={700}
-                                        display="block"
-                                      >
-                                        Con evidencia
-                                      </Typography>
-                                      <Typography
-                                        variant="caption"
-                                        color="text.secondary"
-                                        sx={{
-                                          display: "block",
-                                          whiteSpace: "nowrap",
-                                          overflow: "hidden",
-                                          textOverflow: "ellipsis",
-                                          maxWidth: 150,
-                                        }}
-                                      >
-                                        {item.evidenciaNombreOriginal || "Archivo"}
-                                      </Typography>
-                                    </Box>
-                                  </Stack>
-                                </Box>
-                              </Tooltip>
-                            ) : (
-                              <Chip size="small" variant="outlined" label="Sin evidencia" />
-                            )}
-                          </TableCell>
+                        <TableCell sx={{ maxWidth: 260 }}>
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              display: "-webkit-box",
+                              WebkitLineClamp: 3,
+                              WebkitBoxOrient: "vertical",
+                              overflow: "hidden",
+                            }}
+                          >
+                            {item.comentario || "—"}
+                          </Typography>
+                        </TableCell>
 
-                          <TableCell sx={{ maxWidth: 260 }}>
-                            <Typography
-                              variant="body2"
-                              sx={{
-                                display: "-webkit-box",
-                                WebkitLineClamp: 3,
-                                WebkitBoxOrient: "vertical",
-                                overflow: "hidden",
-                              }}
+                        <TableCell align="right">
+                          <Stack
+                            direction="row"
+                            spacing={1}
+                            justifyContent="flex-end"
+                            flexWrap="wrap"
+                            useFlexGap
+                          >
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              startIcon={<AttachFileRoundedIcon />}
+                              onClick={() => handleOpenEvidencia(item)}
+                              sx={{ fontWeight: 700 }}
                             >
-                              {item.comentario || "—"}
-                            </Typography>
-                          </TableCell>
+                              {item.tieneEvidencia
+                                ? "Gestionar evidencia"
+                                : "Subir evidencia"}
+                            </Button>
 
-                          <TableCell align="right">
-                            <Stack
-                              direction="row"
-                              spacing={1}
-                              justifyContent="flex-end"
-                              flexWrap="wrap"
-                              useFlexGap
-                            >
+                            {canManageIncidencias && (
                               <Button
                                 size="small"
                                 variant="outlined"
-                                startIcon={<AttachFileRoundedIcon />}
-                                onClick={() => handleOpenEvidencia(item)}
-                                sx={{ textTransform: "none", fontWeight: 700 }}
+                                startIcon={<EditIcon />}
+                                onClick={() => openEdit(item)}
+                                disabled={!isPendiente || isThisPendingRow}
+                                sx={{ fontWeight: 700 }}
                               >
-                                {item.tieneEvidencia
-                                  ? "Gestionar evidencia"
-                                  : "Subir evidencia"}
+                                Editar
                               </Button>
+                            )}
 
-                              {canManageIncidencias && (
-                                <Button
-                                  size="small"
-                                  variant="outlined"
-                                  startIcon={<EditIcon />}
-                                  onClick={() => openEdit(item)}
-                                  disabled={!isPendiente || isThisPendingRow}
-                                  sx={{ textTransform: "none", fontWeight: 700 }}
-                                >
-                                  Editar
-                                </Button>
-                              )}
+                            {canApproveReject && (
+                              <Button
+                                size="small"
+                                color="success"
+                                variant="outlined"
+                                startIcon={
+                                  isThisPendingRow &&
+                                  pendingAction?.type === "approve" ? (
+                                    <CircularProgress size={16} />
+                                  ) : (
+                                    <CheckCircleOutlineIcon />
+                                  )
+                                }
+                                onClick={() => requestApprove(item)}
+                                disabled={!isPendiente || confirmLoading}
+                                sx={{ fontWeight: 700 }}
+                              >
+                                Aprobar
+                              </Button>
+                            )}
 
-                              {canApproveReject && (
-                                <Button
-                                  size="small"
-                                  color="success"
-                                  variant="outlined"
-                                  startIcon={
-                                    isThisPendingRow &&
-                                    pendingAction?.type === "approve" ? (
-                                      <CircularProgress size={16} />
-                                    ) : (
-                                      <CheckCircleOutlineIcon />
-                                    )
-                                  }
-                                  onClick={() => requestApprove(item)}
-                                  disabled={!isPendiente || confirmLoading}
-                                  sx={{ textTransform: "none", fontWeight: 700 }}
-                                >
-                                  Aprobar
-                                </Button>
-                              )}
+                            {canApproveReject && (
+                              <Button
+                                size="small"
+                                color="error"
+                                variant="outlined"
+                                startIcon={
+                                  isThisPendingRow &&
+                                  pendingAction?.type === "reject" ? (
+                                    <CircularProgress size={16} />
+                                  ) : (
+                                    <CloseIcon />
+                                  )
+                                }
+                                onClick={() => requestReject(item)}
+                                disabled={!isPendiente || confirmLoading}
+                                sx={{ fontWeight: 700 }}
+                              >
+                                Rechazar
+                              </Button>
+                            )}
+                          </Stack>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </Box>
 
-                              {canApproveReject && (
-                                <Button
-                                  size="small"
-                                  color="error"
-                                  variant="outlined"
-                                  startIcon={
-                                    isThisPendingRow &&
-                                    pendingAction?.type === "reject" ? (
-                                      <CircularProgress size={16} />
-                                    ) : (
-                                      <CloseIcon />
-                                    )
-                                  }
-                                  onClick={() => requestReject(item)}
-                                  disabled={!isPendiente || confirmLoading}
-                                  sx={{ textTransform: "none", fontWeight: 700 }}
-                                >
-                                  Rechazar
-                                </Button>
-                              )}
-                            </Stack>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </Box>
-
-              <TablePagination
-                component="div"
-                count={items.length}
-                page={page}
-                onPageChange={handleChangePage}
-                rowsPerPage={rowsPerPage}
-                onRowsPerPageChange={handleChangeRowsPerPage}
-                rowsPerPageOptions={[5, 10, 25, 50]}
-                labelRowsPerPage="Filas por página"
-                labelDisplayedRows={({ from, to, count }) =>
-                  `${from}-${to} de ${count !== -1 ? count : `más de ${to}`}`
-                }
-              />
-            </>
-          )}
-        </CardContent>
-      </Card>
+            <TablePagination
+              component="div"
+              count={items.length}
+              page={page}
+              onPageChange={handleChangePage}
+              rowsPerPage={rowsPerPage}
+              onRowsPerPageChange={handleChangeRowsPerPage}
+              rowsPerPageOptions={[5, 10, 25, 50]}
+              labelRowsPerPage="Filas por página"
+              labelDisplayedRows={({ from, to, count }) =>
+                `${from}-${to} de ${count !== -1 ? count : `más de ${to}`}`
+              }
+            />
+          </>
+        )}
+      </SectionCard>
 
       <Dialog open={dialogOpen} onClose={closeDialog} fullWidth maxWidth="md">
         <DialogTitle>
@@ -1687,6 +1751,6 @@ export default function IncidenciasPage() {
           {snackbar.message}
         </Alert>
       </Snackbar>
-    </Box>
+    </AppPage>
   );
 }

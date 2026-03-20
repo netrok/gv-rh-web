@@ -4,11 +4,8 @@ import {
   Alert,
   Box,
   Button,
-  Card,
-  CardContent,
   Chip,
   CircularProgress,
-  Divider,
   LinearProgress,
   Stack,
   Table,
@@ -35,7 +32,6 @@ import PendingActionsOutlinedIcon from "@mui/icons-material/PendingActionsOutlin
 import EventNoteOutlinedIcon from "@mui/icons-material/EventNoteOutlined";
 import BadgeRoundedIcon from "@mui/icons-material/BadgeRounded";
 import AssessmentRoundedIcon from "@mui/icons-material/AssessmentRounded";
-import InsightsRoundedIcon from "@mui/icons-material/InsightsRounded";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import CancelRoundedIcon from "@mui/icons-material/CancelRounded";
 import HourglassTopRoundedIcon from "@mui/icons-material/HourglassTopRounded";
@@ -45,12 +41,16 @@ import EventAvailableRoundedIcon from "@mui/icons-material/EventAvailableRounded
 import BeachAccessRoundedIcon from "@mui/icons-material/BeachAccessRounded";
 import LocalHospitalRoundedIcon from "@mui/icons-material/LocalHospitalRounded";
 import FingerprintRoundedIcon from "@mui/icons-material/FingerprintRounded";
-import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
 import axios from "axios";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 
 import { useAuth } from "../features/auth/AuthContext";
+import AppPage from "../components/ui/AppPage";
+import HeroBanner from "../components/ui/HeroBanner";
+import ActionTile from "../components/ui/ActionTile";
+import MetricCard from "../components/ui/MetricCard";
+import SectionCard from "../components/ui/SectionCard";
 import {
   getDashboard,
   getDashboardStats,
@@ -61,28 +61,15 @@ import {
 } from "../api/dashboard.api";
 import type { AuditItem } from "../api/audit.api";
 
-const colors = {
-  cardBg: "#ffffff",
-  softBg: "#f8fafc",
-  softBg2: "#fbfdff",
-  border: "#e5e7eb",
-  borderSoft: "#dbe3ee",
-  text: "#111827",
-  subtext: "#6b7280",
-  heroFrom: "#0b1630",
-  heroTo: "#14233f",
-  heroGlass: "rgba(255,255,255,0.08)",
-  heroGlassBorder: "rgba(255,255,255,0.12)",
-  heroMuted: "rgba(255,255,255,0.76)",
-  heroText: "rgba(255,255,255,0.86)",
+const dashboardTokens = {
+  softSurface: "#f8fafc",
+  softSurface2: "#fbfdff",
+  borderSoft: "#e2e8f0",
   accent: "#1d4ed8",
-  accentSoft: "#dbeafe",
-  accentSoft2: "#eef2ff",
   accentText: "#1e3a8a",
-  neutralIconBg: "#f3f4f6",
-  neutralIconText: "#374151",
   progressBg: "#e8eef7",
-  shadow: "0 10px 28px rgba(15, 23, 42, 0.05)",
+  text: "#0f172a",
+  subtext: "#64748b",
 };
 
 type QuickAction = {
@@ -93,17 +80,12 @@ type QuickAction = {
   icon: ReactNode;
 };
 
-type PrimaryKpi = {
+type DashboardMetric = {
   title: string;
   value: number;
   subtitle: string;
   icon: ReactNode;
-};
-
-type MiniStat = {
-  title: string;
-  value: number;
-  icon: ReactNode;
+  badge?: string;
 };
 
 function normalizeRoles(roles?: string[] | null): string[] {
@@ -270,192 +252,6 @@ function getTipoIcon(tipo?: string | null): ReactNode {
   }
 }
 
-type SectionCardProps = {
-  title: string;
-  subtitle: string;
-  action?: ReactNode;
-  children: ReactNode;
-};
-
-function SectionCard({ title, subtitle, action, children }: SectionCardProps) {
-  return (
-    <Card
-      elevation={0}
-      sx={{
-        borderRadius: 4,
-        border: `1px solid ${colors.border}`,
-        backgroundColor: colors.cardBg,
-        boxShadow: colors.shadow,
-      }}
-    >
-      <CardContent sx={{ p: 2.5 }}>
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          justifyContent="space-between"
-          alignItems={{ xs: "flex-start", sm: "center" }}
-          spacing={1}
-          sx={{ mb: 2 }}
-        >
-          <Box>
-            <Typography variant="h6" fontWeight={800} sx={{ color: colors.text }}>
-              {title}
-            </Typography>
-            <Typography variant="body2" sx={{ color: colors.subtext }}>
-              {subtitle}
-            </Typography>
-          </Box>
-
-          {action}
-        </Stack>
-
-        <Divider sx={{ mb: 2, borderColor: colors.border }} />
-
-        {children}
-      </CardContent>
-    </Card>
-  );
-}
-
-type PrimaryKpiCardProps = {
-  title: string;
-  value: number;
-  subtitle: string;
-  icon: ReactNode;
-  loading?: boolean;
-};
-
-function PrimaryKpiCard({
-  title,
-  value,
-  subtitle,
-  icon,
-  loading = false,
-}: PrimaryKpiCardProps) {
-  return (
-    <Card
-      elevation={0}
-      sx={{
-        height: "100%",
-        borderRadius: 4,
-        border: `1px solid ${colors.border}`,
-        backgroundColor: colors.cardBg,
-        overflow: "hidden",
-        boxShadow: colors.shadow,
-      }}
-    >
-      <Box
-        sx={{
-          height: 4,
-          background: `linear-gradient(90deg, ${colors.accent} 0%, #2563eb 100%)`,
-        }}
-      />
-      <CardContent sx={{ p: 2.5 }}>
-        <Stack spacing={2}>
-          <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-            <Box
-              sx={{
-                width: 46,
-                height: 46,
-                borderRadius: 3,
-                display: "grid",
-                placeItems: "center",
-                backgroundColor: colors.accentSoft2,
-                color: colors.accentText,
-              }}
-            >
-              {icon}
-            </Box>
-
-            <Chip
-              label="RH"
-              size="small"
-              sx={{
-                fontWeight: 700,
-                color: colors.accentText,
-                backgroundColor: colors.accentSoft,
-                border: `1px solid ${colors.accentSoft}`,
-              }}
-            />
-          </Stack>
-
-          <Box>
-            <Typography variant="body2" sx={{ mb: 0.75, color: colors.subtext }}>
-              {title}
-            </Typography>
-
-            {loading ? (
-              <CircularProgress size={24} />
-            ) : (
-              <Typography variant="h4" fontWeight={800} sx={{ lineHeight: 1, color: colors.text }}>
-                {formatNumber(value)}
-              </Typography>
-            )}
-
-            <Typography variant="body2" sx={{ mt: 1, color: colors.subtext }}>
-              {subtitle}
-            </Typography>
-          </Box>
-        </Stack>
-      </CardContent>
-    </Card>
-  );
-}
-
-type MiniStatCardProps = {
-  title: string;
-  value: number;
-  icon: ReactNode;
-  loading?: boolean;
-};
-
-function MiniStatCard({ title, value, icon, loading = false }: MiniStatCardProps) {
-  return (
-    <Card
-      elevation={0}
-      sx={{
-        height: "100%",
-        borderRadius: 3,
-        border: `1px solid ${colors.border}`,
-        backgroundColor: colors.cardBg,
-        boxShadow: colors.shadow,
-      }}
-    >
-      <CardContent sx={{ p: 2 }}>
-        <Stack direction="row" alignItems="center" spacing={1.5}>
-          <Box
-            sx={{
-              width: 38,
-              height: 38,
-              borderRadius: 2.5,
-              display: "grid",
-              placeItems: "center",
-              backgroundColor: colors.softBg,
-              color: colors.neutralIconText,
-              flexShrink: 0,
-            }}
-          >
-            {icon}
-          </Box>
-
-          <Box sx={{ minWidth: 0 }}>
-            <Typography variant="body2" sx={{ color: colors.subtext }}>
-              {title}
-            </Typography>
-
-            {loading ? (
-              <CircularProgress size={18} sx={{ mt: 0.5 }} />
-            ) : (
-              <Typography variant="h6" fontWeight={800} sx={{ color: colors.text }}>
-                {formatNumber(value)}
-              </Typography>
-            )}
-          </Box>
-        </Stack>
-      </CardContent>
-    </Card>
-  );
-}
-
 type SummaryListCardProps = {
   title: string;
   subtitle: string;
@@ -474,191 +270,99 @@ function SummaryListCard({
   const maxValue = Math.max(...items.map((x) => x.total), 1);
 
   return (
-    <Card
-      elevation={0}
-      sx={{
-        height: "100%",
-        borderRadius: 4,
-        border: `1px solid ${colors.border}`,
-        backgroundColor: colors.cardBg,
-        boxShadow: colors.shadow,
-      }}
-    >
-      <CardContent sx={{ p: 2.5 }}>
-        <Stack direction="row" spacing={1.25} alignItems="center" sx={{ mb: 0.5 }}>
-          <Box
-            sx={{
-              width: 40,
-              height: 40,
-              borderRadius: 2.5,
-              display: "grid",
-              placeItems: "center",
-              backgroundColor: colors.accentSoft2,
-              color: colors.accentText,
-              flexShrink: 0,
-            }}
-          >
-            {kind === "tipo" ? (
-              <AssessmentRoundedIcon fontSize="small" />
-            ) : (
-              <InsightsRoundedIcon fontSize="small" />
-            )}
-          </Box>
+    <SectionCard title={title} subtitle={subtitle}>
+      {items.length === 0 ? (
+        <Typography variant="body2" color="text.secondary">
+          {emptyText}
+        </Typography>
+      ) : (
+        <Stack spacing={1.75}>
+          {items.map((item) => {
+            const progress = Math.max(8, Math.round((item.total / maxValue) * 100));
+            const icon =
+              kind === "tipo" ? getTipoIcon(item.nombre) : getStatusIcon(item.nombre);
 
-          <Box>
-            <Typography variant="h6" fontWeight={700} sx={{ color: colors.text }}>
-              {title}
-            </Typography>
-            <Typography variant="body2" sx={{ color: colors.subtext }}>
-              {subtitle}
-            </Typography>
-          </Box>
-        </Stack>
-
-        <Divider sx={{ my: 2, borderColor: colors.border }} />
-
-        {items.length === 0 ? (
-          <Typography variant="body2" sx={{ color: colors.subtext }}>
-            {emptyText}
-          </Typography>
-        ) : (
-          <Stack spacing={1.5}>
-            {items.map((item) => {
-              const progress = Math.max(8, Math.round((item.total / maxValue) * 100));
-              const icon =
-                kind === "tipo"
-                  ? getTipoIcon(item.nombre)
-                  : getStatusIcon(item.nombre);
-
-              return (
-                <Box
-                  key={`${title}-${item.nombre}`}
-                  sx={{
-                    border: `1px solid ${colors.border}`,
-                    borderRadius: 3,
-                    p: 1.5,
-                    backgroundColor: colors.softBg2,
-                  }}
+            return (
+              <Box
+                key={`${title}-${item.nombre}`}
+                sx={{
+                  border: `1px solid ${dashboardTokens.borderSoft}`,
+                  borderRadius: "18px",
+                  p: 1.75,
+                  backgroundColor: dashboardTokens.softSurface2,
+                }}
+              >
+                <Stack
+                  direction="row"
+                  justifyContent="space-between"
+                  alignItems="center"
+                  spacing={2}
+                  sx={{ mb: 1.1 }}
                 >
-                  <Stack
-                    direction="row"
-                    justifyContent="space-between"
-                    alignItems="center"
-                    spacing={2}
-                    sx={{ mb: 1 }}
-                  >
-                    <Stack direction="row" spacing={1.25} alignItems="center">
-                      <Box
-                        sx={{
-                          width: 34,
-                          height: 34,
-                          borderRadius: 2,
-                          display: "grid",
-                          placeItems: "center",
-                          backgroundColor: colors.softBg,
-                          color: colors.neutralIconText,
-                          flexShrink: 0,
-                        }}
-                      >
-                        {icon}
-                      </Box>
+                  <Stack direction="row" spacing={1.25} alignItems="center" sx={{ minWidth: 0 }}>
+                    <Box
+                      sx={{
+                        width: 34,
+                        height: 34,
+                        borderRadius: "12px",
+                        display: "grid",
+                        placeItems: "center",
+                        backgroundColor: dashboardTokens.softSurface,
+                        color: alpha(dashboardTokens.text, 0.75),
+                        flexShrink: 0,
+                        border: `1px solid ${alpha(dashboardTokens.text, 0.06)}`,
+                      }}
+                    >
+                      {icon}
+                    </Box>
 
-                      <Typography variant="body1" fontWeight={600} sx={{ color: colors.text }}>
-                        {formatEnumLabel(item.nombre)}
-                      </Typography>
-                    </Stack>
-
-                    <Chip
-                      label={item.total}
-                      size="small"
+                    <Typography
+                      variant="body1"
                       sx={{
                         fontWeight: 700,
-                        color: colors.accentText,
-                        backgroundColor: colors.accentSoft,
-                        border: `1px solid ${colors.accentSoft}`,
+                        color: dashboardTokens.text,
+                        minWidth: 0,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
                       }}
-                    />
+                    >
+                      {formatEnumLabel(item.nombre)}
+                    </Typography>
                   </Stack>
 
-                  <LinearProgress
-                    variant="determinate"
-                    value={progress}
+                  <Chip
+                    label={item.total}
+                    size="small"
+                    variant="outlined"
                     sx={{
-                      height: 8,
-                      borderRadius: 999,
-                      backgroundColor: colors.progressBg,
-                      "& .MuiLinearProgress-bar": {
-                        backgroundColor: colors.accent,
-                        borderRadius: 999,
-                      },
+                      fontWeight: 800,
+                      color: dashboardTokens.accentText,
+                      borderColor: alpha(dashboardTokens.accent, 0.16),
+                      backgroundColor: alpha(dashboardTokens.accent, 0.05),
                     }}
                   />
-                </Box>
-              );
-            })}
-          </Stack>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
+                </Stack>
 
-function QuickActionCard({
-  label,
-  description,
-  icon,
-  onClick,
-}: {
-  label: string;
-  description: string;
-  icon: ReactNode;
-  onClick: () => void;
-}) {
-  return (
-    <Box
-      onClick={onClick}
-      sx={{
-        border: `1px solid ${colors.border}`,
-        borderRadius: 3,
-        p: 1.5,
-        cursor: "pointer",
-        transition: "all .15s ease",
-        backgroundColor: colors.softBg2,
-        "&:hover": {
-          transform: "translateY(-1px)",
-          boxShadow: colors.shadow,
-          borderColor: colors.borderSoft,
-        },
-      }}
-    >
-      <Stack direction="row" spacing={1.25} alignItems="center">
-        <Box
-          sx={{
-            width: 38,
-            height: 38,
-            borderRadius: 2.5,
-            display: "grid",
-            placeItems: "center",
-            backgroundColor: colors.accentSoft2,
-            color: colors.accentText,
-            flexShrink: 0,
-          }}
-        >
-          {icon}
-        </Box>
-
-        <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography fontWeight={800} sx={{ color: colors.text }}>
-            {label}
-          </Typography>
-          <Typography variant="body2" sx={{ color: colors.subtext }}>
-            {description}
-          </Typography>
-        </Box>
-
-        <ChevronRightRoundedIcon sx={{ color: colors.subtext }} />
-      </Stack>
-    </Box>
+                <LinearProgress
+                  variant="determinate"
+                  value={progress}
+                  sx={{
+                    height: 8,
+                    borderRadius: 999,
+                    backgroundColor: dashboardTokens.progressBg,
+                    "& .MuiLinearProgress-bar": {
+                      backgroundColor: dashboardTokens.accent,
+                      borderRadius: 999,
+                    },
+                  }}
+                />
+              </Box>
+            );
+          })}
+        </Stack>
+      )}
+    </SectionCard>
   );
 }
 
@@ -734,47 +438,54 @@ export default function DashboardPage() {
   const recientes: DashboardIncidenciaReciente[] =
     dashboardData?.incidenciasRecientes ?? [];
 
-  const primaryKpis: PrimaryKpi[] = [
+  const primaryKpis: DashboardMetric[] = [
     {
       title: "Empleados activos",
       value: dashboardData?.empleadosActivos ?? 0,
       subtitle: "Personal activo registrado",
       icon: <Groups2OutlinedIcon fontSize="small" />,
+      badge: "RH",
     },
     {
       title: "Sucursales activas",
       value: dashboardData?.sucursalesActivas ?? 0,
       subtitle: "Sedes disponibles",
       icon: <StoreRoundedIcon fontSize="small" />,
+      badge: "RH",
     },
     {
       title: "Incidencias pendientes",
       value: dashboardData?.incidenciasPendientes ?? 0,
       subtitle: "Esperando revisión",
       icon: <PendingActionsOutlinedIcon fontSize="small" />,
+      badge: "RH",
     },
     {
       title: "Incidencias del mes",
       value: dashboardData?.incidenciasMes ?? 0,
       subtitle: "Registradas en el mes actual",
       icon: <EventNoteOutlinedIcon fontSize="small" />,
+      badge: "RH",
     },
   ];
 
-  const miniStats: MiniStat[] = [
+  const secondaryKpis: DashboardMetric[] = [
     {
       title: "Departamentos",
       value: statsData?.departamentosTotal ?? 0,
+      subtitle: "Catálogo vigente",
       icon: <ApartmentRoundedIcon fontSize="small" />,
     },
     {
       title: "Puestos",
       value: statsData?.puestosTotal ?? 0,
+      subtitle: "Roles y posiciones",
       icon: <WorkOutlineRoundedIcon fontSize="small" />,
     },
     {
       title: "Auditoría",
       value: canSeeAudit ? statsData?.auditoriaTotal ?? 0 : 0,
+      subtitle: canSeeAudit ? "Eventos registrados" : "Sin acceso por rol actual",
       icon: <GavelRoundedIcon fontSize="small" />,
     },
   ];
@@ -784,176 +495,118 @@ export default function DashboardPage() {
     void dashboardQuery.refetch();
   };
 
+  const dashboardLoading = statsQuery.isLoading || dashboardQuery.isLoading;
+
   return (
-    <Box sx={{ display: "grid", gap: 3 }}>
-      <Card
-        elevation={0}
-        sx={{
-          borderRadius: 6,
-          border: "none",
-          background: `linear-gradient(135deg, ${colors.heroFrom} 0%, ${colors.heroTo} 100%)`,
-          color: "#fff",
-          overflow: "hidden",
-          boxShadow: "0 18px 44px rgba(10, 22, 48, 0.24)",
-        }}
-      >
-        <CardContent sx={{ p: { xs: 3, md: 4 } }}>
-          <Box
-            sx={{
-              display: "grid",
-              gridTemplateColumns: { xs: "1fr", lg: "1.35fr 0.65fr" },
-              gap: 3,
-              alignItems: "center",
-            }}
-          >
-            <Box>
-              <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
-                <Box
-                  sx={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 2.5,
-                    display: "grid",
-                    placeItems: "center",
-                    backgroundColor: colors.heroGlass,
-                    border: `1px solid ${colors.heroGlassBorder}`,
-                  }}
-                >
-                  <DashboardRoundedIcon fontSize="small" />
-                </Box>
-
-                <Typography
-                  variant="overline"
-                  sx={{ color: colors.heroMuted, letterSpacing: 1.2, fontWeight: 800 }}
-                >
-                  DASHBOARD RH
-                </Typography>
-              </Stack>
-
-              <Typography
-                variant="h3"
-                sx={{
-                  fontWeight: 900,
-                  fontSize: { xs: 34, md: 48 },
-                  lineHeight: 1.05,
-                  letterSpacing: -1,
-                }}
-              >
-                Tablero principal de operación
-              </Typography>
-
-              <Typography
-                sx={{
-                  mt: 1.5,
-                  color: colors.heroText,
-                  maxWidth: 760,
-                }}
-              >
-                Vista ejecutiva y operativa del módulo RH: empleados, sucursales,
-                incidencias y actividad reciente.
-              </Typography>
-
-              <Stack
-                direction="row"
-                spacing={1}
-                flexWrap="wrap"
-                useFlexGap
-                sx={{ mt: 2 }}
-              >
-                {normalizedRoles.length > 0 ? (
-                  normalizedRoles.map((role) => (
-                    <Chip
-                      key={role}
-                      label={role}
-                      size="small"
-                      sx={{
-                        color: "#fff",
-                        backgroundColor: colors.heroGlass,
-                        border: `1px solid ${colors.heroGlassBorder}`,
-                        fontWeight: 700,
-                      }}
-                    />
-                  ))
-                ) : (
-                  <Chip
-                    label="Sin roles detectados"
-                    size="small"
-                    sx={{
-                      color: "#fff",
-                      backgroundColor: colors.heroGlass,
-                      border: `1px solid ${colors.heroGlassBorder}`,
-                      fontWeight: 700,
-                    }}
-                  />
-                )}
-              </Stack>
-            </Box>
-
-            <Box
-              sx={{
-                width: { xs: "100%", lg: 320 },
-                justifySelf: { lg: "end" },
-                p: 2.25,
-                borderRadius: 5,
-                border: `1px solid ${colors.heroGlassBorder}`,
-                backgroundColor: colors.heroGlass,
-                backdropFilter: "blur(8px)",
-              }}
-            >
-              <Typography variant="body2" sx={{ color: colors.heroMuted, mb: 0.75 }}>
-                Resumen rápido
-              </Typography>
-
-              <Typography variant="h2" fontWeight={900} sx={{ lineHeight: 1 }}>
-                {quickActions.length}
-              </Typography>
-
-              <Typography variant="body2" sx={{ color: colors.heroText, mt: 0.75 }}>
-                módulos disponibles para tu sesión actual
-              </Typography>
-
-              <Stack direction={{ xs: "column", sm: "row" }} spacing={1} sx={{ mt: 2 }}>
-                <Button
-                  variant="contained"
-                  startIcon={<PendingActionsOutlinedIcon />}
-                  onClick={() => navigate("/incidencias")}
-                  sx={{
-                    textTransform: "none",
-                    fontWeight: 800,
-                    borderRadius: 999,
-                    backgroundColor: "#ffffff",
-                    color: colors.text,
-                    "&:hover": {
-                      backgroundColor: "#f3f4f6",
-                    },
-                  }}
-                >
-                  Ver incidencias
-                </Button>
-
-                <Button
+    <AppPage
+      eyebrow="Recursos Humanos"
+      title="Dashboard RH"
+      subtitle="Panorama ejecutivo del módulo para revisar personal, incidencias, catálogos y actividad reciente."
+    >
+      <HeroBanner
+        eyebrow="Dashboard RH"
+        title="Tablero principal de operación"
+        subtitle="Vista ejecutiva y operativa del módulo RH: empleados, sucursales, incidencias y actividad reciente."
+        badge="Activo"
+        actions={
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            {normalizedRoles.length > 0 ? (
+              normalizedRoles.map((role) => (
+                <Chip
+                  key={role}
+                  label={role}
+                  size="small"
                   variant="outlined"
-                  startIcon={<RefreshRoundedIcon />}
-                  onClick={refreshAll}
                   sx={{
-                    textTransform: "none",
+                    color: "#ffffff",
+                    borderColor: alpha("#ffffff", 0.18),
+                    backgroundColor: alpha("#ffffff", 0.08),
                     fontWeight: 800,
-                    borderRadius: 999,
-                    color: "#fff",
-                    borderColor: colors.heroGlassBorder,
-                    "&:hover": {
-                      borderColor: "rgba(255,255,255,0.30)",
-                      backgroundColor: alpha("#ffffff", 0.04),
-                    },
                   }}
-                >
-                  Actualizar
-                </Button>
-              </Stack>
-            </Box>
-          </Box>
-        </CardContent>
-      </Card>
+                />
+              ))
+            ) : (
+              <Chip
+                label="Sin roles detectados"
+                size="small"
+                variant="outlined"
+                sx={{
+                  color: "#ffffff",
+                  borderColor: alpha("#ffffff", 0.18),
+                  backgroundColor: alpha("#ffffff", 0.08),
+                  fontWeight: 800,
+                }}
+              />
+            )}
+          </Stack>
+        }
+        aside={
+          <Stack spacing={1.5}>
+            <Stack direction="row" spacing={1.25} alignItems="center">
+              <Box
+                sx={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: "14px",
+                  display: "grid",
+                  placeItems: "center",
+                  backgroundColor: alpha("#ffffff", 0.08),
+                  border: `1px solid ${alpha("#ffffff", 0.12)}`,
+                  flexShrink: 0,
+                }}
+              >
+                <DashboardRoundedIcon fontSize="small" />
+              </Box>
+
+              <Box>
+                <Typography variant="body2" sx={{ color: alpha("#ffffff", 0.76) }}>
+                  Resumen rápido
+                </Typography>
+                <Typography variant="h4" sx={{ fontWeight: 900, lineHeight: 1 }}>
+                  {quickActions.length}
+                </Typography>
+              </Box>
+            </Stack>
+
+            <Typography variant="body2" sx={{ color: alpha("#ffffff", 0.84) }}>
+              módulos disponibles para tu sesión actual
+            </Typography>
+
+            <Stack direction={{ xs: "column", sm: "row", lg: "column" }} spacing={1}>
+              <Button
+                variant="contained"
+                startIcon={<PendingActionsOutlinedIcon />}
+                onClick={() => navigate("/incidencias")}
+                sx={{
+                  bgcolor: "#ffffff",
+                  color: dashboardTokens.text,
+                  "&:hover": {
+                    bgcolor: "#f8fafc",
+                  },
+                }}
+              >
+                Ver incidencias
+              </Button>
+
+              <Button
+                variant="outlined"
+                startIcon={<RefreshRoundedIcon />}
+                onClick={refreshAll}
+                sx={{
+                  color: "#ffffff",
+                  borderColor: alpha("#ffffff", 0.18),
+                  "&:hover": {
+                    borderColor: alpha("#ffffff", 0.28),
+                    backgroundColor: alpha("#ffffff", 0.04),
+                  },
+                }}
+              >
+                Actualizar
+              </Button>
+            </Stack>
+          </Stack>
+        }
+      />
 
       {(statsQuery.isError || dashboardQuery.isError) && (
         <Stack spacing={1.5}>
@@ -993,16 +646,16 @@ export default function DashboardPage() {
               sm: "repeat(2, 1fr)",
               xl: "repeat(3, 1fr)",
             },
-            gap: 1.25,
+            gap: { xs: 1.5, md: 2 },
           }}
         >
           {quickActions.map((action) => (
-            <QuickActionCard
+            <ActionTile
               key={action.to}
-              label={action.label}
-              description={action.description}
+              title={action.label}
+              subtitle={action.description}
               icon={action.icon}
-              onClick={() => navigate(action.to)}
+              to={action.to}
             />
           ))}
         </Box>
@@ -1016,17 +669,17 @@ export default function DashboardPage() {
             sm: "repeat(2, 1fr)",
             xl: "repeat(4, 1fr)",
           },
-          gap: 2,
+          gap: { xs: 2, md: 2.25 },
         }}
       >
-        {primaryKpis.map((card) => (
-          <PrimaryKpiCard
-            key={card.title}
-            title={card.title}
-            value={card.value}
-            subtitle={card.subtitle}
-            icon={card.icon}
-            loading={statsQuery.isLoading || dashboardQuery.isLoading}
+        {primaryKpis.map((item) => (
+          <MetricCard
+            key={item.title}
+            title={item.title}
+            value={dashboardLoading ? "..." : formatNumber(item.value)}
+            subtitle={dashboardLoading ? "Cargando información..." : item.subtitle}
+            icon={item.icon}
+            badge={item.badge}
           />
         ))}
       </Box>
@@ -1038,16 +691,16 @@ export default function DashboardPage() {
             xs: "1fr",
             md: "repeat(3, 1fr)",
           },
-          gap: 2,
+          gap: { xs: 2, md: 2.25 },
         }}
       >
-        {miniStats.map((item) => (
-          <MiniStatCard
+        {secondaryKpis.map((item) => (
+          <MetricCard
             key={item.title}
             title={item.title}
-            value={item.value}
+            value={statsQuery.isLoading ? "..." : formatNumber(item.value)}
+            subtitle={statsQuery.isLoading ? "Cargando información..." : item.subtitle}
             icon={item.icon}
-            loading={statsQuery.isLoading}
           />
         ))}
       </Box>
@@ -1056,7 +709,7 @@ export default function DashboardPage() {
         sx={{
           display: "grid",
           gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" },
-          gap: 2,
+          gap: { xs: 2.25, md: 2.5 },
         }}
       >
         <SummaryListCard
@@ -1079,12 +732,8 @@ export default function DashboardPage() {
       <SectionCard
         title="Incidencias recientes"
         subtitle="Últimos movimientos registrados en el módulo."
-        action={
-          <Button
-            size="small"
-            onClick={() => navigate("/incidencias")}
-            sx={{ textTransform: "none", fontWeight: 800 }}
-          >
+        actions={
+          <Button size="small" onClick={() => navigate("/incidencias")}>
             Ver todas
           </Button>
         }
@@ -1094,7 +743,7 @@ export default function DashboardPage() {
             <CircularProgress />
           </Box>
         ) : recientes.length === 0 ? (
-          <Typography variant="body2" sx={{ color: colors.subtext }}>
+          <Typography variant="body2" color="text.secondary">
             No hay incidencias recientes.
           </Typography>
         ) : (
@@ -1117,10 +766,10 @@ export default function DashboardPage() {
                   <TableRow key={item.id} hover>
                     <TableCell>
                       <Stack spacing={0.25}>
-                        <Typography fontWeight={700} sx={{ color: colors.text }}>
+                        <Typography fontWeight={700} sx={{ color: dashboardTokens.text }}>
                           {item.empleadoNombre}
                         </Typography>
-                        <Typography variant="caption" sx={{ color: colors.subtext }}>
+                        <Typography variant="caption" color="text.secondary">
                           ID #{item.empleadoId}
                         </Typography>
                       </Stack>
@@ -1134,17 +783,19 @@ export default function DashboardPage() {
                           sx={{
                             width: 28,
                             height: 28,
-                            borderRadius: 2,
+                            borderRadius: "10px",
                             display: "grid",
                             placeItems: "center",
-                            backgroundColor: colors.softBg,
-                            color: colors.neutralIconText,
+                            backgroundColor: dashboardTokens.softSurface,
+                            color: alpha(dashboardTokens.text, 0.75),
+                            border: `1px solid ${alpha(dashboardTokens.text, 0.06)}`,
                             flexShrink: 0,
                           }}
                         >
                           {getTipoIcon(item.tipo)}
                         </Box>
-                        <Typography variant="body2" sx={{ color: colors.text }}>
+
+                        <Typography variant="body2" sx={{ color: dashboardTokens.text }}>
                           {formatEnumLabel(item.tipo)}
                         </Typography>
                       </Stack>
@@ -1186,7 +837,7 @@ export default function DashboardPage() {
         ) : recentAudit.length === 0 ? (
           <Alert severity="info">No hay actividad reciente para mostrar.</Alert>
         ) : (
-          <Stack spacing={1.25}>
+          <Stack spacing={1.5}>
             {recentAudit.map((row) => (
               <Box
                 key={row.id}
@@ -1195,11 +846,11 @@ export default function DashboardPage() {
                   gridTemplateColumns: { xs: "1fr", md: "1fr auto" },
                   gap: 1.5,
                   alignItems: "center",
-                  px: 1.5,
-                  py: 1.5,
-                  borderRadius: 3,
-                  border: `1px solid ${colors.border}`,
-                  backgroundColor: colors.softBg2,
+                  px: 1.75,
+                  py: 1.75,
+                  borderRadius: "18px",
+                  border: `1px solid ${dashboardTokens.borderSoft}`,
+                  backgroundColor: dashboardTokens.softSurface2,
                 }}
               >
                 <Stack direction="row" spacing={1.25} alignItems="flex-start">
@@ -1207,25 +858,32 @@ export default function DashboardPage() {
                     sx={{
                       width: 36,
                       height: 36,
-                      borderRadius: 2.5,
+                      borderRadius: "12px",
                       display: "grid",
                       placeItems: "center",
-                      backgroundColor: colors.softBg,
-                      color: colors.neutralIconText,
+                      backgroundColor: dashboardTokens.softSurface,
+                      color: alpha(dashboardTokens.text, 0.75),
+                      border: `1px solid ${alpha(dashboardTokens.text, 0.06)}`,
                       flexShrink: 0,
                     }}
                   >
                     {getActionIcon(row.action)}
                   </Box>
 
-                  <Box>
+                  <Box sx={{ minWidth: 0 }}>
                     <Stack
                       direction={{ xs: "column", sm: "row" }}
                       spacing={1}
                       alignItems={{ xs: "flex-start", sm: "center" }}
                       sx={{ mb: 0.5 }}
                     >
-                      <Typography fontWeight={800} sx={{ color: colors.text }}>
+                      <Typography
+                        sx={{
+                          fontWeight: 800,
+                          color: dashboardTokens.text,
+                          minWidth: 0,
+                        }}
+                      >
                         {row.entityName || "Sistema"}
                       </Typography>
 
@@ -1236,7 +894,7 @@ export default function DashboardPage() {
                       />
                     </Stack>
 
-                    <Typography variant="body2" sx={{ color: colors.subtext }}>
+                    <Typography variant="body2" color="text.secondary">
                       Usuario: {row.userEmail ?? "-"} · Rol: {row.userRole ?? "-"} ·
                       Registro: {row.recordId ?? "-"}
                     </Typography>
@@ -1245,7 +903,7 @@ export default function DashboardPage() {
 
                 <Typography
                   variant="body2"
-                  sx={{ textAlign: { md: "right" }, color: colors.subtext }}
+                  sx={{ textAlign: { md: "right" }, color: dashboardTokens.subtext }}
                 >
                   {formatDateTime(row.occurredAtUtc)}
                 </Typography>
@@ -1254,6 +912,6 @@ export default function DashboardPage() {
           </Stack>
         )}
       </SectionCard>
-    </Box>
+    </AppPage>
   );
 }
