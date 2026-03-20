@@ -1,19 +1,17 @@
-import { useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import {
   Alert,
   Box,
   Button,
-  Card,
-  CardContent,
   Chip,
   CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
-  Divider,
   FormControlLabel,
   IconButton,
+  InputAdornment,
   Stack,
   Switch,
   Table,
@@ -26,6 +24,7 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
+import { alpha } from "@mui/material/styles";
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
@@ -36,10 +35,19 @@ import StoreRoundedIcon from "@mui/icons-material/StoreRounded";
 import GroupsRoundedIcon from "@mui/icons-material/GroupsRounded";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import DoNotDisturbOnRoundedIcon from "@mui/icons-material/DoNotDisturbOnRounded";
+import BusinessRoundedIcon from "@mui/icons-material/BusinessRounded";
+import LocationOnRoundedIcon from "@mui/icons-material/LocationOnRounded";
+import PhoneRoundedIcon from "@mui/icons-material/PhoneRounded";
 import axios from "axios";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import PageHeader from "../components/ui/PageHeader";
+import AppPage from "../components/ui/AppPage";
+import HeroBanner from "../components/ui/HeroBanner";
+import MetricCard from "../components/ui/MetricCard";
+import SectionCard from "../components/ui/SectionCard";
+import ConfirmDialog from "../components/ui/ConfirmDialog";
+import { useAuth } from "../features/auth/AuthContext";
+import { useAppSnackbar } from "../features/ui/AppSnackbarContext";
 import {
   createSucursal,
   deleteSucursal,
@@ -92,85 +100,86 @@ function normalizePayload(form: FormState): SucursalCreateDto {
   };
 }
 
-function MetricCard({
-  title,
-  value,
-  subtitle,
-  icon,
-  badge,
-}: {
-  title: string;
-  value: number | string;
-  subtitle: string;
-  icon: ReactNode;
-  badge?: string;
-}) {
-  return (
-    <Card
-      elevation={0}
-      sx={{
-        borderRadius: 4,
-        height: "100%",
-      }}
-    >
-      <CardContent>
-        <Stack direction="row" justifyContent="space-between" spacing={2}>
-          <Box>
-            <Typography variant="body2" color="text.secondary">
-              {title}
-            </Typography>
+function normalizeRoles(roles?: string[] | null): string[] {
+  return (roles ?? []).map((role) => String(role).trim().toUpperCase());
+}
 
-            <Typography
-              variant="h4"
-              fontWeight={800}
-              sx={{ mt: 0.75, lineHeight: 1 }}
-            >
-              {value}
-            </Typography>
+function sucursalStatusChipSx(activo: boolean) {
+  if (activo) {
+    return {
+      bgcolor: "rgba(46, 125, 50, 0.10)",
+      color: "success.dark",
+      borderColor: "rgba(46, 125, 50, 0.34)",
+      fontWeight: 800,
+    };
+  }
 
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-              {subtitle}
-            </Typography>
-          </Box>
+  return {
+    bgcolor: "rgba(100, 116, 139, 0.08)",
+    color: "text.secondary",
+    borderColor: "rgba(100, 116, 139, 0.24)",
+    fontWeight: 800,
+  };
+}
 
-          <Stack alignItems="flex-end" spacing={1}>
-            {badge ? (
-              <Chip size="small" label={badge} color="primary" variant="outlined" />
-            ) : null}
+function actionIconButtonSx(kind: "edit" | "delete") {
+  if (kind === "edit") {
+    return {
+      width: 36,
+      height: 36,
+      borderRadius: "12px",
+      border: `1px solid ${alpha("#1d4ed8", 0.14)}`,
+      backgroundColor: alpha("#1d4ed8", 0.05),
+      color: "#1d4ed8",
+      "&:hover": {
+        backgroundColor: alpha("#1d4ed8", 0.10),
+        borderColor: alpha("#1d4ed8", 0.24),
+      },
+    };
+  }
 
-            <Box
-              sx={{
-                width: 44,
-                height: 44,
-                borderRadius: 2.5,
-                display: "grid",
-                placeItems: "center",
-                bgcolor: "action.hover",
-                color: "text.secondary",
-                flexShrink: 0,
-              }}
-            >
-              {icon}
-            </Box>
-          </Stack>
-        </Stack>
-      </CardContent>
-    </Card>
-  );
+  return {
+    width: 36,
+    height: 36,
+    borderRadius: "12px",
+    border: `1px solid ${alpha("#dc2626", 0.14)}`,
+    backgroundColor: alpha("#dc2626", 0.05),
+    color: "#dc2626",
+    "&:hover": {
+      backgroundColor: alpha("#dc2626", 0.10),
+      borderColor: alpha("#dc2626", 0.24),
+    },
+  };
+}
+
+function filterToggleBoxSx() {
+  return {
+    minHeight: 40,
+    px: 1.25,
+    borderRadius: "14px",
+    border: `1px solid ${alpha("#0f172a", 0.08)}`,
+    backgroundColor: alpha("#0f172a", 0.02),
+    display: "flex",
+    alignItems: "center",
+  };
 }
 
 export default function SucursalesPage() {
   const queryClient = useQueryClient();
+  const { roles } = useAuth();
+  const { showSnackbar } = useAppSnackbar();
 
   const [q, setQ] = useState("");
   const [soloActivas, setSoloActivas] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<SucursalDto | null>(null);
+  const [confirmTarget, setConfirmTarget] = useState<SucursalDto | null>(null);
   const [form, setForm] = useState<FormState>(initialForm);
   const [submitError, setSubmitError] = useState("");
-  const [actionError, setActionError] = useState("");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+
+  const normalizedRoles = useMemo(() => normalizeRoles(roles), [roles]);
 
   const queryParams = useMemo(
     () => ({
@@ -190,6 +199,7 @@ export default function SucursalesPage() {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["sucursales"] });
       handleCloseDialog();
+      showSnackbar("Sucursal creada.", "success");
     },
     onError: (error) => {
       setSubmitError(getErrorMessage(error));
@@ -202,6 +212,7 @@ export default function SucursalesPage() {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["sucursales"] });
       handleCloseDialog();
+      showSnackbar("Sucursal actualizada.", "success");
     },
     onError: (error) => {
       setSubmitError(getErrorMessage(error));
@@ -212,9 +223,12 @@ export default function SucursalesPage() {
     mutationFn: deleteSucursal,
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["sucursales"] });
+      setConfirmTarget(null);
+      showSnackbar("Sucursal desactivada.", "success");
     },
     onError: (error) => {
-      setActionError(getErrorMessage(error));
+      showSnackbar(getErrorMessage(error), "error");
+      setConfirmTarget(null);
     },
   });
 
@@ -243,6 +257,13 @@ export default function SucursalesPage() {
     () => rows.reduce((acc, row) => acc + Number(row.empleadosActivos || 0), 0),
     [rows]
   );
+
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (q.trim()) count += 1;
+    if (soloActivas) count += 1;
+    return count;
+  }, [q, soloActivas]);
 
   function handleOpenCreate() {
     setEditing(null);
@@ -285,7 +306,6 @@ export default function SucursalesPage() {
 
   async function handleSubmit() {
     setSubmitError("");
-    setActionError("");
 
     const payload = normalizePayload(form);
 
@@ -307,39 +327,104 @@ export default function SucursalesPage() {
     await createMutation.mutateAsync(payload);
   }
 
-  async function handleDelete(item: SucursalDto) {
-    setActionError("");
-
-    const ok = window.confirm(`¿Desactivar la sucursal "${item.nombre}"?`);
-    if (!ok) return;
-
-    await deleteMutation.mutateAsync(item.id);
-  }
-
   const busy = createMutation.isPending || updateMutation.isPending;
   const loading = sucursalesQuery.isLoading;
   const fetching = sucursalesQuery.isFetching;
 
   return (
-    <Box sx={{ display: "grid", gap: 3 }}>
-      <PageHeader
-        title="Sucursales"
-        subtitle="Administra las sedes y su disponibilidad operativa dentro del sistema."
-        actions={[
-          {
-            label: fetching ? "Actualizando..." : "Actualizar",
-            variant: "outlined",
-            startIcon: <RefreshRoundedIcon />,
-            onClick: () => sucursalesQuery.refetch(),
-            disabled: fetching,
-          },
-          {
-            label: "Nueva sucursal",
-            variant: "contained",
-            startIcon: <AddRoundedIcon />,
-            onClick: handleOpenCreate,
-          },
-        ]}
+    <AppPage
+      eyebrow="Recursos Humanos"
+      title="Sucursales"
+      subtitle="Administra las sedes, su disponibilidad operativa y la base territorial del sistema."
+      actions={
+        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+          <Button
+            variant="outlined"
+            startIcon={<RefreshRoundedIcon />}
+            onClick={() => sucursalesQuery.refetch()}
+            disabled={fetching}
+          >
+            {fetching ? "Actualizando..." : "Actualizar"}
+          </Button>
+
+          <Button
+            variant="contained"
+            startIcon={<AddRoundedIcon />}
+            onClick={handleOpenCreate}
+          >
+            Nueva sucursal
+          </Button>
+        </Stack>
+      }
+    >
+      <HeroBanner
+        eyebrow="Catálogo RH"
+        title="Gestión de sucursales"
+        subtitle="Controla las sedes del sistema, su estado operativo y la referencia de personal asignado por ubicación."
+        badge="RH"
+        actions={
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            {normalizedRoles.length > 0 ? (
+              normalizedRoles.map((role) => (
+                <Chip
+                  key={role}
+                  label={role}
+                  size="small"
+                  variant="outlined"
+                  sx={{
+                    color: "#ffffff",
+                    borderColor: alpha("#ffffff", 0.18),
+                    backgroundColor: alpha("#ffffff", 0.08),
+                    fontWeight: 800,
+                  }}
+                />
+              ))
+            ) : (
+              <Chip
+                label="Sin roles detectados"
+                size="small"
+                variant="outlined"
+                sx={{
+                  color: "#ffffff",
+                  borderColor: alpha("#ffffff", 0.18),
+                  backgroundColor: alpha("#ffffff", 0.08),
+                  fontWeight: 800,
+                }}
+              />
+            )}
+          </Stack>
+        }
+        aside={
+          <Stack spacing={1.5}>
+            <Typography variant="body2" sx={{ color: alpha("#ffffff", 0.78) }}>
+              Resumen rápido
+            </Typography>
+
+            <Stack direction="row" spacing={2.5}>
+              <Box>
+                <Typography variant="h4" sx={{ fontWeight: 900, lineHeight: 1 }}>
+                  {rows.length}
+                </Typography>
+                <Typography variant="caption" sx={{ color: alpha("#ffffff", 0.8) }}>
+                  visibles
+                </Typography>
+              </Box>
+
+              <Box>
+                <Typography variant="h4" sx={{ fontWeight: 900, lineHeight: 1 }}>
+                  {activeCount}
+                </Typography>
+                <Typography variant="caption" sx={{ color: alpha("#ffffff", 0.8) }}>
+                  activas
+                </Typography>
+              </Box>
+            </Stack>
+
+            <Typography variant="body2" sx={{ color: alpha("#ffffff", 0.84) }}>
+              Base territorial lista para asignar personal y operar catálogos.
+            </Typography>
+          </Stack>
+        }
       />
 
       <Box
@@ -350,7 +435,7 @@ export default function SucursalesPage() {
             sm: "repeat(2, 1fr)",
             xl: "repeat(4, 1fr)",
           },
-          gap: 2,
+          gap: { xs: 2, md: 2.25 },
         }}
       >
         <MetricCard
@@ -383,220 +468,251 @@ export default function SucursalesPage() {
         />
       </Box>
 
-      <Card>
-        <CardContent>
-          <Stack
-            direction={{ xs: "column", sm: "row" }}
-            spacing={1}
-            alignItems={{ xs: "flex-start", sm: "center" }}
-            sx={{ mb: 2 }}
-          >
-            <SearchRoundedIcon fontSize="small" />
-            <Box>
-              <Typography variant="h6" fontWeight={700}>
-                Filtros
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Busca por clave, nombre, dirección o teléfono y filtra el estado.
-              </Typography>
-            </Box>
-          </Stack>
+      {sucursalesQuery.isError ? (
+        <Alert severity="error">{getErrorMessage(sucursalesQuery.error)}</Alert>
+      ) : null}
 
-          <Divider sx={{ mb: 2 }} />
-
-          <Box
-            sx={{
-              display: "grid",
-              gridTemplateColumns: {
-                xs: "1fr",
-                md: "1fr 280px 180px",
-              },
-              gap: 2,
-              alignItems: "center",
-            }}
-          >
+      <SectionCard
+        title="Filtros"
+        subtitle="Busca por clave, nombre, dirección o teléfono y filtra el estado."
+        actions={
+          <Chip
+            size="small"
+            variant="outlined"
+            label={
+              activeFiltersCount > 0
+                ? `${activeFiltersCount} filtro${activeFiltersCount > 1 ? "s" : ""} activo${activeFiltersCount > 1 ? "s" : ""}`
+                : "Sin filtros"
+            }
+          />
+        }
+      >
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: {
+              xs: "1fr",
+              md: "repeat(12, 1fr)",
+            },
+            gap: 2,
+            alignItems: "center",
+          }}
+        >
+          <Box sx={{ gridColumn: { xs: "span 1", md: "span 7" } }}>
             <TextField
               fullWidth
               label="Buscar"
-              placeholder="clave, nombre, dirección o teléfono"
+              placeholder="Clave, nombre, dirección o teléfono"
               value={q}
               onChange={(e) => setQ(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchRoundedIcon fontSize="small" color="action" />
+                  </InputAdornment>
+                ),
+              }}
             />
+          </Box>
+          <Box sx={{ gridColumn: { xs: "span 1", md: "span 3" } }}>
+            <Box sx={filterToggleBoxSx()}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={soloActivas}
+                    onChange={(_, checked) => setSoloActivas(checked)}
+                  />
+                }
+                label="Solo activas"
+                sx={{ m: 0 }}
+              />
+            </Box>
+          </Box>
 
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={soloActivas}
-                  onChange={(_, checked) => setSoloActivas(checked)}
-                />
-              }
-              label="Mostrar solo activas"
-            />
-
+          <Box sx={{ gridColumn: { xs: "span 1", md: "span 2" } }}>
             <Button
-              variant="text"
+              variant="outlined"
               color="inherit"
               startIcon={<ClearRoundedIcon />}
               onClick={() => {
                 setQ("");
                 setSoloActivas(true);
               }}
-              sx={{ textTransform: "none", fontWeight: 700, justifySelf: "start" }}
+              sx={{ textTransform: "none", fontWeight: 700 }}
             >
               Limpiar filtros
             </Button>
           </Box>
-        </CardContent>
-      </Card>
+        </Box>
+      </SectionCard>
 
-      {actionError ? <Alert severity="error">{actionError}</Alert> : null}
+      <SectionCard
+        title="Catálogo de sucursales"
+        subtitle="Revisión general de sedes, estado y personal activo asignado."
+        actions={
+          <Chip
+            size="small"
+            variant="outlined"
+            label={`${paginatedRows.length} visibles de ${rows.length}`}
+          />
+        }
+      >
+        {loading ? (
+          <Box sx={{ py: 6, display: "flex", justifyContent: "center" }}>
+            <CircularProgress />
+          </Box>
+        ) : rows.length === 0 ? (
+          <Box sx={{ py: 4 }}>
+            <Alert severity="info">
+              No hay sucursales para los filtros actuales.
+            </Alert>
+          </Box>
+        ) : (
+          <>
+            <Box sx={{ overflowX: "auto", maxHeight: 620 }}>
+              <Table stickyHeader size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ width: 130 }}>Clave</TableCell>
+                    <TableCell sx={{ minWidth: 240 }}>Sucursal</TableCell>
+                    <TableCell sx={{ minWidth: 240 }}>Dirección</TableCell>
+                    <TableCell sx={{ width: 170 }}>Teléfono</TableCell>
+                    <TableCell sx={{ width: 130 }}>Estado</TableCell>
+                    <TableCell sx={{ width: 150 }}>Empleados activos</TableCell>
+                    <TableCell align="right" sx={{ width: 120 }}>
+                      Acciones
+                    </TableCell>
+                  </TableRow>
+                </TableHead>
 
-      <Card>
-        <CardContent>
-          <Stack
-            direction={{ xs: "column", sm: "row" }}
-            justifyContent="space-between"
-            alignItems={{ xs: "flex-start", sm: "center" }}
-            spacing={1}
-            sx={{ mb: 2 }}
-          >
-            <Box>
-              <Typography variant="h6" fontWeight={700}>
-                Catálogo de sucursales
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Revisión general de sedes, estado y personal activo asignado.
-              </Typography>
-            </Box>
+                <TableBody>
+                  {paginatedRows.map((row) => (
+                    <TableRow
+                      key={row.id}
+                      hover
+                      sx={{
+                        backgroundColor: row.activo
+                          ? "transparent"
+                          : "rgba(0,0,0,0.02)",
+                      }}
+                    >
+                      <TableCell>
+                        <Typography fontWeight={700}>{row.clave}</Typography>
+                      </TableCell>
 
-            <Chip
-              size="small"
-              variant="outlined"
-              label={`${paginatedRows.length} visibles de ${rows.length}`}
-            />
-          </Stack>
+                      <TableCell>
+                        <Stack spacing={0.35} sx={{ minWidth: 0 }}>
+                          <Typography fontWeight={700}>{row.nombre}</Typography>
+                          <Chip
+                            size="small"
+                            variant="outlined"
+                            icon={<BusinessRoundedIcon />}
+                            label={`ID ${row.id}`}
+                            sx={{
+                              width: "fit-content",
+                              fontWeight: 800,
+                              bgcolor: alpha("#1d4ed8", 0.05),
+                              color: "#1d4ed8",
+                              borderColor: alpha("#1d4ed8", 0.18),
+                            }}
+                          />
+                        </Stack>
+                      </TableCell>
 
-          <Divider sx={{ mb: 2 }} />
-
-          {loading ? (
-            <Box sx={{ py: 6, display: "flex", justifyContent: "center" }}>
-              <CircularProgress />
-            </Box>
-          ) : sucursalesQuery.isError ? (
-            <Alert severity="error">{getErrorMessage(sucursalesQuery.error)}</Alert>
-          ) : (
-            <>
-              <Box sx={{ overflowX: "auto", maxHeight: 620 }}>
-                <Table stickyHeader size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Clave</TableCell>
-                      <TableCell>Nombre</TableCell>
-                      <TableCell>Dirección</TableCell>
-                      <TableCell>Teléfono</TableCell>
-                      <TableCell>Estado</TableCell>
-                      <TableCell>Empleados activos</TableCell>
-                      <TableCell align="center">Acciones</TableCell>
-                    </TableRow>
-                  </TableHead>
-
-                  <TableBody>
-                    {paginatedRows.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={7} align="center" sx={{ py: 5 }}>
-                          <Typography color="text.secondary">
-                            No hay sucursales para los filtros actuales.
+                      <TableCell>
+                        <Stack direction="row" spacing={1} alignItems="flex-start">
+                          <LocationOnRoundedIcon
+                            fontSize="small"
+                            sx={{ color: "text.secondary", mt: 0.15 }}
+                          />
+                          <Typography variant="body2" color="text.primary">
+                            {row.direccion ?? "-"}
                           </Typography>
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      paginatedRows.map((row) => (
-                        <TableRow
-                          key={row.id}
-                          hover
-                          sx={{
-                            backgroundColor: row.activo
-                              ? "transparent"
-                              : "rgba(0,0,0,0.02)",
-                          }}
+                        </Stack>
+                      </TableCell>
+
+                      <TableCell>
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <PhoneRoundedIcon
+                            fontSize="small"
+                            sx={{ color: "text.secondary" }}
+                          />
+                          <Typography variant="body2">
+                            {row.telefono ?? "-"}
+                          </Typography>
+                        </Stack>
+                      </TableCell>
+
+                      <TableCell>
+                        <Chip
+                          size="small"
+                          variant="outlined"
+                          label={row.activo ? "Activa" : "Inactiva"}
+                          sx={sucursalStatusChipSx(row.activo)}
+                        />
+                      </TableCell>
+
+                      <TableCell>
+                        <Typography fontWeight={700}>
+                          {row.empleadosActivos}
+                        </Typography>
+                      </TableCell>
+
+                      <TableCell align="right">
+                        <Stack
+                          direction="row"
+                          spacing={0.75}
+                          justifyContent="flex-end"
                         >
-                          <TableCell>
-                            <Typography fontWeight={700}>{row.clave}</Typography>
-                          </TableCell>
-
-                          <TableCell>
-                            <Stack spacing={0.25}>
-                              <Typography fontWeight={700}>{row.nombre}</Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                ID #{row.id}
-                              </Typography>
-                            </Stack>
-                          </TableCell>
-
-                          <TableCell>{row.direccion ?? "-"}</TableCell>
-                          <TableCell>{row.telefono ?? "-"}</TableCell>
-
-                          <TableCell>
-                            <Chip
+                          <Tooltip title="Editar">
+                            <IconButton
                               size="small"
-                              label={row.activo ? "Activa" : "Inactiva"}
-                              color={row.activo ? "success" : "default"}
-                              variant={row.activo ? "filled" : "outlined"}
-                            />
-                          </TableCell>
+                              onClick={() => handleOpenEdit(row)}
+                              sx={actionIconButtonSx("edit")}
+                            >
+                              <EditRoundedIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
 
-                          <TableCell>{row.empleadosActivos}</TableCell>
-
-                          <TableCell align="center">
-                            <Tooltip title="Editar">
+                          <Tooltip title="Desactivar">
+                            <span>
                               <IconButton
                                 size="small"
-                                onClick={() => handleOpenEdit(row)}
+                                onClick={() => setConfirmTarget(row)}
+                                disabled={!row.activo || deleteMutation.isPending}
+                                sx={actionIconButtonSx("delete")}
                               >
-                                <EditRoundedIcon fontSize="small" />
+                                <DeleteOutlineRoundedIcon fontSize="small" />
                               </IconButton>
-                            </Tooltip>
+                            </span>
+                          </Tooltip>
+                        </Stack>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Box>
 
-                            <Tooltip title="Desactivar">
-                              <span>
-                                <IconButton
-                                  size="small"
-                                  color="error"
-                                  onClick={() => handleDelete(row)}
-                                  disabled={!row.activo || deleteMutation.isPending}
-                                >
-                                  <DeleteOutlineRoundedIcon fontSize="small" />
-                                </IconButton>
-                              </span>
-                            </Tooltip>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </Box>
-
-              <TablePagination
-                component="div"
-                count={rows.length}
-                page={page}
-                onPageChange={(_, newPage) => setPage(newPage)}
-                rowsPerPage={rowsPerPage}
-                onRowsPerPageChange={(e) => {
-                  setRowsPerPage(Number(e.target.value));
-                  setPage(0);
-                }}
-                rowsPerPageOptions={[5, 10, 25, 50]}
-                labelRowsPerPage="Filas por página"
-                labelDisplayedRows={({ from, to, count }) =>
-                  `${from}-${to} de ${count !== -1 ? count : `más de ${to}`}`
-                }
-              />
-            </>
-          )}
-        </CardContent>
-      </Card>
+            <TablePagination
+              component="div"
+              count={rows.length}
+              page={page}
+              onPageChange={(_, newPage) => setPage(newPage)}
+              rowsPerPage={rowsPerPage}
+              onRowsPerPageChange={(e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+                setRowsPerPage(Number(e.target.value));
+                setPage(0);
+              }}
+              rowsPerPageOptions={[5, 10, 25, 50]}
+              labelRowsPerPage="Filas por página"
+              labelDisplayedRows={({ from, to, count }) =>
+                `${from}-${to} de ${count !== -1 ? count : `más de ${to}`}`
+              }
+            />
+          </>
+        )}
+      </SectionCard>
 
       <Dialog
         open={dialogOpen}
@@ -678,6 +794,25 @@ export default function SucursalesPage() {
           </Button>
         </DialogActions>
       </Dialog>
-    </Box>
+
+      <ConfirmDialog
+        open={!!confirmTarget}
+        onClose={() => setConfirmTarget(null)}
+        onConfirm={() => {
+          if (confirmTarget) {
+            deleteMutation.mutate(confirmTarget.id);
+          }
+        }}
+        loading={deleteMutation.isPending}
+        title="Desactivar sucursal"
+        message={
+          confirmTarget
+            ? `Se desactivará la sucursal "${confirmTarget.nombre}".`
+            : ""
+        }
+        confirmText="Desactivar"
+        confirmColor="warning"
+      />
+    </AppPage>
   );
 }
