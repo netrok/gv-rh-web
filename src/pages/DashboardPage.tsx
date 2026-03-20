@@ -495,7 +495,9 @@ export default function DashboardPage() {
     void dashboardQuery.refetch();
   };
 
-  const dashboardLoading = statsQuery.isLoading || dashboardQuery.isLoading;
+  const primaryKpisLoading = dashboardQuery.isLoading;
+  const secondaryKpisLoading = statsQuery.isLoading;
+  const isRefreshing = statsQuery.isFetching || dashboardQuery.isFetching;
 
   return (
     <AppPage
@@ -592,6 +594,7 @@ export default function DashboardPage() {
                 variant="outlined"
                 startIcon={<RefreshRoundedIcon />}
                 onClick={refreshAll}
+                disabled={isRefreshing}
                 sx={{
                   color: "#ffffff",
                   borderColor: alpha("#ffffff", 0.18),
@@ -599,9 +602,13 @@ export default function DashboardPage() {
                     borderColor: alpha("#ffffff", 0.28),
                     backgroundColor: alpha("#ffffff", 0.04),
                   },
+                  "&.Mui-disabled": {
+                    color: alpha("#ffffff", 0.5),
+                    borderColor: alpha("#ffffff", 0.12),
+                  },
                 }}
               >
-                Actualizar
+                {isRefreshing ? "Actualizando..." : "Actualizar"}
               </Button>
             </Stack>
           </Stack>
@@ -676,8 +683,8 @@ export default function DashboardPage() {
           <MetricCard
             key={item.title}
             title={item.title}
-            value={dashboardLoading ? "..." : formatNumber(item.value)}
-            subtitle={dashboardLoading ? "Cargando información..." : item.subtitle}
+            value={primaryKpisLoading ? "..." : formatNumber(item.value)}
+            subtitle={primaryKpisLoading ? "Cargando información..." : item.subtitle}
             icon={item.icon}
             badge={item.badge}
           />
@@ -698,8 +705,8 @@ export default function DashboardPage() {
           <MetricCard
             key={item.title}
             title={item.title}
-            value={statsQuery.isLoading ? "..." : formatNumber(item.value)}
-            subtitle={statsQuery.isLoading ? "Cargando información..." : item.subtitle}
+            value={secondaryKpisLoading ? "..." : formatNumber(item.value)}
+            subtitle={secondaryKpisLoading ? "Cargando información..." : item.subtitle}
             icon={item.icon}
           />
         ))}
