@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { CssBaseline, ThemeProvider } from "@mui/material";
 
 import App from "./App";
-import { gvRhTheme } from "./theme/gvRhTheme";
+import gvRhTheme from "./theme/gvRhTheme";
 import { AuthProvider } from "./features/auth/AuthContext";
 import { AppSnackbarProvider } from "./features/ui/AppSnackbarContext";
 
