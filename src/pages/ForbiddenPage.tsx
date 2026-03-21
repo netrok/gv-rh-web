@@ -1,4 +1,12 @@
-import { Box, Button, Card, CardContent, Chip, Stack, Typography } from "@mui/material";
+import {
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  Stack,
+  Typography,
+} from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import BlockRoundedIcon from "@mui/icons-material/BlockRounded";
 import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
@@ -18,7 +26,7 @@ export default function ForbiddenPage() {
         px: 2,
         py: { xs: 4, md: 6 },
         background:
-          "radial-gradient(circle at top left, rgba(220,38,38,0.08) 0%, rgba(220,38,38,0.02) 26%, #f3f4f6 62%)",
+          "radial-gradient(circle at top left, rgba(220,38,38,0.08) 0%, rgba(220,38,38,0.02) 24%, #f5f7fb 62%)",
       }}
     >
       <Card
@@ -33,7 +41,14 @@ export default function ForbiddenPage() {
           overflow: "hidden",
         }}
       >
-        <CardContent sx={{ p: { xs: 3, md: 5 } }}>
+        <CardContent
+          sx={{
+            p: { xs: 3, md: 5 },
+            "&:last-child": {
+              pb: { xs: 3, md: 5 },
+            },
+          }}
+        >
           <Stack spacing={3} alignItems="center" textAlign="center">
             <Box
               sx={{
@@ -50,7 +65,13 @@ export default function ForbiddenPage() {
               <BlockRoundedIcon sx={{ fontSize: 38 }} />
             </Box>
 
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap justifyContent="center">
+            <Stack
+              direction="row"
+              spacing={1}
+              flexWrap="wrap"
+              useFlexGap
+              justifyContent="center"
+            >
               <Chip
                 size="small"
                 label="403"
@@ -58,7 +79,7 @@ export default function ForbiddenPage() {
                 sx={{
                   fontWeight: 800,
                   color: "#dc2626",
-                  borderColor: alpha("#dc2626", 0.20),
+                  borderColor: alpha("#dc2626", 0.2),
                   backgroundColor: alpha("#dc2626", 0.05),
                 }}
               />
@@ -69,7 +90,7 @@ export default function ForbiddenPage() {
                 sx={{
                   fontWeight: 700,
                   color: "#475569",
-                  borderColor: alpha("#0f172a", 0.10),
+                  borderColor: alpha("#0f172a", 0.1),
                   backgroundColor: alpha("#0f172a", 0.03),
                 }}
               />
@@ -93,20 +114,21 @@ export default function ForbiddenPage() {
                 color="text.secondary"
                 sx={{
                   mt: 1.25,
-                  maxWidth: 500,
+                  maxWidth: 520,
                   lineHeight: 1.65,
                 }}
               >
-                Tu usuario no cuenta con los permisos requeridos para esta sección.
-                Si crees que esto es un error, revisa tus roles o solicita acceso
-                con el administrador del sistema.
+                Tu usuario no cuenta con los permisos requeridos para esta
+                sección. Si crees que esto es un error, revisa tus roles o
+                solicita acceso con el administrador del sistema.
               </Typography>
             </Box>
 
             <Box
               sx={{
                 width: "100%",
-                p: 2,
+                px: 2,
+                py: 2,
                 borderRadius: "18px",
                 border: `1px solid ${alpha("#0f172a", 0.06)}`,
                 backgroundColor: alpha("#0f172a", 0.025),
@@ -129,7 +151,8 @@ export default function ForbiddenPage() {
                     lineHeight: 1.6,
                   }}
                 >
-                  Esta pantalla protege módulos internos con control por roles y permisos.
+                  Esta pantalla protege módulos internos con control por roles y
+                  permisos.
                 </Typography>
               </Stack>
             </Box>

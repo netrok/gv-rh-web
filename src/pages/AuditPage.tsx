@@ -49,6 +49,7 @@ import axios from "axios";
 import { useQuery } from "@tanstack/react-query";
 
 import AppPage from "../components/ui/AppPage";
+import EmptyState from "../components/ui/EmptyState";
 import HeroBanner from "../components/ui/HeroBanner";
 import MetricCard from "../components/ui/MetricCard";
 import SectionCard from "../components/ui/SectionCard";
@@ -295,6 +296,7 @@ export default function AuditPage() {
 
   const rows: AuditItem[] = auditQuery.data?.items ?? [];
   const total = auditQuery.data?.total ?? 0;
+  const isRefreshing = auditQuery.isFetching && !auditQuery.isLoading;
 
   const authEventsCount = useMemo(
     () =>
@@ -340,16 +342,16 @@ export default function AuditPage() {
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
           <Button
             variant="outlined"
-            startIcon={<RefreshIcon />}
+            startIcon={isRefreshing ? <CircularProgress size={18} /> : <RefreshIcon />}
             onClick={() => auditQuery.refetch()}
-            disabled={auditQuery.isFetching}
+            disabled={auditQuery.isFetching || exporting}
           >
-            {auditQuery.isFetching ? "Actualizando..." : "Actualizar"}
+            {isRefreshing ? "Actualizando..." : "Actualizar"}
           </Button>
 
           <Button
             variant="contained"
-            startIcon={<DownloadIcon />}
+            startIcon={exporting ? <CircularProgress size={18} /> : <DownloadIcon />}
             onClick={handleExport}
             disabled={auditQuery.isLoading || exporting}
           >
@@ -419,6 +421,15 @@ export default function AuditPage() {
                   usuarios
                 </Typography>
               </Box>
+
+              <Box>
+                <Typography variant="h4" sx={{ fontWeight: 900, lineHeight: 1 }}>
+                  {activeFiltersCount}
+                </Typography>
+                <Typography variant="caption" sx={{ color: alpha("#ffffff", 0.8) }}>
+                  filtros
+                </Typography>
+              </Box>
             </Stack>
 
             <Typography variant="body2" sx={{ color: alpha("#ffffff", 0.84) }}>
@@ -481,15 +492,27 @@ export default function AuditPage() {
         title="Filtros"
         subtitle="Refina por entidad, acción, correo, fechas o texto libre."
         actions={
-          <Chip
-            size="small"
-            variant="outlined"
-            label={
-              activeFiltersCount > 0
-                ? `${activeFiltersCount} filtro${activeFiltersCount > 1 ? "s" : ""} activo${activeFiltersCount > 1 ? "s" : ""}`
-                : "Sin filtros"
-            }
-          />
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            <Chip
+              size="small"
+              variant="outlined"
+              color={activeFiltersCount > 0 ? "primary" : undefined}
+              label={
+                activeFiltersCount > 0
+                  ? `${activeFiltersCount} filtro${activeFiltersCount > 1 ? "s" : ""} activo${activeFiltersCount > 1 ? "s" : ""}`
+                  : "Sin filtros"
+              }
+            />
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<ClearIcon />}
+              onClick={handleClearFilters}
+              disabled={activeFiltersCount === 0}
+            >
+              Limpiar
+            </Button>
+          </Stack>
         }
       >
         <Box
@@ -505,7 +528,6 @@ export default function AuditPage() {
         >
           <Box sx={{ gridColumn: { xs: "span 1", xl: "span 2" } }}>
             <TextField
-              fullWidth
               select
               label="Entidad"
               value={filters.entityName}
@@ -521,7 +543,6 @@ export default function AuditPage() {
 
           <Box sx={{ gridColumn: { xs: "span 1", xl: "span 2" } }}>
             <TextField
-              fullWidth
               select
               label="Acción"
               value={filters.action}
@@ -537,7 +558,6 @@ export default function AuditPage() {
 
           <Box sx={{ gridColumn: { xs: "span 1", xl: "span 2" } }}>
             <TextField
-              fullWidth
               label="Correo"
               value={filters.email}
               onChange={handleFilterChange("email")}
@@ -554,7 +574,6 @@ export default function AuditPage() {
 
           <Box sx={{ gridColumn: { xs: "span 1", xl: "span 2" } }}>
             <TextField
-              fullWidth
               label="Desde"
               type="date"
               value={filters.from}
@@ -565,7 +584,6 @@ export default function AuditPage() {
 
           <Box sx={{ gridColumn: { xs: "span 1", xl: "span 2" } }}>
             <TextField
-              fullWidth
               label="Hasta"
               type="date"
               value={filters.to}
@@ -576,7 +594,6 @@ export default function AuditPage() {
 
           <Box sx={{ gridColumn: { xs: "span 1", xl: "span 2" } }}>
             <TextField
-              fullWidth
               label="Buscar"
               value={filters.q}
               onChange={handleFilterChange("q")}
@@ -600,17 +617,7 @@ export default function AuditPage() {
           useFlexGap
           alignItems="center"
         >
-          <Button
-            variant="outlined"
-            color="inherit"
-            startIcon={<ClearIcon />}
-            onClick={handleClearFilters}
-            sx={{ textTransform: "none", fontWeight: 700 }}
-          >
-            Limpiar filtros
-          </Button>
-
-          {auditQuery.isFetching ? (
+          {isRefreshing ? (
             <Chip size="small" label="Actualizando..." color="info" />
           ) : null}
 
@@ -638,16 +645,25 @@ export default function AuditPage() {
             <CircularProgress />
           </Box>
         ) : rows.length === 0 ? (
-          <Box sx={{ py: 4 }}>
-            <Alert severity="info">
-              No hay registros para los filtros actuales.
-            </Alert>
-          </Box>
+          <EmptyState
+            icon={<SecurityRoundedIcon sx={{ fontSize: 52 }} />}
+            title="No hay registros para mostrar"
+            description="No se encontraron eventos de auditoría con los filtros actuales. Ajusta la búsqueda o limpia los filtros."
+            actionLabel={activeFiltersCount > 0 ? "Limpiar filtros" : undefined}
+            onAction={activeFiltersCount > 0 ? handleClearFilters : undefined}
+          />
         ) : (
           <>
             <Box sx={{ overflowX: "auto", maxHeight: 640 }}>
               <Table stickyHeader size="small">
-                <TableHead>
+                <TableHead
+                  sx={{
+                    "& .MuiTableCell-head": {
+                      backgroundColor: "#f4f7fc",
+                      zIndex: 2,
+                    },
+                  }}
+                >
                   <TableRow>
                     <TableCell sx={{ width: 80 }}>ID</TableCell>
                     <TableCell sx={{ width: 180 }}>Fecha</TableCell>

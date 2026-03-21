@@ -1,4 +1,5 @@
 import { useState } from "react";
+import axios from "axios";
 import {
   Alert,
   Box,
@@ -6,6 +7,7 @@ import {
   Card,
   CardContent,
   Chip,
+  CircularProgress,
   InputAdornment,
   Stack,
   TextField,
@@ -31,6 +33,29 @@ const loginSchema = z.object({
 
 type LoginForm = z.infer<typeof loginSchema>;
 
+function getLoginErrorMessage(error: unknown) {
+  if (axios.isAxiosError(error)) {
+    const apiMessage =
+      error.response?.data?.message ||
+      error.response?.data?.title ||
+      error.response?.data?.error;
+
+    if (typeof apiMessage === "string" && apiMessage.trim()) {
+      return apiMessage;
+    }
+
+    if (error.response?.status === 401) {
+      return "Correo o contraseña incorrectos.";
+    }
+  }
+
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+
+  return "No fue posible iniciar sesión.";
+}
+
 export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -55,13 +80,13 @@ export default function LoginPage() {
       const data = await loginRequest(values);
 
       if (!data.accessToken) {
-        throw new Error("La respuesta no contiene accessToken");
+        throw new Error("La respuesta no contiene accessToken.");
       }
 
       login(data.accessToken, data.refreshToken ?? null);
       navigate("/dashboard", { replace: true });
-    } catch {
-      setErrorMessage("Correo o contraseña incorrectos.");
+    } catch (error) {
+      setErrorMessage(getLoginErrorMessage(error));
     }
   };
 
@@ -74,14 +99,14 @@ export default function LoginPage() {
         px: 2,
         py: { xs: 4, md: 6 },
         background:
-          "radial-gradient(circle at top left, rgba(29,78,216,0.10) 0%, rgba(29,78,216,0.03) 28%, #f3f4f6 62%)",
+          "radial-gradient(circle at top left, rgba(29,78,216,0.10) 0%, rgba(29,78,216,0.03) 28%, #f5f7fb 62%)",
       }}
     >
       <Card
         elevation={0}
         sx={{
           width: "100%",
-          maxWidth: 480,
+          maxWidth: 500,
           borderRadius: "28px",
           border: "1px solid rgba(15, 23, 42, 0.08)",
           boxShadow: "0 24px 60px rgba(15, 23, 42, 0.10)",
@@ -89,7 +114,14 @@ export default function LoginPage() {
           overflow: "hidden",
         }}
       >
-        <CardContent sx={{ p: { xs: 3, md: 4.5 } }}>
+        <CardContent
+          sx={{
+            p: { xs: 3, md: 4.5 },
+            "&:last-child": {
+              pb: { xs: 3, md: 4.5 },
+            },
+          }}
+        >
           <Stack spacing={3}>
             <Box>
               <Box
@@ -108,7 +140,13 @@ export default function LoginPage() {
                 <ShieldRoundedIcon />
               </Box>
 
-              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 1.25 }}>
+              <Stack
+                direction="row"
+                spacing={1}
+                flexWrap="wrap"
+                useFlexGap
+                sx={{ mb: 1.25 }}
+              >
                 <Chip
                   size="small"
                   label="GV RH"
@@ -169,7 +207,6 @@ export default function LoginPage() {
                 label="Correo"
                 type="email"
                 autoComplete="email"
-                fullWidth
                 {...register("email")}
                 error={!!errors.email}
                 helperText={errors.email?.message}
@@ -186,7 +223,6 @@ export default function LoginPage() {
                 label="Contraseña"
                 type="password"
                 autoComplete="current-password"
-                fullWidth
                 {...register("password")}
                 error={!!errors.password}
                 helperText={errors.password?.message}
@@ -203,7 +239,9 @@ export default function LoginPage() {
                 type="submit"
                 variant="contained"
                 size="large"
-                startIcon={<LoginRoundedIcon />}
+                startIcon={
+                  isSubmitting ? <CircularProgress size={18} color="inherit" /> : <LoginRoundedIcon />
+                }
                 disabled={isSubmitting}
                 sx={{
                   mt: 0.5,

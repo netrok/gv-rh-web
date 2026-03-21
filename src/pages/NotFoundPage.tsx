@@ -1,4 +1,12 @@
-import { Box, Button, Card, CardContent, Chip, Stack, Typography } from "@mui/material";
+import {
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  Stack,
+  Typography,
+} from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import SearchOffRoundedIcon from "@mui/icons-material/SearchOffRounded";
 import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
@@ -18,7 +26,7 @@ export default function NotFoundPage() {
         px: 2,
         py: { xs: 4, md: 6 },
         background:
-          "radial-gradient(circle at top left, rgba(29,78,216,0.08) 0%, rgba(29,78,216,0.02) 26%, #f3f4f6 62%)",
+          "radial-gradient(circle at top left, rgba(29,78,216,0.08) 0%, rgba(29,78,216,0.02) 24%, #f5f7fb 62%)",
       }}
     >
       <Card
@@ -33,7 +41,14 @@ export default function NotFoundPage() {
           overflow: "hidden",
         }}
       >
-        <CardContent sx={{ p: { xs: 3, md: 5 } }}>
+        <CardContent
+          sx={{
+            p: { xs: 3, md: 5 },
+            "&:last-child": {
+              pb: { xs: 3, md: 5 },
+            },
+          }}
+        >
           <Stack spacing={3} alignItems="center" textAlign="center">
             <Box
               sx={{
@@ -64,7 +79,7 @@ export default function NotFoundPage() {
                 sx={{
                   fontWeight: 800,
                   color: "#1d4ed8",
-                  borderColor: alpha("#1d4ed8", 0.20),
+                  borderColor: alpha("#1d4ed8", 0.2),
                   backgroundColor: alpha("#1d4ed8", 0.05),
                 }}
               />
@@ -75,7 +90,7 @@ export default function NotFoundPage() {
                 sx={{
                   fontWeight: 700,
                   color: "#475569",
-                  borderColor: alpha("#0f172a", 0.10),
+                  borderColor: alpha("#0f172a", 0.1),
                   backgroundColor: alpha("#0f172a", 0.03),
                 }}
               />
@@ -99,7 +114,7 @@ export default function NotFoundPage() {
                 color="text.secondary"
                 sx={{
                   mt: 1.25,
-                  maxWidth: 500,
+                  maxWidth: 520,
                   lineHeight: 1.65,
                 }}
               >
@@ -111,7 +126,8 @@ export default function NotFoundPage() {
             <Box
               sx={{
                 width: "100%",
-                p: 2,
+                px: 2,
+                py: 2,
                 borderRadius: "18px",
                 border: `1px solid ${alpha("#0f172a", 0.06)}`,
                 backgroundColor: alpha("#0f172a", 0.025),
@@ -134,7 +150,8 @@ export default function NotFoundPage() {
                     lineHeight: 1.6,
                   }}
                 >
-                  Revisa la navegación del sistema o vuelve al dashboard para continuar.
+                  Revisa la navegación del sistema o vuelve al dashboard para
+                  continuar.
                 </Typography>
               </Stack>
             </Box>
