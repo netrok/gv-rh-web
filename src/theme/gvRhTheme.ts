@@ -1,4 +1,4 @@
-import { alpha, createTheme } from "@mui/material/styles";
+import { createTheme } from "@mui/material/styles";
 
 declare module "@mui/material/styles" {
   interface Palette {
@@ -232,7 +232,7 @@ const gvRhTheme = createTheme({
         head: {
           fontWeight: 800,
           color: "#334155",
-          backgroundColor: alpha("#1f4b99", 0.03),
+          backgroundColor: "#f4f7fc",
           borderBottom: "1px solid #e6ebf2",
         },
         body: {

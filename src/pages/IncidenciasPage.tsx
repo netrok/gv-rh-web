@@ -51,6 +51,7 @@ import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded";
 import IncidenciaEvidenciaDialog from "../components/IncidenciaEvidenciaDialog";
 import ConfirmActionDialog from "../components/ui/ConfirmActionDialog";
 import AppPage from "../components/ui/AppPage";
+import EmptyState from "../components/ui/EmptyState";
 import HeroBanner from "../components/ui/HeroBanner";
 import MetricCard from "../components/ui/MetricCard";
 import SectionCard from "../components/ui/SectionCard";
@@ -407,20 +408,6 @@ function normalizeIncidenciasResponse(data: unknown): Incidencia[] {
   return [];
 }
 
-/**
- * IncidenciasPage
- * -----------------------------------------------------------------------------
- * Refactor visual:
- * - AppPage = estructura general
- * - HeroBanner = contexto operativo del módulo
- * - MetricCard = KPIs rápidos
- * - SectionCard = filtros y listado
- *
- * Ajuste semántico:
- * - Los chips de estatus usan sx propio, igual que los tipos.
- * - Así PENDIENTE / APROBADA / RECHAZADA conservan su color real
- *   aunque el theme global de MuiChip sea más corporativo/neutral.
- */
 export default function IncidenciasPage() {
   const { roles: userRoles } = useAuth();
 
@@ -463,14 +450,6 @@ export default function IncidenciasPage() {
   const canManageIncidencias = hasSomeRole(userRoles, ["ADMIN", "RRHH"]);
   const canApproveReject = hasSomeRole(userRoles, ["ADMIN", "RRHH"]);
   const canExport = hasSomeRole(userRoles, ["ADMIN", "RRHH"]);
-
-  const pageBusy =
-    bootstrapping ||
-    loadingList ||
-    saving ||
-    confirmLoading ||
-    exportingXlsx ||
-    exportingPdf;
 
   const empleadoOptions = useMemo(
     () =>
@@ -546,6 +525,11 @@ export default function IncidenciasPage() {
     const start = page * rowsPerPage;
     return items.slice(start, start + rowsPerPage);
   }, [items, page, rowsPerPage]);
+
+  const refreshBusy = loadingList && !bootstrapping;
+  const exportBusy = exportingXlsx || exportingPdf;
+  const mutationBusy = saving || confirmLoading;
+  const toolbarBusy = bootstrapping || mutationBusy || exportBusy;
 
   function notify(severity: SnackbarState["severity"], message: string) {
     setSnackbar({ open: true, severity, message });
@@ -952,11 +936,11 @@ export default function IncidenciasPage() {
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
           <Button
             variant="outlined"
-            startIcon={loadingList ? <CircularProgress size={18} /> : <RefreshIcon />}
+            startIcon={refreshBusy ? <CircularProgress size={18} /> : <RefreshIcon />}
             onClick={handleRefresh}
-            disabled={pageBusy}
+            disabled={refreshBusy || mutationBusy || exportBusy}
           >
-            {loadingList ? "Recargando..." : "Recargar"}
+            {refreshBusy ? "Recargando..." : "Recargar"}
           </Button>
 
           {canExport && (
@@ -970,7 +954,7 @@ export default function IncidenciasPage() {
                 )
               }
               onClick={handleExportXlsx}
-              disabled={pageBusy}
+              disabled={toolbarBusy}
             >
               {exportingXlsx ? "Exportando Excel..." : "Exportar Excel"}
             </Button>
@@ -987,7 +971,7 @@ export default function IncidenciasPage() {
                 )
               }
               onClick={handleExportPdf}
-              disabled={pageBusy}
+              disabled={toolbarBusy}
             >
               {exportingPdf ? "Exportando PDF..." : "Exportar PDF"}
             </Button>
@@ -998,7 +982,7 @@ export default function IncidenciasPage() {
               variant="contained"
               startIcon={<AddIcon />}
               onClick={openCreate}
-              disabled={pageBusy}
+              disabled={toolbarBusy || refreshBusy}
             >
               Nueva incidencia
             </Button>
@@ -1067,6 +1051,15 @@ export default function IncidenciasPage() {
                   pendientes
                 </Typography>
               </Box>
+
+              <Box>
+                <Typography variant="h4" sx={{ fontWeight: 900, lineHeight: 1 }}>
+                  {activeFiltersCount}
+                </Typography>
+                <Typography variant="caption" sx={{ color: alpha("#ffffff", 0.8) }}>
+                  filtros
+                </Typography>
+              </Box>
             </Stack>
 
             <Typography variant="body2" sx={{ color: alpha("#ffffff", 0.84) }}>
@@ -1107,6 +1100,7 @@ export default function IncidenciasPage() {
           <Chip
             size="small"
             variant="outlined"
+            color={activeFiltersCount > 0 ? "primary" : undefined}
             label={
               activeFiltersCount > 0
                 ? `${activeFiltersCount} filtro${
@@ -1223,7 +1217,6 @@ export default function IncidenciasPage() {
             <TextField
               label="Fecha desde"
               type="date"
-              fullWidth
               InputLabelProps={{ shrink: true }}
               value={filters.fechaDesde}
               onChange={(e) =>
@@ -1239,7 +1232,6 @@ export default function IncidenciasPage() {
             <TextField
               label="Fecha hasta"
               type="date"
-              fullWidth
               InputLabelProps={{ shrink: true }}
               value={filters.fechaHasta}
               onChange={(e) =>
@@ -1279,13 +1271,17 @@ export default function IncidenciasPage() {
               <Button
                 variant="contained"
                 onClick={applyFilters}
-                disabled={pageBusy}
+                disabled={loadingList || mutationBusy || exportBusy}
                 startIcon={loadingList ? <CircularProgress size={18} /> : undefined}
               >
                 {loadingList ? "Aplicando..." : "Aplicar filtros"}
               </Button>
 
-              <Button variant="outlined" onClick={clearFilters} disabled={pageBusy}>
+              <Button
+                variant="outlined"
+                onClick={clearFilters}
+                disabled={loadingList || mutationBusy || exportBusy}
+              >
                 Limpiar
               </Button>
             </Stack>
@@ -1309,11 +1305,13 @@ export default function IncidenciasPage() {
             <CircularProgress />
           </Box>
         ) : items.length === 0 ? (
-          <Box sx={{ py: 2 }}>
-            <Alert severity="info">
-              No hay incidencias con los filtros seleccionados.
-            </Alert>
-          </Box>
+          <EmptyState
+            icon={<PendingActionsRoundedIcon sx={{ fontSize: 52 }} />}
+            title="No hay incidencias para mostrar"
+            description="No se encontraron registros con los filtros actuales. Ajusta la búsqueda o registra una nueva incidencia."
+            actionLabel={canManageIncidencias ? "Nueva incidencia" : undefined}
+            onAction={canManageIncidencias ? openCreate : undefined}
+          />
         ) : (
           <>
             <Box sx={{ overflowX: "auto", maxHeight: 560 }}>
@@ -1419,7 +1417,7 @@ export default function IncidenciasPage() {
                                   width: "fit-content",
                                   border: "1px solid",
                                   borderColor: "divider",
-                                  borderRadius: 2,
+                                  borderRadius: "14px",
                                   px: 1,
                                   py: 0.75,
                                   bgcolor: "action.hover",
@@ -1436,7 +1434,7 @@ export default function IncidenciasPage() {
                                     sx={{
                                       width: 28,
                                       height: 28,
-                                      borderRadius: 1.5,
+                                      borderRadius: "10px",
                                       display: "grid",
                                       placeItems: "center",
                                       bgcolor: "background.paper",
@@ -1664,7 +1662,6 @@ export default function IncidenciasPage() {
               <TextField
                 label="Fecha inicio"
                 type="date"
-                fullWidth
                 InputLabelProps={{ shrink: true }}
                 value={form.fechaInicio}
                 onChange={(e) => updateForm("fechaInicio", e.target.value)}
@@ -1675,7 +1672,6 @@ export default function IncidenciasPage() {
               <TextField
                 label="Fecha fin"
                 type="date"
-                fullWidth
                 InputLabelProps={{ shrink: true }}
                 value={form.fechaFin}
                 onChange={(e) => updateForm("fechaFin", e.target.value)}
@@ -1685,7 +1681,6 @@ export default function IncidenciasPage() {
             <Box sx={{ gridColumn: { xs: "span 1", md: "span 12" } }}>
               <TextField
                 label="Comentario"
-                fullWidth
                 multiline
                 minRows={3}
                 value={form.comentario}
