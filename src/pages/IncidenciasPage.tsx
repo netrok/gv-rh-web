@@ -447,9 +447,11 @@ export default function IncidenciasPage() {
 
   const normalizedRoles = useMemo(() => normalizeRoles(userRoles), [userRoles]);
 
+  const canViewIncidencias = hasSomeRole(userRoles, ["ADMIN", "RRHH"]);
   const canManageIncidencias = hasSomeRole(userRoles, ["ADMIN", "RRHH"]);
   const canApproveReject = hasSomeRole(userRoles, ["ADMIN", "RRHH"]);
   const canExport = hasSomeRole(userRoles, ["ADMIN", "RRHH"]);
+  const canManageEvidence = hasSomeRole(userRoles, ["ADMIN", "RRHH"]);
 
   const empleadoOptions = useMemo(
     () =>
@@ -575,6 +577,8 @@ export default function IncidenciasPage() {
   }
 
   async function loadCatalogs() {
+    if (!canViewIncidencias) return;
+
     setTipos(DEFAULT_TIPOS);
     setEstatuses(DEFAULT_ESTATUS);
 
@@ -631,6 +635,8 @@ export default function IncidenciasPage() {
   }
 
   async function loadItems(currentFilters = filters) {
+    if (!canViewIncidencias) return;
+
     setLoadingList(true);
 
     try {
@@ -652,6 +658,14 @@ export default function IncidenciasPage() {
     let cancelled = false;
 
     (async () => {
+      if (!canViewIncidencias) {
+        setBootstrapping(false);
+        setItems([]);
+        setEmpleados([]);
+        setSucursales([]);
+        return;
+      }
+
       setBootstrapping(true);
 
       try {
@@ -670,19 +684,29 @@ export default function IncidenciasPage() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [canViewIncidencias]);
 
   useEffect(() => {
     setPage(0);
   }, [items.length]);
 
   function openCreate() {
+    if (!canManageIncidencias) {
+      notify("warning", "No tienes permisos para crear incidencias.");
+      return;
+    }
+
     setEditing(null);
     setForm(initialForm);
     setDialogOpen(true);
   }
 
   function openEdit(item: Incidencia) {
+    if (!canManageIncidencias) {
+      notify("warning", "No tienes permisos para editar incidencias.");
+      return;
+    }
+
     setEditing(item);
     setForm(toForm(item, tipos));
     setDialogOpen(true);
@@ -700,6 +724,11 @@ export default function IncidenciasPage() {
   }
 
   function handleOpenEvidencia(item: Incidencia) {
+    if (!canManageEvidence) {
+      notify("warning", "No tienes permisos para gestionar evidencia.");
+      return;
+    }
+
     setSelectedIncidencia(item);
     setEvidenciaOpen(true);
   }
@@ -846,6 +875,8 @@ export default function IncidenciasPage() {
   }
 
   async function applyFilters() {
+    if (!canViewIncidencias) return;
+
     if (
       filters.fechaDesde &&
       filters.fechaHasta &&
@@ -859,11 +890,14 @@ export default function IncidenciasPage() {
   }
 
   async function clearFilters() {
+    if (!canViewIncidencias) return;
+
     setFilters(initialFilters);
     await loadItems(initialFilters);
   }
 
   async function handleRefresh() {
+    if (!canViewIncidencias) return;
     await loadItems(filters);
   }
 
@@ -927,6 +961,75 @@ export default function IncidenciasPage() {
     }
   }
 
+  if (!canViewIncidencias) {
+    return (
+      <AppPage
+        eyebrow="Recursos Humanos"
+        title="Incidencias"
+        subtitle="Control de incidencias y asistencias con evidencia documental, filtros operativos y exportación."
+      >
+        <HeroBanner
+          eyebrow="Módulo operativo"
+          title="Seguimiento de incidencias"
+          subtitle="Registra, revisa, aprueba y documenta incidencias del personal con control por estatus, fechas y evidencia adjunta."
+          badge="Sin acceso"
+          actions={
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              {normalizedRoles.length > 0 ? (
+                normalizedRoles.map((role) => (
+                  <Chip
+                    key={role}
+                    label={role}
+                    size="small"
+                    variant="outlined"
+                    sx={{
+                      color: "#ffffff",
+                      borderColor: alpha("#ffffff", 0.18),
+                      backgroundColor: alpha("#ffffff", 0.08),
+                      fontWeight: 800,
+                    }}
+                  />
+                ))
+              ) : (
+                <Chip
+                  label="Sin roles detectados"
+                  size="small"
+                  variant="outlined"
+                  sx={{
+                    color: "#ffffff",
+                    borderColor: alpha("#ffffff", 0.18),
+                    backgroundColor: alpha("#ffffff", 0.08),
+                    fontWeight: 800,
+                  }}
+                />
+              )}
+            </Stack>
+          }
+          aside={
+            <Stack spacing={1.5}>
+              <Typography variant="body2" sx={{ color: alpha("#ffffff", 0.78) }}>
+                Estado del módulo
+              </Typography>
+
+              <Typography variant="h4" sx={{ fontWeight: 900, lineHeight: 1 }}>
+                0
+              </Typography>
+
+              <Typography variant="body2" sx={{ color: alpha("#ffffff", 0.84) }}>
+                Tu rol actual no tiene acceso a este módulo.
+              </Typography>
+            </Stack>
+          }
+        />
+
+        <Alert severity="warning">
+          Tu usuario no tiene permisos para consultar o gestionar incidencias.
+          Si necesitas acceso, solicita la asignación del rol correspondiente.
+        </Alert>
+      </AppPage>
+    );
+  }
+
   return (
     <AppPage
       eyebrow="Recursos Humanos"
@@ -940,7 +1043,7 @@ export default function IncidenciasPage() {
             onClick={handleRefresh}
             disabled={refreshBusy || mutationBusy || exportBusy}
           >
-            {refreshBusy ? "Recargando..." : "Recargar"}
+            {refreshBusy ? "Actualizando..." : "Actualizar"}
           </Button>
 
           {canExport && (
@@ -1316,7 +1419,14 @@ export default function IncidenciasPage() {
           <>
             <Box sx={{ overflowX: "auto", maxHeight: 560 }}>
               <Table stickyHeader size="small">
-                <TableHead>
+                <TableHead
+                  sx={{
+                    "& .MuiTableCell-head": {
+                      backgroundColor: "#f4f7fc",
+                      zIndex: 2,
+                    },
+                  }}
+                >
                   <TableRow>
                     <TableCell>ID</TableCell>
                     <TableCell>Empleado</TableCell>
@@ -1421,12 +1531,14 @@ export default function IncidenciasPage() {
                                   px: 1,
                                   py: 0.75,
                                   bgcolor: "action.hover",
-                                  cursor: "pointer",
+                                  cursor: canManageEvidence ? "pointer" : "default",
                                   transition: "all .15s ease",
-                                  "&:hover": {
-                                    borderColor: "success.main",
-                                    boxShadow: "0 2px 10px rgba(0,0,0,0.06)",
-                                  },
+                                  "&:hover": canManageEvidence
+                                    ? {
+                                        borderColor: "success.main",
+                                        boxShadow: "0 2px 10px rgba(0,0,0,0.06)",
+                                      }
+                                    : undefined,
                                 }}
                               >
                                 <Stack direction="row" spacing={1} alignItems="center">
@@ -1497,17 +1609,19 @@ export default function IncidenciasPage() {
                             flexWrap="wrap"
                             useFlexGap
                           >
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              startIcon={<AttachFileRoundedIcon />}
-                              onClick={() => handleOpenEvidencia(item)}
-                              sx={{ fontWeight: 700 }}
-                            >
-                              {item.tieneEvidencia
-                                ? "Gestionar evidencia"
-                                : "Subir evidencia"}
-                            </Button>
+                            {canManageEvidence && (
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                startIcon={<AttachFileRoundedIcon />}
+                                onClick={() => handleOpenEvidencia(item)}
+                                sx={{ fontWeight: 700 }}
+                              >
+                                {item.tieneEvidencia
+                                  ? "Gestionar evidencia"
+                                  : "Subir evidencia"}
+                              </Button>
+                            )}
 
                             {canManageIncidencias && (
                               <Button

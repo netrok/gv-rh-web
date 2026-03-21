@@ -371,16 +371,19 @@ export default function DashboardPage() {
   const { roles = [] } = useAuth();
 
   const normalizedRoles = useMemo(() => normalizeRoles(roles), [roles]);
+  const canSeeRhModules = canAccess(normalizedRoles, ["ADMIN", "RRHH"]);
   const canSeeAudit = canAccess(normalizedRoles, ["ADMIN", "RRHH"]);
 
   const statsQuery = useQuery<DashboardStats>({
     queryKey: ["dashboard-stats"],
     queryFn: getDashboardStats,
+    enabled: canSeeRhModules || canSeeAudit,
   });
 
   const dashboardQuery = useQuery<DashboardData>({
     queryKey: ["dashboard-incidencias"],
     queryFn: getDashboard,
+    enabled: canSeeRhModules,
   });
 
   const quickActions: QuickAction[] = useMemo(
@@ -438,66 +441,84 @@ export default function DashboardPage() {
   const recientes: DashboardIncidenciaReciente[] =
     dashboardData?.incidenciasRecientes ?? [];
 
-  const primaryKpis: DashboardMetric[] = [
-    {
-      title: "Empleados activos",
-      value: dashboardData?.empleadosActivos ?? 0,
-      subtitle: "Personal activo registrado",
-      icon: <Groups2OutlinedIcon fontSize="small" />,
-      badge: "RH",
-    },
-    {
-      title: "Sucursales activas",
-      value: dashboardData?.sucursalesActivas ?? 0,
-      subtitle: "Sedes disponibles",
-      icon: <StoreRoundedIcon fontSize="small" />,
-      badge: "RH",
-    },
-    {
-      title: "Incidencias pendientes",
-      value: dashboardData?.incidenciasPendientes ?? 0,
-      subtitle: "Esperando revisión",
-      icon: <PendingActionsOutlinedIcon fontSize="small" />,
-      badge: "RH",
-    },
-    {
-      title: "Incidencias del mes",
-      value: dashboardData?.incidenciasMes ?? 0,
-      subtitle: "Registradas en el mes actual",
-      icon: <EventNoteOutlinedIcon fontSize="small" />,
-      badge: "RH",
-    },
-  ];
+  const primaryKpis: DashboardMetric[] = canSeeRhModules
+    ? [
+        {
+          title: "Empleados activos",
+          value: dashboardData?.empleadosActivos ?? 0,
+          subtitle: "Personal activo registrado",
+          icon: <Groups2OutlinedIcon fontSize="small" />,
+          badge: "RH",
+        },
+        {
+          title: "Sucursales activas",
+          value: dashboardData?.sucursalesActivas ?? 0,
+          subtitle: "Sedes disponibles",
+          icon: <StoreRoundedIcon fontSize="small" />,
+          badge: "RH",
+        },
+        {
+          title: "Incidencias pendientes",
+          value: dashboardData?.incidenciasPendientes ?? 0,
+          subtitle: "Esperando revisión",
+          icon: <PendingActionsOutlinedIcon fontSize="small" />,
+          badge: "RH",
+        },
+        {
+          title: "Incidencias del mes",
+          value: dashboardData?.incidenciasMes ?? 0,
+          subtitle: "Registradas en el mes actual",
+          icon: <EventNoteOutlinedIcon fontSize="small" />,
+          badge: "RH",
+        },
+      ]
+    : [];
 
   const secondaryKpis: DashboardMetric[] = [
-    {
-      title: "Departamentos",
-      value: statsData?.departamentosTotal ?? 0,
-      subtitle: "Catálogo vigente",
-      icon: <ApartmentRoundedIcon fontSize="small" />,
-    },
-    {
-      title: "Puestos",
-      value: statsData?.puestosTotal ?? 0,
-      subtitle: "Roles y posiciones",
-      icon: <WorkOutlineRoundedIcon fontSize="small" />,
-    },
-    {
-      title: "Auditoría",
-      value: canSeeAudit ? statsData?.auditoriaTotal ?? 0 : 0,
-      subtitle: canSeeAudit ? "Eventos registrados" : "Sin acceso por rol actual",
-      icon: <GavelRoundedIcon fontSize="small" />,
-    },
+    ...(canSeeRhModules
+      ? [
+          {
+            title: "Departamentos",
+            value: statsData?.departamentosTotal ?? 0,
+            subtitle: "Catálogo vigente",
+            icon: <ApartmentRoundedIcon fontSize="small" />,
+          },
+          {
+            title: "Puestos",
+            value: statsData?.puestosTotal ?? 0,
+            subtitle: "Roles y posiciones",
+            icon: <WorkOutlineRoundedIcon fontSize="small" />,
+          },
+        ]
+      : []),
+    ...(canSeeAudit
+      ? [
+          {
+            title: "Auditoría",
+            value: statsData?.auditoriaTotal ?? 0,
+            subtitle: "Eventos registrados",
+            icon: <GavelRoundedIcon fontSize="small" />,
+          },
+        ]
+      : []),
   ];
 
   const refreshAll = () => {
-    void statsQuery.refetch();
-    void dashboardQuery.refetch();
+    if (canSeeRhModules) {
+      void dashboardQuery.refetch();
+    }
+
+    if (canSeeRhModules || canSeeAudit) {
+      void statsQuery.refetch();
+    }
   };
 
-  const primaryKpisLoading = dashboardQuery.isLoading;
-  const secondaryKpisLoading = statsQuery.isLoading;
-  const isRefreshing = statsQuery.isFetching || dashboardQuery.isFetching;
+  const primaryKpisLoading = canSeeRhModules && dashboardQuery.isLoading;
+  const secondaryKpisLoading =
+    (canSeeRhModules || canSeeAudit) && statsQuery.isLoading;
+  const isRefreshing =
+    (canSeeRhModules && dashboardQuery.isFetching) ||
+    ((canSeeRhModules || canSeeAudit) && statsQuery.isFetching);
 
   return (
     <AppPage
@@ -575,26 +596,28 @@ export default function DashboardPage() {
             </Typography>
 
             <Stack direction={{ xs: "column", sm: "row", lg: "column" }} spacing={1}>
-              <Button
-                variant="contained"
-                startIcon={<PendingActionsOutlinedIcon />}
-                onClick={() => navigate("/incidencias")}
-                sx={{
-                  bgcolor: "#ffffff",
-                  color: dashboardTokens.text,
-                  "&:hover": {
-                    bgcolor: "#f8fafc",
-                  },
-                }}
-              >
-                Ver incidencias
-              </Button>
+              {canSeeRhModules ? (
+                <Button
+                  variant="contained"
+                  startIcon={<PendingActionsOutlinedIcon />}
+                  onClick={() => navigate("/incidencias")}
+                  sx={{
+                    bgcolor: "#ffffff",
+                    color: dashboardTokens.text,
+                    "&:hover": {
+                      bgcolor: "#f8fafc",
+                    },
+                  }}
+                >
+                  Ver incidencias
+                </Button>
+              ) : null}
 
               <Button
                 variant="outlined"
                 startIcon={<RefreshRoundedIcon />}
                 onClick={refreshAll}
-                disabled={isRefreshing}
+                disabled={isRefreshing || (!canSeeRhModules && !canSeeAudit)}
                 sx={{
                   color: "#ffffff",
                   borderColor: alpha("#ffffff", 0.18),
@@ -615,9 +638,16 @@ export default function DashboardPage() {
         }
       />
 
+      {!canSeeRhModules && !canSeeAudit ? (
+        <Alert severity="info">
+          Tu sesión tiene visibilidad limitada. Solo se muestran opciones
+          autorizadas para tu rol actual.
+        </Alert>
+      ) : null}
+
       {(statsQuery.isError || dashboardQuery.isError) && (
         <Stack spacing={1.5}>
-          {statsQuery.isError && (
+          {statsQuery.isError && (canSeeRhModules || canSeeAudit) && (
             <Alert severity="error">
               No se pudo cargar el resumen general.
               <br />
@@ -628,7 +658,7 @@ export default function DashboardPage() {
             </Alert>
           )}
 
-          {dashboardQuery.isError && (
+          {dashboardQuery.isError && canSeeRhModules && (
             <Alert severity="error">
               No se pudo cargar el resumen de incidencias.
               <br />
@@ -645,189 +675,203 @@ export default function DashboardPage() {
         title="Accesos rápidos"
         subtitle="Atajos directos a los módulos más usados."
       >
+        {quickActions.length === 0 ? (
+          <Alert severity="info">
+            No hay módulos operativos disponibles para tu rol actual.
+          </Alert>
+        ) : (
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: {
+                xs: "1fr",
+                sm: "repeat(2, 1fr)",
+                xl: "repeat(3, 1fr)",
+              },
+              gap: { xs: 1.5, md: 2 },
+            }}
+          >
+            {quickActions.map((action) => (
+              <ActionTile
+                key={action.to}
+                title={action.label}
+                subtitle={action.description}
+                icon={action.icon}
+                to={action.to}
+              />
+            ))}
+          </Box>
+        )}
+      </SectionCard>
+
+      {primaryKpis.length > 0 ? (
         <Box
           sx={{
             display: "grid",
             gridTemplateColumns: {
               xs: "1fr",
               sm: "repeat(2, 1fr)",
-              xl: "repeat(3, 1fr)",
+              xl: "repeat(4, 1fr)",
             },
-            gap: { xs: 1.5, md: 2 },
+            gap: { xs: 2, md: 2.25 },
           }}
         >
-          {quickActions.map((action) => (
-            <ActionTile
-              key={action.to}
-              title={action.label}
-              subtitle={action.description}
-              icon={action.icon}
-              to={action.to}
+          {primaryKpis.map((item) => (
+            <MetricCard
+              key={item.title}
+              title={item.title}
+              value={primaryKpisLoading ? "..." : formatNumber(item.value)}
+              subtitle={primaryKpisLoading ? "Cargando información..." : item.subtitle}
+              icon={item.icon}
+              badge={item.badge}
             />
           ))}
         </Box>
-      </SectionCard>
+      ) : null}
 
-      <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: {
-            xs: "1fr",
-            sm: "repeat(2, 1fr)",
-            xl: "repeat(4, 1fr)",
-          },
-          gap: { xs: 2, md: 2.25 },
-        }}
-      >
-        {primaryKpis.map((item) => (
-          <MetricCard
-            key={item.title}
-            title={item.title}
-            value={primaryKpisLoading ? "..." : formatNumber(item.value)}
-            subtitle={primaryKpisLoading ? "Cargando información..." : item.subtitle}
-            icon={item.icon}
-            badge={item.badge}
-          />
-        ))}
-      </Box>
+      {secondaryKpis.length > 0 ? (
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: {
+              xs: "1fr",
+              md: secondaryKpis.length >= 3 ? "repeat(3, 1fr)" : "repeat(2, 1fr)",
+            },
+            gap: { xs: 2, md: 2.25 },
+          }}
+        >
+          {secondaryKpis.map((item) => (
+            <MetricCard
+              key={item.title}
+              title={item.title}
+              value={secondaryKpisLoading ? "..." : formatNumber(item.value)}
+              subtitle={secondaryKpisLoading ? "Cargando información..." : item.subtitle}
+              icon={item.icon}
+            />
+          ))}
+        </Box>
+      ) : null}
 
-      <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: {
-            xs: "1fr",
-            md: "repeat(3, 1fr)",
-          },
-          gap: { xs: 2, md: 2.25 },
-        }}
-      >
-        {secondaryKpis.map((item) => (
-          <MetricCard
-            key={item.title}
-            title={item.title}
-            value={secondaryKpisLoading ? "..." : formatNumber(item.value)}
-            subtitle={secondaryKpisLoading ? "Cargando información..." : item.subtitle}
-            icon={item.icon}
-          />
-        ))}
-      </Box>
+      {canSeeRhModules ? (
+        <>
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" },
+              gap: { xs: 2.25, md: 2.5 },
+            }}
+          >
+            <SummaryListCard
+              title="Incidencias por tipo"
+              subtitle="Qué clase de movimientos se están registrando."
+              emptyText="No hay incidencias registradas en el mes."
+              items={dashboardData?.incidenciasPorTipo ?? []}
+              kind="tipo"
+            />
 
-      <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" },
-          gap: { xs: 2.25, md: 2.5 },
-        }}
-      >
-        <SummaryListCard
-          title="Incidencias por tipo"
-          subtitle="Qué clase de movimientos se están registrando."
-          emptyText="No hay incidencias registradas en el mes."
-          items={dashboardData?.incidenciasPorTipo ?? []}
-          kind="tipo"
-        />
-
-        <SummaryListCard
-          title="Incidencias por estatus"
-          subtitle="Cómo va el flujo de revisión actual."
-          emptyText="No hay incidencias registradas."
-          items={dashboardData?.incidenciasPorEstatus ?? []}
-          kind="estatus"
-        />
-      </Box>
-
-      <SectionCard
-        title="Incidencias recientes"
-        subtitle="Últimos movimientos registrados en el módulo."
-        actions={
-          <Button size="small" onClick={() => navigate("/incidencias")}>
-            Ver todas
-          </Button>
-        }
-      >
-        {dashboardQuery.isLoading ? (
-          <Box sx={{ py: 5, display: "flex", justifyContent: "center" }}>
-            <CircularProgress />
+            <SummaryListCard
+              title="Incidencias por estatus"
+              subtitle="Cómo va el flujo de revisión actual."
+              emptyText="No hay incidencias registradas."
+              items={dashboardData?.incidenciasPorEstatus ?? []}
+              kind="estatus"
+            />
           </Box>
-        ) : recientes.length === 0 ? (
-          <Typography variant="body2" color="text.secondary">
-            No hay incidencias recientes.
-          </Typography>
-        ) : (
-          <Box sx={{ overflowX: "auto" }}>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell><strong>Empleado</strong></TableCell>
-                  <TableCell><strong>Número</strong></TableCell>
-                  <TableCell><strong>Tipo</strong></TableCell>
-                  <TableCell><strong>Estatus</strong></TableCell>
-                  <TableCell><strong>Inicio</strong></TableCell>
-                  <TableCell><strong>Fin</strong></TableCell>
-                  <TableCell><strong>Creada</strong></TableCell>
-                </TableRow>
-              </TableHead>
 
-              <TableBody>
-                {recientes.map((item) => (
-                  <TableRow key={item.id} hover>
-                    <TableCell>
-                      <Stack spacing={0.25}>
-                        <Typography fontWeight={700} sx={{ color: dashboardTokens.text }}>
-                          {item.empleadoNombre}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          ID #{item.empleadoId}
-                        </Typography>
-                      </Stack>
-                    </TableCell>
+          <SectionCard
+            title="Incidencias recientes"
+            subtitle="Últimos movimientos registrados en el módulo."
+            actions={
+              <Button size="small" onClick={() => navigate("/incidencias")}>
+                Ver todas
+              </Button>
+            }
+          >
+            {dashboardQuery.isLoading ? (
+              <Box sx={{ py: 5, display: "flex", justifyContent: "center" }}>
+                <CircularProgress />
+              </Box>
+            ) : recientes.length === 0 ? (
+              <Typography variant="body2" color="text.secondary">
+                No hay incidencias recientes.
+              </Typography>
+            ) : (
+              <Box sx={{ overflowX: "auto" }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell><strong>Empleado</strong></TableCell>
+                      <TableCell><strong>Número</strong></TableCell>
+                      <TableCell><strong>Tipo</strong></TableCell>
+                      <TableCell><strong>Estatus</strong></TableCell>
+                      <TableCell><strong>Inicio</strong></TableCell>
+                      <TableCell><strong>Fin</strong></TableCell>
+                      <TableCell><strong>Creada</strong></TableCell>
+                    </TableRow>
+                  </TableHead>
 
-                    <TableCell>{item.numEmpleado}</TableCell>
+                  <TableBody>
+                    {recientes.map((item) => (
+                      <TableRow key={item.id} hover>
+                        <TableCell>
+                          <Stack spacing={0.25}>
+                            <Typography fontWeight={700} sx={{ color: dashboardTokens.text }}>
+                              {item.empleadoNombre}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              ID #{item.empleadoId}
+                            </Typography>
+                          </Stack>
+                        </TableCell>
 
-                    <TableCell>
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <Box
-                          sx={{
-                            width: 28,
-                            height: 28,
-                            borderRadius: "10px",
-                            display: "grid",
-                            placeItems: "center",
-                            backgroundColor: dashboardTokens.softSurface,
-                            color: alpha(dashboardTokens.text, 0.75),
-                            border: `1px solid ${alpha(dashboardTokens.text, 0.06)}`,
-                            flexShrink: 0,
-                          }}
-                        >
-                          {getTipoIcon(item.tipo)}
-                        </Box>
+                        <TableCell>{item.numEmpleado}</TableCell>
 
-                        <Typography variant="body2" sx={{ color: dashboardTokens.text }}>
-                          {formatEnumLabel(item.tipo)}
-                        </Typography>
-                      </Stack>
-                    </TableCell>
+                        <TableCell>
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <Box
+                              sx={{
+                                width: 28,
+                                height: 28,
+                                borderRadius: "10px",
+                                display: "grid",
+                                placeItems: "center",
+                                backgroundColor: dashboardTokens.softSurface,
+                                color: alpha(dashboardTokens.text, 0.75),
+                                border: `1px solid ${alpha(dashboardTokens.text, 0.06)}`,
+                                flexShrink: 0,
+                              }}
+                            >
+                              {getTipoIcon(item.tipo)}
+                            </Box>
 
-                    <TableCell>
-                      <Chip
-                        icon={getStatusIcon(item.estatus)}
-                        label={formatEnumLabel(item.estatus)}
-                        size="small"
-                        color={getStatusColor(item.estatus)}
-                        variant="outlined"
-                      />
-                    </TableCell>
+                            <Typography variant="body2" sx={{ color: dashboardTokens.text }}>
+                              {formatEnumLabel(item.tipo)}
+                            </Typography>
+                          </Stack>
+                        </TableCell>
 
-                    <TableCell>{formatDateOnly(item.fechaInicio)}</TableCell>
-                    <TableCell>{formatDateOnly(item.fechaFin)}</TableCell>
-                    <TableCell>{formatDateTime(item.createdAtUtc)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Box>
-        )}
-      </SectionCard>
+                        <TableCell>
+                          <Chip
+                            icon={getStatusIcon(item.estatus)}
+                            label={formatEnumLabel(item.estatus)}
+                            size="small"
+                            color={getStatusColor(item.estatus)}
+                            variant="outlined"
+                          />
+                        </TableCell>
+
+                        <TableCell>{formatDateOnly(item.fechaInicio)}</TableCell>
+                        <TableCell>{formatDateOnly(item.fechaFin)}</TableCell>
+                        <TableCell>{formatDateTime(item.createdAtUtc)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </Box>
+            )}
+          </SectionCard>
+        </>
+      ) : null}
 
       <SectionCard
         title="Auditoría reciente"
