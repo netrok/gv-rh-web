@@ -57,6 +57,7 @@ import {
 import { getPuestos, type Puesto } from "../api/puestos.api";
 import { getSucursales, type SucursalDto } from "../api/sucursales.api";
 import AppPage from "../components/ui/AppPage";
+import EmptyState from "../components/ui/EmptyState";
 import HeroBanner from "../components/ui/HeroBanner";
 import MetricCard from "../components/ui/MetricCard";
 import SectionCard from "../components/ui/SectionCard";
@@ -145,6 +146,12 @@ function getPuestoDepartamentoId(puesto: Puesto) {
 
 function normalizeRoles(roles?: string[] | null): string[] {
   return (roles ?? []).map((role) => String(role).trim().toUpperCase());
+}
+
+function hasSomeRole(userRoles: string[] | null | undefined, allowed: string[]) {
+  const normalizedUserRoles = normalizeRoles(userRoles);
+  const normalizedAllowed = normalizeRoles(allowed);
+  return normalizedAllowed.some((role) => normalizedUserRoles.includes(role));
 }
 
 function empleadoStatusChipSx(activo: boolean) {
@@ -526,6 +533,7 @@ export default function EmpleadosPage() {
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
   const normalizedRoles = useMemo(() => normalizeRoles(roles), [roles]);
+  const canManageEmpleados = hasSomeRole(roles, ["ADMIN", "RRHH"]);
 
   const empleadosQuery = useQuery({
     queryKey: ["empleados"],
@@ -572,7 +580,7 @@ export default function EmpleadosPage() {
       return createEmpleado(values);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["empleados"] });
+      void queryClient.invalidateQueries({ queryKey: ["empleados"] });
       setDialogOpen(false);
       setEditing(null);
       showSnackbar(
@@ -606,7 +614,7 @@ export default function EmpleadosPage() {
       });
     },
     onSuccess: (_, row) => {
-      queryClient.invalidateQueries({ queryKey: ["empleados"] });
+      void queryClient.invalidateQueries({ queryKey: ["empleados"] });
       showSnackbar(
         row.activo ? "Empleado desactivado." : "Empleado reactivado.",
         "success"
@@ -733,6 +741,7 @@ export default function EmpleadosPage() {
   };
 
   const canOpenDialog =
+    canManageEmpleados &&
     departamentos.length > 0 &&
     puestos.length > 0 &&
     !departamentosQuery.isLoading &&
@@ -745,11 +754,25 @@ export default function EmpleadosPage() {
     puestosQuery.isLoading ||
     sucursalesQuery.isLoading;
 
+  const isRefreshing =
+    (empleadosQuery.isFetching ||
+      departamentosQuery.isFetching ||
+      puestosQuery.isFetching ||
+      sucursalesQuery.isFetching) &&
+    !loadingAny;
+
   const handleRefresh = () => {
     void empleadosQuery.refetch();
     void departamentosQuery.refetch();
     void puestosQuery.refetch();
     void sucursalesQuery.refetch();
+  };
+
+  const clearFilters = () => {
+    setSearch("");
+    setDepartamentoFilter("");
+    setSucursalFilter("");
+    setStatusFilter("");
   };
 
   return (
@@ -761,21 +784,23 @@ export default function EmpleadosPage() {
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
           <Button
             variant="outlined"
-            startIcon={<RefreshIcon />}
+            startIcon={isRefreshing ? <CircularProgress size={18} /> : <RefreshIcon />}
             onClick={handleRefresh}
-            disabled={loadingAny}
+            disabled={loadingAny || saveMutation.isPending || toggleMutation.isPending}
           >
-            Actualizar
+            {isRefreshing ? "Actualizando..." : "Actualizar"}
           </Button>
 
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={openCreateDialog}
-            disabled={!canOpenDialog}
-          >
-            Nuevo empleado
-          </Button>
+          {canManageEmpleados && (
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={openCreateDialog}
+              disabled={!canOpenDialog}
+            >
+              Nuevo empleado
+            </Button>
+          )}
         </Stack>
       }
     >
@@ -840,18 +865,30 @@ export default function EmpleadosPage() {
                   activos
                 </Typography>
               </Box>
+
+              <Box>
+                <Typography variant="h4" sx={{ fontWeight: 900, lineHeight: 1 }}>
+                  {activeFiltersCount}
+                </Typography>
+                <Typography variant="caption" sx={{ color: alpha("#ffffff", 0.8) }}>
+                  filtros
+                </Typography>
+              </Box>
             </Stack>
 
             <Typography variant="body2" sx={{ color: alpha("#ffffff", 0.84) }}>
               {canOpenDialog
                 ? "Catálogos base disponibles para alta y edición."
-                : "Faltan catálogos base para permitir nuevas altas."}
+                : canManageEmpleados
+                ? "Faltan catálogos base para permitir nuevas altas."
+                : "Consulta disponible según tu rol actual."}
             </Typography>
           </Stack>
         }
       />
 
-      {!canOpenDialog &&
+      {canManageEmpleados &&
+        !canOpenDialog &&
         !departamentosQuery.isLoading &&
         !puestosQuery.isLoading &&
         !sucursalesQuery.isLoading && (
@@ -908,15 +945,28 @@ export default function EmpleadosPage() {
         title="Filtros"
         subtitle="Busca por empleado, correo, puesto, sucursal o estatus."
         actions={
-          <Chip
-            size="small"
-            variant="outlined"
-            label={
-              activeFiltersCount > 0
-                ? `${activeFiltersCount} filtro${activeFiltersCount > 1 ? "s" : ""} activo${activeFiltersCount > 1 ? "s" : ""}`
-                : "Sin filtros"
-            }
-          />
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            <Chip
+              size="small"
+              variant="outlined"
+              color={activeFiltersCount > 0 ? "primary" : undefined}
+              label={
+                activeFiltersCount > 0
+                  ? `${activeFiltersCount} filtro${
+                      activeFiltersCount > 1 ? "s" : ""
+                    } activo${activeFiltersCount > 1 ? "s" : ""}`
+                  : "Sin filtros"
+              }
+            />
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={clearFilters}
+              disabled={activeFiltersCount === 0}
+            >
+              Limpiar
+            </Button>
+          </Stack>
         }
       >
         <Box
@@ -935,7 +985,6 @@ export default function EmpleadosPage() {
               placeholder="No. empleado, nombre, correo, puesto, sucursal..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              fullWidth
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
@@ -952,7 +1001,6 @@ export default function EmpleadosPage() {
               label="Departamento"
               value={departamentoFilter}
               onChange={(e) => setDepartamentoFilter(e.target.value)}
-              fullWidth
             >
               <MenuItem value="">Todos</MenuItem>
               {departamentos.map((dep) => (
@@ -969,7 +1017,6 @@ export default function EmpleadosPage() {
               label="Sucursal"
               value={sucursalFilter}
               onChange={(e) => setSucursalFilter(e.target.value)}
-              fullWidth
             >
               <MenuItem value="">Todas</MenuItem>
               {sucursales.map((sucursal) => (
@@ -986,7 +1033,6 @@ export default function EmpleadosPage() {
               label="Estatus"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              fullWidth
             >
               <MenuItem value="">Todos</MenuItem>
               <MenuItem value="ACTIVO">Activos</MenuItem>
@@ -1030,11 +1076,26 @@ export default function EmpleadosPage() {
             No se pudo cargar el catálogo de sucursales.{" "}
             {getErrorMessage(sucursalesQuery.error)}
           </Alert>
+        ) : filteredRows.length === 0 ? (
+          <EmptyState
+            icon={<Groups2OutlinedIcon sx={{ fontSize: 52 }} />}
+            title="No hay empleados para mostrar"
+            description="No se encontraron registros con los filtros actuales. Ajusta la búsqueda o registra un nuevo empleado."
+            actionLabel={canManageEmpleados ? "Nuevo empleado" : undefined}
+            onAction={canManageEmpleados ? openCreateDialog : undefined}
+          />
         ) : (
           <>
             <Box sx={{ overflowX: "auto", maxHeight: 620 }}>
               <Table stickyHeader size="small">
-                <TableHead>
+                <TableHead
+                  sx={{
+                    "& .MuiTableCell-head": {
+                      backgroundColor: "#f4f7fc",
+                      zIndex: 2,
+                    },
+                  }}
+                >
                   <TableRow>
                     <TableCell>ID</TableCell>
                     <TableCell>No. Empleado</TableCell>
@@ -1049,131 +1110,127 @@ export default function EmpleadosPage() {
                 </TableHead>
 
                 <TableBody>
-                  {paginatedRows.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={9} align="center" sx={{ py: 5 }}>
-                        <Typography color="text.secondary">
-                          No hay empleados para mostrar.
-                        </Typography>
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    paginatedRows.map((row) => {
-                      const departamento = row.departamentoId
-                        ? departamentosMap.get(Number(row.departamentoId))
-                        : undefined;
-                      const puesto = row.puestoId
-                        ? puestosMap.get(Number(row.puestoId))
-                        : undefined;
-                      const sucursal = row.sucursalId
-                        ? sucursalesMap.get(Number(row.sucursalId))
-                        : undefined;
+                  {paginatedRows.map((row) => {
+                    const departamento = row.departamentoId
+                      ? departamentosMap.get(Number(row.departamentoId))
+                      : undefined;
+                    const puesto = row.puestoId
+                      ? puestosMap.get(Number(row.puestoId))
+                      : undefined;
+                    const sucursal = row.sucursalId
+                      ? sucursalesMap.get(Number(row.sucursalId))
+                      : undefined;
 
-                      return (
-                        <TableRow
-                          key={row.id}
-                          hover
-                          sx={{
-                            backgroundColor: row.activo
-                              ? "transparent"
-                              : "rgba(0,0,0,0.02)",
-                          }}
-                        >
-                          <TableCell>{row.id}</TableCell>
+                    return (
+                      <TableRow
+                        key={row.id}
+                        hover
+                        sx={{
+                          backgroundColor: row.activo
+                            ? "transparent"
+                            : "rgba(0,0,0,0.02)",
+                        }}
+                      >
+                        <TableCell>{row.id}</TableCell>
 
-                          <TableCell>
-                            <Typography fontWeight={700}>{row.numEmpleado}</Typography>
-                          </TableCell>
+                        <TableCell>
+                          <Typography fontWeight={700}>{row.numEmpleado}</Typography>
+                        </TableCell>
 
-                          <TableCell>
-                            <Stack spacing={0.25}>
-                              <Typography fontWeight={700}>
-                                {[row.nombres, row.apellidoPaterno, row.apellidoMaterno ?? ""]
-                                  .filter(Boolean)
-                                  .join(" ")}
-                              </Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                {row.email || "Sin correo"}
-                              </Typography>
-                            </Stack>
-                          </TableCell>
+                        <TableCell>
+                          <Stack spacing={0.25}>
+                            <Typography fontWeight={700}>
+                              {[row.nombres, row.apellidoPaterno, row.apellidoMaterno ?? ""]
+                                .filter(Boolean)
+                                .join(" ")}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {row.email || "Sin correo"}
+                            </Typography>
+                          </Stack>
+                        </TableCell>
 
-                          <TableCell>
-                            {departamento ? (
-                              <Tooltip
-                                arrow
-                                title={`${departamento.clave} - ${departamento.nombre}`}
-                              >
-                                <Stack spacing={0.35} sx={{ minWidth: 0 }}>
-                                  <Chip
-                                    size="small"
-                                    variant="outlined"
-                                    icon={<ApartmentOutlinedIcon />}
-                                    label={departamento.clave}
-                                    sx={departmentChipSx()}
-                                  />
-                                  <Typography
-                                    variant="caption"
-                                    color="text.secondary"
-                                    sx={{
-                                      display: "block",
-                                      maxWidth: 180,
-                                      whiteSpace: "nowrap",
-                                      overflow: "hidden",
-                                      textOverflow: "ellipsis",
-                                    }}
-                                  >
-                                    {departamento.nombre}
-                                  </Typography>
-                                </Stack>
-                              </Tooltip>
-                            ) : (
-                              "-"
-                            )}
-                          </TableCell>
-
-                          <TableCell>
-                            {puesto ? `${puesto.clave} - ${puesto.nombre}` : "-"}
-                          </TableCell>
-
-                          <TableCell>
-                            {sucursal
-                              ? `${sucursal.clave} - ${sucursal.nombre}`
-                              : row.sucursalNombre ?? "-"}
-                          </TableCell>
-
-                          <TableCell>{formatDate(row.fechaIngreso)}</TableCell>
-
-                          <TableCell>
-                            <Chip
-                              size="small"
-                              variant="outlined"
-                              label={row.activo ? "Activo" : "Inactivo"}
-                              sx={empleadoStatusChipSx(row.activo)}
-                            />
-                          </TableCell>
-
-                          <TableCell align="right">
-                            <Stack
-                              direction="row"
-                              spacing={0.75}
-                              justifyContent="flex-end"
+                        <TableCell>
+                          {departamento ? (
+                            <Tooltip
+                              arrow
+                              title={`${departamento.clave} - ${departamento.nombre}`}
                             >
+                              <Stack spacing={0.35} sx={{ minWidth: 0 }}>
+                                <Chip
+                                  size="small"
+                                  variant="outlined"
+                                  icon={<ApartmentOutlinedIcon />}
+                                  label={departamento.clave}
+                                  sx={departmentChipSx()}
+                                />
+                                <Typography
+                                  variant="caption"
+                                  color="text.secondary"
+                                  sx={{
+                                    display: "block",
+                                    maxWidth: 180,
+                                    whiteSpace: "nowrap",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                  }}
+                                >
+                                  {departamento.nombre}
+                                </Typography>
+                              </Stack>
+                            </Tooltip>
+                          ) : (
+                            "-"
+                          )}
+                        </TableCell>
+
+                        <TableCell>
+                          {puesto ? `${puesto.clave} - ${puesto.nombre}` : "-"}
+                        </TableCell>
+
+                        <TableCell>
+                          {sucursal
+                            ? `${sucursal.clave} - ${sucursal.nombre}`
+                            : row.sucursalNombre ?? "-"}
+                        </TableCell>
+
+                        <TableCell>{formatDate(row.fechaIngreso)}</TableCell>
+
+                        <TableCell>
+                          <Chip
+                            size="small"
+                            variant="outlined"
+                            label={row.activo ? "Activo" : "Inactivo"}
+                            sx={empleadoStatusChipSx(row.activo)}
+                          />
+                        </TableCell>
+
+                        <TableCell align="right">
+                          <Stack
+                            direction="row"
+                            spacing={0.75}
+                            justifyContent="flex-end"
+                          >
+                            {canManageEmpleados && (
                               <Tooltip title="Editar">
                                 <IconButton
                                   onClick={() => openEditDialog(row)}
                                   sx={actionIconButtonSx("edit")}
+                                  disabled={saveMutation.isPending || toggleMutation.isPending}
                                 >
                                   <EditIcon fontSize="small" />
                                 </IconButton>
                               </Tooltip>
+                            )}
 
+                            {canManageEmpleados && (
                               <Tooltip title={row.activo ? "Desactivar" : "Reactivar"}>
                                 <IconButton
                                   onClick={() => setConfirmTarget(row)}
                                   sx={actionIconButtonSx(
                                     row.activo ? "toggle-active" : "toggle-inactive"
                                   )}
+                                  disabled={saveMutation.isPending || toggleMutation.isPending}
                                 >
                                   {row.activo ? (
                                     <BlockRoundedIcon fontSize="small" />
@@ -1182,12 +1239,12 @@ export default function EmpleadosPage() {
                                   )}
                                 </IconButton>
                               </Tooltip>
-                            </Stack>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })
-                  )}
+                            )}
+                          </Stack>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </Box>
