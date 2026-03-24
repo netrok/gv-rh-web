@@ -9,28 +9,55 @@ import EmpleadosPage from "./pages/EmpleadosPage";
 import SucursalesPage from "./pages/SucursalesPage";
 import IncidenciasPage from "./pages/IncidenciasPage";
 import UsuariosPage from "./pages/UsuariosPage";
-import RequireAuth from "./features/auth/RequireAuth";
-import RoleGuard from "./features/auth/RoleGuard";
 import ForbiddenPage from "./pages/ForbiddenPage";
 import NotFoundPage from "./pages/NotFoundPage";
+import ChangePasswordRequiredPage from "./pages/ChangePasswordRequiredPage";
+import RequireAuth from "./features/auth/RequireAuth";
+import RoleGuard from "./features/auth/RoleGuard";
 import { useAuth } from "./features/auth/AuthContext";
 
 export default function App() {
-  const { isAuthenticated, roles = [] } = useAuth();
+  const { isAuthenticated, roles = [], mustChangePassword } = useAuth();
 
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage />} />
+      <Route
+        path="/login"
+        element={
+          isAuthenticated ? (
+            <Navigate
+              to={mustChangePassword ? "/cambiar-password" : "/dashboard"}
+              replace
+            />
+          ) : (
+            <LoginPage />
+          )
+        }
+      />
+
       <Route path="/403" element={<ForbiddenPage />} />
+
+      <Route
+        path="/cambiar-password"
+        element={
+          <RequireAuth isAuthenticated={isAuthenticated}>
+            <ChangePasswordRequiredPage />
+          </RequireAuth>
+        }
+      />
 
       <Route
         element={
           <RequireAuth isAuthenticated={isAuthenticated}>
-            <AppShell />
+            {mustChangePassword ? (
+              <Navigate to="/cambiar-password" replace />
+            ) : (
+              <AppShell />
+            )}
           </RequireAuth>
         }
       >
-        <Route index element={<Navigate to="dashboard" replace />} />
+        <Route index element={<Navigate to="/dashboard" replace />} />
 
         <Route
           path="dashboard"
