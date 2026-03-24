@@ -114,9 +114,10 @@ function formatDateTime(value?: string | null): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
 
-  return date.toLocaleString("es-MX", {
-    dateStyle: "medium",
-    timeStyle: "short",
+  return date.toLocaleDateString("es-MX", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
   });
 }
 
@@ -480,7 +481,9 @@ export default function UsuariosPage() {
 
       setSnackbar({
         open: true,
-        message: confirmTarget.activo ? "Usuario desactivado." : "Usuario activado.",
+        message: confirmTarget.activo
+          ? "Usuario desactivado."
+          : "Usuario activado.",
         severity: "success",
       });
 
@@ -941,31 +944,45 @@ export default function UsuariosPage() {
 
       <Dialog
         open={dialogOpen}
-        onClose={saving ? undefined : handleCloseDialog}
+        onClose={(_, __) => {
+          if (!saving) handleCloseDialog();
+        }}
         fullWidth
-        maxWidth="sm"
+        maxWidth="md"
       >
-        <DialogTitle>
-          {editing ? "Editar usuario" : "Nuevo usuario"}
+        <DialogTitle sx={{ pb: 1.5 }}>
+          <Stack spacing={0.5}>
+            <Typography variant="h6" fontWeight={800}>
+              {editing ? "Editar usuario" : "Nuevo usuario"}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {editing
+                ? "Actualiza el correo, rol y estado operativo de la cuenta."
+                : "Captura los datos básicos para crear una nueva cuenta interna."}
+            </Typography>
+          </Stack>
         </DialogTitle>
 
-        <DialogContent dividers>
-          <Stack spacing={2} sx={{ pt: 1 }}>
+        <DialogContent dividers sx={{ px: 3, py: 2.5 }}>
+          <Stack spacing={2.5}>
             {submitError ? <Alert severity="error">{submitError}</Alert> : null}
 
             <Box
               sx={{
                 display: "grid",
-                gridTemplateColumns: { xs: "1fr", md: "1fr 160px" },
+                gridTemplateColumns: { xs: "1fr", md: "1.4fr 0.8fr" },
                 gap: 2,
+                alignItems: "start",
               }}
             >
               <TextField
                 fullWidth
                 label="Correo"
                 type="email"
+                placeholder="usuario@empresa.com"
                 value={form.email}
                 onChange={handleTextChange("email")}
+                helperText="Se usará como identificador principal de acceso."
               />
 
               <FormControl fullWidth>
@@ -982,60 +999,123 @@ export default function UsuariosPage() {
                   ))}
                 </Select>
               </FormControl>
-
-              {!editing ? (
-                <>
-                  <TextField
-                    fullWidth
-                    label="Contraseña"
-                    type="password"
-                    value={form.password}
-                    onChange={handleTextChange("password")}
-                  />
-
-                  <TextField
-                    fullWidth
-                    label="Confirmar contraseña"
-                    type="password"
-                    value={form.confirmPassword}
-                    onChange={handleTextChange("confirmPassword")}
-                  />
-                </>
-              ) : null}
-
-              <Box sx={{ gridColumn: "1 / -1" }}>
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={form.activo}
-                      onChange={handleActivoChange}
-                    />
-                  }
-                  label="Usuario activo"
-                />
-              </Box>
             </Box>
+
+            <Box
+              sx={{
+                px: 2,
+                py: 1.5,
+                borderRadius: 3,
+                border: "1px solid",
+                borderColor: "divider",
+                backgroundColor: (theme) =>
+                  alpha(theme.palette.primary.main, 0.03),
+              }}
+            >
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={form.activo}
+                    onChange={handleActivoChange}
+                  />
+                }
+                label={
+                  <Box>
+                    <Typography fontWeight={700}>Usuario activo</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Define si la cuenta puede ingresar al sistema.
+                    </Typography>
+                  </Box>
+                }
+                sx={{ m: 0, alignItems: "flex-start" }}
+              />
+            </Box>
+
+            {!editing ? (
+              <Box
+                sx={{
+                  p: 2,
+                  borderRadius: 3,
+                  border: "1px solid",
+                  borderColor: "divider",
+                  backgroundColor: "background.default",
+                }}
+              >
+                <Stack spacing={2}>
+                  <Box>
+                    <Typography fontWeight={800}>
+                      Credenciales iniciales
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Define la contraseña temporal con la que entrará el usuario.
+                    </Typography>
+                  </Box>
+
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+                      gap: 2,
+                    }}
+                  >
+                    <TextField
+                      fullWidth
+                      label="Contraseña"
+                      type="password"
+                      value={form.password}
+                      onChange={handleTextChange("password")}
+                      helperText="Mínimo 6 caracteres."
+                    />
+
+                    <TextField
+                      fullWidth
+                      label="Confirmar contraseña"
+                      type="password"
+                      value={form.confirmPassword}
+                      onChange={handleTextChange("confirmPassword")}
+                      helperText="Debe coincidir exactamente."
+                    />
+                  </Box>
+                </Stack>
+              </Box>
+            ) : null}
           </Stack>
         </DialogContent>
 
-        <DialogActions sx={{ px: 3, py: 2 }}>
-          <Button onClick={handleCloseDialog} disabled={saving}>
-            Cancelar
-          </Button>
+        <DialogActions
+          sx={{ px: 3, py: 2, justifyContent: "space-between" }}
+        >
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={{ display: { xs: "none", sm: "block" } }}
+          >
+            {editing
+              ? "Ajusta los datos y guarda los cambios."
+              : "Verifica la información antes de crear la cuenta."}
+          </Typography>
 
-          <Button variant="contained" onClick={handleSubmit} disabled={saving}>
-            {saving
-              ? "Guardando..."
-              : editing
-              ? "Guardar cambios"
-              : "Crear usuario"}
-          </Button>
+          <Stack direction="row" spacing={1.5}>
+            <Button onClick={handleCloseDialog} disabled={saving}>
+              Cancelar
+            </Button>
+
+            <Button variant="contained" onClick={handleSubmit} disabled={saving}>
+              {saving
+                ? "Guardando..."
+                : editing
+                ? "Guardar cambios"
+                : "Crear usuario"}
+            </Button>
+          </Stack>
         </DialogActions>
       </Dialog>
 
       <Dialog
         open={!!confirmTarget}
-        onClose={processingId ? undefined : () => setConfirmTarget(null)}
+        onClose={(_, __) => {
+          if (processingId === null) setConfirmTarget(null);
+        }}
         fullWidth
         maxWidth="xs"
       >
