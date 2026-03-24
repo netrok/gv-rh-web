@@ -18,6 +18,7 @@ import {
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import HomeRoundedIcon from "@mui/icons-material/HomeRounded";
+import ManageAccountsRoundedIcon from "@mui/icons-material/ManageAccountsRounded";
 import StoreRoundedIcon from "@mui/icons-material/StoreRounded";
 import GavelRoundedIcon from "@mui/icons-material/GavelRounded";
 import ApartmentRoundedIcon from "@mui/icons-material/ApartmentRounded";
@@ -47,6 +48,12 @@ const menuItems: MenuItemConfig[] = [
     label: "Dashboard",
     to: "/dashboard",
     icon: <HomeRoundedIcon fontSize="small" />,
+  },
+  {
+    label: "Usuarios",
+    to: "/usuarios",
+    icon: <ManageAccountsRoundedIcon fontSize="small" />,
+    allow: ["ADMIN"],
   },
   {
     label: "Sucursales",
@@ -107,6 +114,7 @@ function getCurrentTitle(pathname: string, items: MenuItemConfig[]) {
 
 function getCurrentSectionText(pathname: string) {
   if (isRouteSelected(pathname, "/dashboard")) return "Panel principal";
+  if (isRouteSelected(pathname, "/usuarios")) return "Accesos y seguridad";
   if (isRouteSelected(pathname, "/empleados")) return "Catálogo de personal";
   if (isRouteSelected(pathname, "/incidencias")) return "Control operativo";
   if (isRouteSelected(pathname, "/audit")) return "Bitácora del sistema";

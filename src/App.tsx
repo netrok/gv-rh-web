@@ -8,6 +8,7 @@ import PuestosPage from "./pages/PuestosPage";
 import EmpleadosPage from "./pages/EmpleadosPage";
 import SucursalesPage from "./pages/SucursalesPage";
 import IncidenciasPage from "./pages/IncidenciasPage";
+import UsuariosPage from "./pages/UsuariosPage";
 import RequireAuth from "./features/auth/RequireAuth";
 import RoleGuard from "./features/auth/RoleGuard";
 import ForbiddenPage from "./pages/ForbiddenPage";
@@ -29,10 +30,10 @@ export default function App() {
           </RequireAuth>
         }
       >
-        <Route index element={<Navigate to="/dashboard" replace />} />
+        <Route index element={<Navigate to="dashboard" replace />} />
 
         <Route
-          path="/dashboard"
+          path="dashboard"
           element={
             <RoleGuard
               isAuthenticated={isAuthenticated}
@@ -45,7 +46,20 @@ export default function App() {
         />
 
         <Route
-          path="/sucursales"
+          path="usuarios"
+          element={
+            <RoleGuard
+              isAuthenticated={isAuthenticated}
+              userRoles={roles}
+              allow={["ADMIN"]}
+            >
+              <UsuariosPage />
+            </RoleGuard>
+          }
+        />
+
+        <Route
+          path="sucursales"
           element={
             <RoleGuard
               isAuthenticated={isAuthenticated}
@@ -58,7 +72,7 @@ export default function App() {
         />
 
         <Route
-          path="/audit"
+          path="audit"
           element={
             <RoleGuard
               isAuthenticated={isAuthenticated}
@@ -71,7 +85,7 @@ export default function App() {
         />
 
         <Route
-          path="/departamentos"
+          path="departamentos"
           element={
             <RoleGuard
               isAuthenticated={isAuthenticated}
@@ -84,7 +98,7 @@ export default function App() {
         />
 
         <Route
-          path="/puestos"
+          path="puestos"
           element={
             <RoleGuard
               isAuthenticated={isAuthenticated}
@@ -97,7 +111,7 @@ export default function App() {
         />
 
         <Route
-          path="/empleados"
+          path="empleados"
           element={
             <RoleGuard
               isAuthenticated={isAuthenticated}
@@ -110,7 +124,7 @@ export default function App() {
         />
 
         <Route
-          path="/incidencias"
+          path="incidencias"
           element={
             <RoleGuard
               isAuthenticated={isAuthenticated}
@@ -121,6 +135,8 @@ export default function App() {
             </RoleGuard>
           }
         />
+
+        <Route path="*" element={<NotFoundPage />} />
       </Route>
 
       <Route path="*" element={<NotFoundPage />} />
