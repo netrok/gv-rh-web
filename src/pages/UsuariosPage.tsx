@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
+import type { SelectChangeEvent } from "@mui/material/Select";
 import {
   Alert,
   Box,
   Button,
   Card,
   CardContent,
-  Chip,
   CircularProgress,
   Dialog,
   DialogActions,
@@ -30,8 +30,8 @@ import {
   TextField,
   Tooltip,
   Typography,
+  Chip,
 } from "@mui/material";
-import type { SelectChangeEvent } from "@mui/material/Select";
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import ManageAccountsRoundedIcon from "@mui/icons-material/ManageAccountsRounded";
@@ -171,7 +171,9 @@ export default function UsuariosPage() {
         open: true,
         message:
           serverMessage ||
-          `No se pudo cargar el módulo de usuarios${status ? ` (${status})` : ""}.`,
+          `No se pudo cargar el módulo de usuarios${
+            status ? ` (${status})` : ""
+          }.`,
         severity: "error",
       });
     } finally {
@@ -312,7 +314,6 @@ export default function UsuariosPage() {
 
       closeDialog();
       await loadUsuarios(false);
-      await loadUsuarios();
     } catch (error: any) {
       console.error("Error guardando usuario:", error);
 
@@ -356,7 +357,6 @@ export default function UsuariosPage() {
       });
 
       await loadUsuarios(false);
-      await loadUsuarios();
     } catch (error: any) {
       console.error("Error cambiando estatus:", error);
 
@@ -370,7 +370,9 @@ export default function UsuariosPage() {
         open: true,
         message:
           serverMessage ||
-          `No se pudo actualizar el estatus del usuario${status ? ` (${status})` : ""}.`,
+          `No se pudo actualizar el estatus del usuario${
+            status ? ` (${status})` : ""
+          }.`,
         severity: "error",
       });
     } finally {
@@ -389,7 +391,12 @@ export default function UsuariosPage() {
             alignItems={{ xs: "flex-start", lg: "center" }}
           >
             <Box>
-              <Stack direction="row" spacing={1.25} alignItems="center" sx={{ mb: 1 }}>
+              <Stack
+                direction="row"
+                spacing={1.25}
+                alignItems="center"
+                sx={{ mb: 1 }}
+              >
                 <Box
                   sx={{
                     width: 42,
@@ -440,7 +447,7 @@ export default function UsuariosPage() {
       </Card>
 
       <Grid container spacing={2}>
-        <Grid item xs={12} md={4}>
+        <Grid size={{ xs: 12, md: 4 }}>
           <Card elevation={0} sx={metricCardSx()}>
             <CardContent sx={{ p: 2.5 }}>
               <Stack direction="row" spacing={1.5} alignItems="center">
@@ -451,7 +458,7 @@ export default function UsuariosPage() {
                     borderRadius: 3,
                     display: "grid",
                     placeItems: "center",
-                    bgcolor: "primary.50",
+                    bgcolor: "rgba(25, 118, 210, 0.10)",
                     color: "primary.main",
                   }}
                 >
@@ -471,7 +478,7 @@ export default function UsuariosPage() {
           </Card>
         </Grid>
 
-        <Grid item xs={12} md={4}>
+        <Grid size={{ xs: 12, md: 4 }}>
           <Card elevation={0} sx={metricCardSx()}>
             <CardContent sx={{ p: 2.5 }}>
               <Stack direction="row" spacing={1.5} alignItems="center">
@@ -502,7 +509,7 @@ export default function UsuariosPage() {
           </Card>
         </Grid>
 
-        <Grid item xs={12} md={4}>
+        <Grid size={{ xs: 12, md: 4 }}>
           <Card elevation={0} sx={metricCardSx()}>
             <CardContent sx={{ p: 2.5 }}>
               <Stack direction="row" spacing={1.5} alignItems="center">
@@ -600,7 +607,11 @@ export default function UsuariosPage() {
               </Typography>
             </Box>
           ) : (
-            <TableContainer component={Paper} elevation={0} sx={{ borderRadius: 6 }}>
+            <TableContainer
+              component={Paper}
+              elevation={0}
+              sx={{ borderRadius: 6 }}
+            >
               <Table>
                 <TableHead>
                   <TableRow>
@@ -623,7 +634,9 @@ export default function UsuariosPage() {
                       <TableRow key={usuario.id} hover>
                         <TableCell>
                           <Stack spacing={0.25}>
-                            <Typography fontWeight={800}>{displayName}</Typography>
+                            <Typography fontWeight={800}>
+                              {displayName}
+                            </Typography>
                             <Typography variant="body2" color="text.secondary">
                               ID: {usuario.id}
                             </Typography>
@@ -676,7 +689,9 @@ export default function UsuariosPage() {
                           )}
                         </TableCell>
 
-                        <TableCell>{formatDateTime(usuario.createdAtUtc)}</TableCell>
+                        <TableCell>
+                          {formatDateTime(usuario.createdAtUtc)}
+                        </TableCell>
 
                         <TableCell align="right">
                           <Stack
@@ -693,7 +708,9 @@ export default function UsuariosPage() {
                                   variant="outlined"
                                   startIcon={<EditRoundedIcon />}
                                   onClick={() => openEditDialog(usuario)}
-                                  disabled={saving || processingId === usuario.id}
+                                  disabled={
+                                    saving || processingId === usuario.id
+                                  }
                                 >
                                   Editar
                                 </Button>
@@ -713,7 +730,9 @@ export default function UsuariosPage() {
                                   variant="outlined"
                                   color={usuario.activo ? "inherit" : "success"}
                                   onClick={() => void handleToggleActivo(usuario)}
-                                  disabled={saving || processingId === usuario.id}
+                                  disabled={
+                                    saving || processingId === usuario.id
+                                  }
                                 >
                                   {processingId === usuario.id
                                     ? "Procesando..."
@@ -756,11 +775,7 @@ export default function UsuariosPage() {
 
             <FormControl error={Boolean(errors.role)} fullWidth>
               <InputLabel>Rol</InputLabel>
-              <Select
-                label="Rol"
-                value={form.role}
-                onChange={handleRoleChange}
-              >
+              <Select label="Rol" value={form.role} onChange={handleRoleChange}>
                 {AVAILABLE_ROLES.map((role) => (
                   <MenuItem key={role} value={role}>
                     {role}
