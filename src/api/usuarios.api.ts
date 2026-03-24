@@ -2,217 +2,154 @@ import { api } from "./axios";
 
 export type Usuario = {
   id: number;
-  nombre: string;
   email: string;
-  roles: string[];
-  activo: boolean;
-  mustChangePassword?: boolean;
+  fullName: string;
+  role: string;
+  isActive: boolean;
+  mustChangePassword: boolean;
   empleadoId?: number | null;
-  createdAtUtc?: string | null;
+  createdAtUtc: string;
   updatedAtUtc?: string | null;
 };
 
-export type SaveUsuarioInput = {
-  nombre: string;
-  email: string;
-  roles: string[];
-  activo: boolean;
-  password?: string;
+export type UserRoleOption = {
+  value: string;
+  label: string;
 };
 
-type AnyRecord = Record<string, unknown>;
+export type UsersListResponse = {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  items: Usuario[];
+};
 
-const USUARIOS_ENDPOINT_CANDIDATES = [
-  "/api/Usuarios",
-  "/api/Usuario",
-  "/api/Users",
-  "/api/User",
-] as const;
+export type GetUsersParams = {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  role?: string;
+  active?: boolean | null;
+};
 
-let resolvedUsuariosEndpoint: string | null = null;
+export type CreateUserInput = {
+  email: string;
+  password: string;
+  role: string;
+  isActive: boolean;
+  empleadoId?: number | null;
+};
 
-function isRecord(value: unknown): value is AnyRecord {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
+export type UpdateUserInput = {
+  role: string;
+  isActive: boolean;
+  empleadoId?: number | null;
+};
 
-function toStringArray(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => String(item ?? "").trim())
-      .filter(Boolean);
-  }
+export type ResetUserPasswordInput = {
+  newPassword?: string;
+};
 
-  if (typeof value === "string") {
-    const normalized = value.trim();
-    return normalized ? [normalized] : [];
-  }
+export type ResetUserPasswordResponse = {
+  message: string;
+  tempPassword: string;
+};
 
-  return [];
-}
-
-function parseBoolean(value: unknown, fallback = true): boolean {
-  if (typeof value === "boolean") return value;
-
-  if (typeof value === "string") {
-    const normalized = value.trim().toLowerCase();
-    if (normalized === "true") return true;
-    if (normalized === "false") return false;
-  }
-
-  if (typeof value === "number") {
-    return value !== 0;
-  }
-
-  return fallback;
-}
-
-function parseNullableNumber(value: unknown): number | null {
-  if (value === null || value === undefined || value === "") return null;
-
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function normalizeUsuario(raw: AnyRecord): Usuario {
-  const email = String(raw.email ?? "");
-  const fallbackNombre = email ? email.split("@")[0] : "";
-
-  return {
-    id: Number(raw.id ?? raw.usuarioId ?? raw.userId ?? 0),
-    nombre: String(
-      raw.nombre ??
-        raw.name ??
-        raw.fullName ??
-        raw.userName ??
-        fallbackNombre
-    ),
-    email,
-    roles: toStringArray(raw.roles ?? raw.roleNames ?? raw.role),
-    activo: parseBoolean(raw.activo ?? raw.isActive, true),
-    mustChangePassword: parseBoolean(raw.mustChangePassword, false),
-    empleadoId: parseNullableNumber(raw.empleadoId),
-    createdAtUtc: (raw.createdAtUtc ??
-      raw.createdAt ??
-      raw.fechaCreacion ??
-      null) as string | null,
-    updatedAtUtc: (raw.updatedAtUtc ??
-      raw.updatedAt ??
-      raw.fechaActualizacion ??
-      null) as string | null,
+export type LinkEmpleadoByEmailResponse = {
+  message: string;
+  user: Usuario;
+  empleado: {
+    id: number;
+    numEmpleado: string;
+    nombres: string;
+    apellidoPaterno: string;
+    apellidoMaterno?: string | null;
+    email?: string | null;
   };
+};
+
+function normalizeRole(role?: string | null): string {
+  return (role ?? "").trim().toUpperCase();
 }
 
-function unwrapArray(payload: unknown): AnyRecord[] {
-  if (Array.isArray(payload)) {
-    return payload.filter(isRecord);
-  }
+export async function getUsers(
+  params: GetUsersParams = {}
+): Promise<UsersListResponse> {
+  const queryParams: Record<string, string | number | boolean> = {};
 
-  if (isRecord(payload)) {
-    const candidates = [
-      payload.items,
-      payload.data,
-      payload.results,
-      payload.usuarios,
-      payload.value,
-    ];
+  if (params.page) queryParams.page = params.page;
+  if (params.pageSize) queryParams.pageSize = params.pageSize;
+  if (params.q?.trim()) queryParams.q = params.q.trim();
+  if (params.role?.trim()) queryParams.role = normalizeRole(params.role);
+  if (typeof params.active === "boolean") queryParams.active = params.active;
 
-    for (const candidate of candidates) {
-      if (Array.isArray(candidate)) {
-        return candidate.filter(isRecord);
-      }
-    }
-  }
-
-  return [];
-}
-
-function unwrapObject(payload: unknown): AnyRecord {
-  if (isRecord(payload)) {
-    const candidates = [
-      payload.data,
-      payload.item,
-      payload.usuario,
-      payload.value,
-    ];
-
-    for (const candidate of candidates) {
-      if (isRecord(candidate)) {
-        return candidate;
-      }
-    }
-
-    return payload;
-  }
-
-  return {};
-}
-
-function buildUsuarioPayload(input: SaveUsuarioInput): AnyRecord {
-  const cleanRoles = (input.roles ?? []).map((r) => r.trim()).filter(Boolean);
-  const primaryRole = cleanRoles[0] ?? "";
-
-  return {
-    nombre: input.nombre?.trim() ?? "",
-    email: input.email?.trim() ?? "",
-    roles: cleanRoles,
-    role: primaryRole,
-    activo: input.activo,
-    isActive: input.activo,
-    ...(input.password?.trim() ? { password: input.password.trim() } : {}),
-  };
-}
-
-async function resolveUsuariosEndpoint(): Promise<string> {
-  if (resolvedUsuariosEndpoint) {
-    return resolvedUsuariosEndpoint;
-  }
-
-  let lastError: unknown = null;
-
-  for (const endpoint of USUARIOS_ENDPOINT_CANDIDATES) {
-    try {
-      await api.get(endpoint, {
-        params: { page: 1, pageSize: 1 },
-      });
-
-      resolvedUsuariosEndpoint = endpoint;
-      return endpoint;
-    } catch (error: any) {
-      lastError = error;
-
-      const status = error?.response?.status;
-
-      if (status === 404) {
-        continue;
-      }
-
-      throw error;
-    }
-  }
-
-  throw lastError ?? new Error("No se encontró un endpoint válido para usuarios.");
-}
-
-export async function getUsuarios(): Promise<Usuario[]> {
-  const endpoint = await resolveUsuariosEndpoint();
-  const { data } = await api.get(endpoint, {
-    params: { page: 1, pageSize: 50 },
+  const { data } = await api.get<UsersListResponse>("/api/Users", {
+    params: queryParams,
   });
 
-  return unwrapArray(data).map(normalizeUsuario);
+  return data;
 }
 
-export async function createUsuario(input: SaveUsuarioInput): Promise<Usuario> {
-  const endpoint = await resolveUsuariosEndpoint();
-  const { data } = await api.post(endpoint, buildUsuarioPayload(input));
-  return normalizeUsuario(unwrapObject(data));
+export async function getUserById(id: number): Promise<Usuario> {
+  const { data } = await api.get<Usuario>(`/api/Users/${id}`);
+  return data;
 }
 
-export async function updateUsuario(
+export async function getUserRoles(): Promise<UserRoleOption[]> {
+  const { data } = await api.get<UserRoleOption[]>("/api/Users/roles");
+  return data;
+}
+
+export async function createUser(input: CreateUserInput): Promise<Usuario> {
+  const payload = {
+    email: input.email.trim().toLowerCase(),
+    password: input.password,
+    role: normalizeRole(input.role),
+    isActive: input.isActive,
+    empleadoId: input.empleadoId ?? null,
+  };
+
+  const { data } = await api.post<Usuario>("/api/Users", payload);
+  return data;
+}
+
+export async function updateUser(
   id: number,
-  input: SaveUsuarioInput
+  input: UpdateUserInput
 ): Promise<Usuario> {
-  const endpoint = await resolveUsuariosEndpoint();
-  const { data } = await api.put(`${endpoint}/${id}`, buildUsuarioPayload(input));
-  return normalizeUsuario(unwrapObject(data));
+  const payload = {
+    role: normalizeRole(input.role),
+    isActive: input.isActive,
+    empleadoId: input.empleadoId ?? null,
+  };
+
+  const { data } = await api.put<Usuario>(`/api/Users/${id}`, payload);
+  return data;
+}
+
+export async function resetUserPassword(
+  id: number,
+  input: ResetUserPasswordInput = {}
+): Promise<ResetUserPasswordResponse> {
+  const payload = {
+    newPassword: input.newPassword?.trim() || undefined,
+  };
+
+  const { data } = await api.post<ResetUserPasswordResponse>(
+    `/api/Users/${id}/reset-password`,
+    payload
+  );
+
+  return data;
+}
+
+export async function linkEmpleadoByEmail(
+  id: number
+): Promise<LinkEmpleadoByEmailResponse> {
+  const { data } = await api.post<LinkEmpleadoByEmailResponse>(
+    `/api/Users/${id}/link-empleado-by-email`
+  );
+
+  return data;
 }

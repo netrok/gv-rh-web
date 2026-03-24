@@ -53,17 +53,21 @@ import MetricCard from "../components/ui/MetricCard";
 import SectionCard from "../components/ui/SectionCard";
 import { useAuth } from "../features/auth/AuthContext";
 import {
-  createUsuario,
-  getUsuarios,
-  updateUsuario,
-  type SaveUsuarioInput,
+  createUser,
+  getUserRoles,
+  getUsers,
+  resetUserPassword,
+  updateUser,
+  type CreateUserInput,
+  type ResetUserPasswordResponse,
+  type UserRoleOption,
   type Usuario,
 } from "../api/usuarios.api";
 
 type FormState = {
   email: string;
   role: string;
-  activo: boolean;
+  isActive: boolean;
   password: string;
   confirmPassword: string;
 };
@@ -74,38 +78,48 @@ type SnackbarState = {
   severity: "success" | "error" | "info";
 };
 
+type ResetMode = "auto" | "manual";
+
+type ResetResultState = {
+  email: string;
+  tempPassword: string;
+};
+
+const DEFAULT_ROLE_OPTIONS: UserRoleOption[] = [
+  { value: "ADMIN", label: "ADMIN" },
+  { value: "RRHH", label: "RRHH" },
+  { value: "JEFE", label: "JEFE" },
+  { value: "CONSULTA", label: "CONSULTA" },
+];
+
 const initialForm: FormState = {
   email: "",
   role: "RRHH",
-  activo: true,
+  isActive: true,
   password: "",
   confirmPassword: "",
 };
-
-const AVAILABLE_ROLES = ["ADMIN", "RRHH"] as const;
 
 function normalizeRoles(roles?: string[] | null): string[] {
   return (roles ?? []).map((role) => String(role).trim().toUpperCase());
 }
 
+function normalizeRole(role?: string | null): string {
+  return String(role ?? "").trim().toUpperCase();
+}
+
 function getPrimaryRole(usuario: Usuario): string {
-  return normalizeRoles(usuario.roles)[0] ?? "";
+  return normalizeRole(usuario.role);
 }
 
 function getDisplayName(usuario: Usuario): string {
-  const nombre = String(usuario.nombre ?? "").trim();
-  if (nombre) return nombre;
+  const fullName = String(usuario.fullName ?? "").trim();
+  if (fullName) return fullName;
 
   const email = String(usuario.email ?? "").trim();
   if (!email) return "Usuario";
 
   return email.split("@")[0] ?? email;
-}
-
-function buildNombreFromEmail(email: string): string {
-  const clean = email.trim();
-  if (!clean) return "";
-  return clean.split("@")[0] ?? clean;
 }
 
 function formatDateTime(value?: string | null): string {
@@ -121,23 +135,35 @@ function formatDateTime(value?: string | null): string {
   });
 }
 
-function normalizePayload(form: FormState): SaveUsuarioInput {
+function buildCreatePayload(form: FormState): CreateUserInput {
   return {
-    nombre: buildNombreFromEmail(form.email),
-    email: form.email.trim(),
-    roles: [form.role.trim()],
-    activo: form.activo,
-    ...(form.password.trim() ? { password: form.password.trim() } : {}),
+    email: form.email.trim().toLowerCase(),
+    password: form.password.trim(),
+    role: normalizeRole(form.role),
+    isActive: form.isActive,
+    empleadoId: null,
   };
 }
 
 function getErrorMessage(error: unknown): string {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "response" in error &&
+    typeof (error as { response?: unknown }).response === "object"
+  ) {
+    const response = (error as { response?: { data?: { message?: string } } })
+      .response;
+    const message = response?.data?.message;
+    if (message) return message;
+  }
+
   if (error instanceof Error) return error.message;
   return "Ocurrió un error inesperado.";
 }
 
-function usuarioStatusChipSx(activo: boolean) {
-  if (activo) {
+function usuarioStatusChipSx(isActive: boolean) {
+  if (isActive) {
     return {
       bgcolor: "rgba(46, 125, 50, 0.10)",
       color: "success.dark",
@@ -165,6 +191,26 @@ function roleChipSx(role: string) {
     };
   }
 
+  if (role === "RRHH") {
+    return {
+      width: "fit-content",
+      fontWeight: 800,
+      bgcolor: alpha("#7c3aed", 0.08),
+      color: "#6d28d9",
+      borderColor: alpha("#7c3aed", 0.18),
+    };
+  }
+
+  if (role === "JEFE") {
+    return {
+      width: "fit-content",
+      fontWeight: 800,
+      bgcolor: alpha("#0f766e", 0.08),
+      color: "#0f766e",
+      borderColor: alpha("#0f766e", 0.18),
+    };
+  }
+
   return {
     width: "fit-content",
     fontWeight: 800,
@@ -174,7 +220,7 @@ function roleChipSx(role: string) {
   };
 }
 
-function actionIconButtonSx(kind: "edit" | "delete" | "restore") {
+function actionIconButtonSx(kind: "edit" | "delete" | "restore" | "reset") {
   if (kind === "edit") {
     return {
       width: 36,
@@ -201,6 +247,21 @@ function actionIconButtonSx(kind: "edit" | "delete" | "restore") {
       "&:hover": {
         backgroundColor: alpha("#2e7d32", 0.1),
         borderColor: alpha("#2e7d32", 0.24),
+      },
+    };
+  }
+
+  if (kind === "reset") {
+    return {
+      width: 36,
+      height: 36,
+      borderRadius: "12px",
+      border: `1px solid ${alpha("#b45309", 0.14)}`,
+      backgroundColor: alpha("#b45309", 0.05),
+      color: "#b45309",
+      "&:hover": {
+        backgroundColor: alpha("#b45309", 0.1),
+        borderColor: alpha("#b45309", 0.24),
       },
     };
   }
@@ -235,6 +296,9 @@ export default function UsuariosPage() {
   const { roles } = useAuth();
 
   const [rows, setRows] = useState<Usuario[]>([]);
+  const [roleOptions, setRoleOptions] =
+    useState<UserRoleOption[]>(DEFAULT_ROLE_OPTIONS);
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -247,8 +311,17 @@ export default function UsuariosPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Usuario | null>(null);
   const [confirmTarget, setConfirmTarget] = useState<Usuario | null>(null);
+
   const [form, setForm] = useState<FormState>(initialForm);
   const [submitError, setSubmitError] = useState("");
+
+  const [resetTarget, setResetTarget] = useState<Usuario | null>(null);
+  const [resetMode, setResetMode] = useState<ResetMode>("auto");
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetConfirmPassword, setResetConfirmPassword] = useState("");
+  const [resetError, setResetError] = useState("");
+  const [resetSaving, setResetSaving] = useState(false);
+  const [resetResult, setResetResult] = useState<ResetResultState | null>(null);
 
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -269,8 +342,15 @@ export default function UsuariosPage() {
         setRefreshing(true);
       }
 
-      const data = await getUsuarios();
-      setRows(data);
+      const [usersResponse, rolesResponse] = await Promise.all([
+        getUsers({ page: 1, pageSize: 500 }),
+        getUserRoles(),
+      ]);
+
+      setRows(usersResponse.items);
+      setRoleOptions(
+        rolesResponse.length > 0 ? rolesResponse : DEFAULT_ROLE_OPTIONS
+      );
     } catch (error) {
       setSnackbar({
         open: true,
@@ -290,6 +370,15 @@ export default function UsuariosPage() {
     void loadUsuarios(true);
   }, []);
 
+  useEffect(() => {
+    if (!roleOptions.some((x) => x.value === form.role)) {
+      setForm((prev) => ({
+        ...prev,
+        role: roleOptions[0]?.value ?? "RRHH",
+      }));
+    }
+  }, [roleOptions, form.role]);
+
   const filteredRows = useMemo(() => {
     const text = q.trim().toLowerCase();
 
@@ -307,7 +396,7 @@ export default function UsuariosPage() {
       const matchesRole =
         rolFiltro === "TODOS" || getPrimaryRole(row) === rolFiltro;
 
-      const matchesActivo = soloActivos ? row.activo : true;
+      const matchesActivo = soloActivos ? row.isActive : true;
 
       return matchesText && matchesRole && matchesActivo;
     });
@@ -323,12 +412,12 @@ export default function UsuariosPage() {
   }, [q, rolFiltro, soloActivos, filteredRows.length]);
 
   const activeCount = useMemo(
-    () => rows.filter((row) => row.activo).length,
+    () => rows.filter((row) => row.isActive).length,
     [rows]
   );
 
   const inactiveCount = useMemo(
-    () => rows.filter((row) => !row.activo).length,
+    () => rows.filter((row) => !row.isActive).length,
     [rows]
   );
 
@@ -347,7 +436,10 @@ export default function UsuariosPage() {
 
   function handleOpenCreate() {
     setEditing(null);
-    setForm(initialForm);
+    setForm({
+      ...initialForm,
+      role: roleOptions[0]?.value ?? "RRHH",
+    });
     setSubmitError("");
     setDialogOpen(true);
   }
@@ -356,8 +448,8 @@ export default function UsuariosPage() {
     setEditing(item);
     setForm({
       email: item.email,
-      role: getPrimaryRole(item) || "RRHH",
-      activo: item.activo,
+      role: getPrimaryRole(item) || roleOptions[0]?.value || "RRHH",
+      isActive: item.isActive,
       password: "",
       confirmPassword: "",
     });
@@ -371,6 +463,23 @@ export default function UsuariosPage() {
     setEditing(null);
     setForm(initialForm);
     setSubmitError("");
+  }
+
+  function handleOpenReset(item: Usuario) {
+    setResetTarget(item);
+    setResetMode("auto");
+    setResetPassword("");
+    setResetConfirmPassword("");
+    setResetError("");
+  }
+
+  function handleCloseResetDialog() {
+    if (resetSaving) return;
+    setResetTarget(null);
+    setResetMode("auto");
+    setResetPassword("");
+    setResetConfirmPassword("");
+    setResetError("");
   }
 
   function handleTextChange(field: "email" | "password" | "confirmPassword") {
@@ -395,26 +504,27 @@ export default function UsuariosPage() {
   ) {
     setForm((prev) => ({
       ...prev,
-      activo: checked,
+      isActive: checked,
     }));
   }
 
   async function handleSubmit() {
     setSubmitError("");
 
-    const payload = normalizePayload(form);
+    const email = form.email.trim().toLowerCase();
+    const role = normalizeRole(form.role);
 
-    if (!payload.email) {
+    if (!email) {
       setSubmitError("El correo es obligatorio.");
       return;
     }
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setSubmitError("Ingresa un correo válido.");
       return;
     }
 
-    if (!payload.roles[0]) {
+    if (!role) {
       setSubmitError("Selecciona un rol.");
       return;
     }
@@ -425,8 +535,8 @@ export default function UsuariosPage() {
         return;
       }
 
-      if (form.password.trim().length < 6) {
-        setSubmitError("La contraseña debe tener al menos 6 caracteres.");
+      if (form.password.trim().length < 10) {
+        setSubmitError("La contraseña debe tener al menos 10 caracteres.");
         return;
       }
 
@@ -440,14 +550,20 @@ export default function UsuariosPage() {
       setSaving(true);
 
       if (editing) {
-        await updateUsuario(editing.id, payload);
+        await updateUser(editing.id, {
+          role,
+          isActive: form.isActive,
+          empleadoId: editing.empleadoId ?? null,
+        });
+
         setSnackbar({
           open: true,
           message: "Usuario actualizado.",
           severity: "success",
         });
       } else {
-        await createUsuario(payload);
+        await createUser(buildCreatePayload(form));
+
         setSnackbar({
           open: true,
           message: "Usuario creado.",
@@ -472,16 +588,15 @@ export default function UsuariosPage() {
     try {
       setProcessingId(confirmTarget.id);
 
-      await updateUsuario(confirmTarget.id, {
-        nombre: getDisplayName(confirmTarget),
-        email: confirmTarget.email,
-        roles: role ? [role] : [],
-        activo: !confirmTarget.activo,
+      await updateUser(confirmTarget.id, {
+        role,
+        isActive: !confirmTarget.isActive,
+        empleadoId: confirmTarget.empleadoId ?? null,
       });
 
       setSnackbar({
         open: true,
-        message: confirmTarget.activo
+        message: confirmTarget.isActive
           ? "Usuario desactivado."
           : "Usuario activado.",
         severity: "success",
@@ -497,6 +612,62 @@ export default function UsuariosPage() {
       });
     } finally {
       setProcessingId(null);
+    }
+  }
+
+  async function handleResetPasswordSubmit() {
+    if (!resetTarget) return;
+
+    setResetError("");
+
+    if (resetMode === "manual") {
+      const trimmedPassword = resetPassword.trim();
+      const trimmedConfirm = resetConfirmPassword.trim();
+
+      if (!trimmedPassword) {
+        setResetError("La nueva contraseña es obligatoria.");
+        return;
+      }
+
+      if (trimmedPassword.length < 10) {
+        setResetError("La nueva contraseña debe tener al menos 10 caracteres.");
+        return;
+      }
+
+      if (trimmedPassword !== trimmedConfirm) {
+        setResetError("Las contraseñas no coinciden.");
+        return;
+      }
+    }
+
+    try {
+      setResetSaving(true);
+
+      const response: ResetUserPasswordResponse = await resetUserPassword(
+        resetTarget.id,
+        resetMode === "manual"
+          ? { newPassword: resetPassword.trim() }
+          : {}
+      );
+
+      setResetResult({
+        email: resetTarget.email,
+        tempPassword: response.tempPassword,
+      });
+
+      handleCloseResetDialog();
+
+      setSnackbar({
+        open: true,
+        message: "Contraseña restablecida correctamente.",
+        severity: "success",
+      });
+
+      await loadUsuarios(false);
+    } catch (error) {
+      setResetError(getErrorMessage(error));
+    } finally {
+      setResetSaving(false);
     }
   }
 
@@ -596,7 +767,7 @@ export default function UsuariosPage() {
             </Stack>
 
             <Typography variant="body2" sx={{ color: alpha("#ffffff", 0.84) }}>
-              Base de acceso lista para asignar seguridad y operar el sistema de RH.
+              Base de acceso lista para operar seguridad y administración interna.
             </Typography>
           </Stack>
         }
@@ -695,9 +866,9 @@ export default function UsuariosPage() {
                 onChange={(e) => setRolFiltro(e.target.value)}
               >
                 <MenuItem value="TODOS">Todos</MenuItem>
-                {AVAILABLE_ROLES.map((role) => (
-                  <MenuItem key={role} value={role}>
-                    {role}
+                {roleOptions.map((role) => (
+                  <MenuItem key={role.value} value={role.value}>
+                    {role.label}
                   </MenuItem>
                 ))}
               </Select>
@@ -770,7 +941,7 @@ export default function UsuariosPage() {
                     <TableCell sx={{ width: 130 }}>Estado</TableCell>
                     <TableCell sx={{ width: 180 }}>Seguridad</TableCell>
                     <TableCell sx={{ width: 190 }}>Creado</TableCell>
-                    <TableCell align="right" sx={{ width: 120 }}>
+                    <TableCell align="right" sx={{ width: 170 }}>
                       Acciones
                     </TableCell>
                   </TableRow>
@@ -785,7 +956,7 @@ export default function UsuariosPage() {
                         key={row.id}
                         hover
                         sx={{
-                          backgroundColor: row.activo
+                          backgroundColor: row.isActive
                             ? "transparent"
                             : "rgba(0,0,0,0.02)",
                         }}
@@ -840,8 +1011,8 @@ export default function UsuariosPage() {
                           <Chip
                             size="small"
                             variant="outlined"
-                            label={row.activo ? "Activa" : "Inactiva"}
-                            sx={usuarioStatusChipSx(row.activo)}
+                            label={row.isActive ? "Activa" : "Inactiva"}
+                            sx={usuarioStatusChipSx(row.isActive)}
                           />
                         </TableCell>
 
@@ -893,17 +1064,27 @@ export default function UsuariosPage() {
                               </IconButton>
                             </Tooltip>
 
-                            <Tooltip title={row.activo ? "Desactivar" : "Activar"}>
+                            <Tooltip title="Resetear contraseña">
+                              <IconButton
+                                size="small"
+                                onClick={() => handleOpenReset(row)}
+                                sx={actionIconButtonSx("reset")}
+                              >
+                                <LockResetRoundedIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+
+                            <Tooltip title={row.isActive ? "Desactivar" : "Activar"}>
                               <span>
                                 <IconButton
                                   size="small"
                                   onClick={() => setConfirmTarget(row)}
                                   disabled={processingId === row.id}
                                   sx={actionIconButtonSx(
-                                    row.activo ? "delete" : "restore"
+                                    row.isActive ? "delete" : "restore"
                                   )}
                                 >
-                                  {row.activo ? (
+                                  {row.isActive ? (
                                     <DeleteOutlineRoundedIcon fontSize="small" />
                                   ) : (
                                     <ReplayRoundedIcon fontSize="small" />
@@ -957,7 +1138,7 @@ export default function UsuariosPage() {
             </Typography>
             <Typography variant="body2" color="text.secondary">
               {editing
-                ? "Actualiza el correo, rol y estado operativo de la cuenta."
+                ? "Actualiza el rol y el estado operativo de la cuenta."
                 : "Captura los datos básicos para crear una nueva cuenta interna."}
             </Typography>
           </Stack>
@@ -982,7 +1163,12 @@ export default function UsuariosPage() {
                 placeholder="usuario@empresa.com"
                 value={form.email}
                 onChange={handleTextChange("email")}
-                helperText="Se usará como identificador principal de acceso."
+                disabled={!!editing}
+                helperText={
+                  editing
+                    ? "El correo ya no se edita desde esta pantalla."
+                    : "Se usará como identificador principal de acceso."
+                }
               />
 
               <FormControl fullWidth>
@@ -992,9 +1178,9 @@ export default function UsuariosPage() {
                   value={form.role}
                   onChange={handleRoleChange}
                 >
-                  {AVAILABLE_ROLES.map((role) => (
-                    <MenuItem key={role} value={role}>
-                      {role}
+                  {roleOptions.map((role) => (
+                    <MenuItem key={role.value} value={role.value}>
+                      {role.label}
                     </MenuItem>
                   ))}
                 </Select>
@@ -1015,7 +1201,7 @@ export default function UsuariosPage() {
               <FormControlLabel
                 control={
                   <Switch
-                    checked={form.activo}
+                    checked={form.isActive}
                     onChange={handleActivoChange}
                   />
                 }
@@ -1030,6 +1216,46 @@ export default function UsuariosPage() {
                 sx={{ m: 0, alignItems: "flex-start" }}
               />
             </Box>
+
+            {editing ? (
+              <Box
+                sx={{
+                  p: 2,
+                  borderRadius: 3,
+                  border: "1px solid",
+                  borderColor: "divider",
+                  backgroundColor: "background.default",
+                }}
+              >
+                <Stack
+                  direction={{ xs: "column", md: "row" }}
+                  spacing={1.5}
+                  justifyContent="space-between"
+                  alignItems={{ xs: "stretch", md: "center" }}
+                >
+                  <Box>
+                    <Typography fontWeight={800}>
+                      Seguridad de la cuenta
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Puedes restablecer la contraseña desde aquí sin mezclarla con el cambio de rol.
+                    </Typography>
+                  </Box>
+
+                  <Button
+                    variant="outlined"
+                    startIcon={<LockResetRoundedIcon />}
+                    onClick={() => {
+                      const target = editing;
+                      handleCloseDialog();
+                      handleOpenReset(target);
+                    }}
+                  >
+                    Resetear contraseña
+                  </Button>
+                </Stack>
+              </Box>
+            ) : null}
 
             {!editing ? (
               <Box
@@ -1064,7 +1290,7 @@ export default function UsuariosPage() {
                       type="password"
                       value={form.password}
                       onChange={handleTextChange("password")}
-                      helperText="Mínimo 6 caracteres."
+                      helperText="Mínimo 10 caracteres."
                     />
 
                     <TextField
@@ -1104,10 +1330,156 @@ export default function UsuariosPage() {
               {saving
                 ? "Guardando..."
                 : editing
-                ? "Guardar cambios"
-                : "Crear usuario"}
+                  ? "Guardar cambios"
+                  : "Crear usuario"}
             </Button>
           </Stack>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={!!resetTarget}
+        onClose={(_, __) => {
+          if (!resetSaving) handleCloseResetDialog();
+        }}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle sx={{ pb: 1.25 }}>
+          <Stack spacing={0.5}>
+            <Typography variant="h6" fontWeight={800}>
+              Resetear contraseña
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {resetTarget
+                ? `Restablece la contraseña de ${getDisplayName(resetTarget)}.`
+                : "Restablece la contraseña del usuario."}
+            </Typography>
+          </Stack>
+        </DialogTitle>
+
+        <DialogContent dividers sx={{ px: 3, py: 2.5 }}>
+          <Stack spacing={2.5}>
+            {resetError ? <Alert severity="error">{resetError}</Alert> : null}
+
+            <Alert severity="info">
+              El backend marcará la cuenta para cambio de contraseña en el próximo acceso.
+            </Alert>
+
+            <FormControl fullWidth>
+              <InputLabel>Modo</InputLabel>
+              <Select
+                label="Modo"
+                value={resetMode}
+                onChange={(e) => {
+                  setResetMode(e.target.value as ResetMode);
+                  setResetError("");
+                }}
+              >
+                <MenuItem value="auto">Generar contraseña temporal</MenuItem>
+                <MenuItem value="manual">Definir contraseña manual</MenuItem>
+              </Select>
+            </FormControl>
+
+            {resetMode === "manual" ? (
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+                  gap: 2,
+                }}
+              >
+                <TextField
+                  fullWidth
+                  label="Nueva contraseña"
+                  type="password"
+                  value={resetPassword}
+                  onChange={(e) => setResetPassword(e.target.value)}
+                  helperText="Mínimo 10 caracteres."
+                />
+
+                <TextField
+                  fullWidth
+                  label="Confirmar contraseña"
+                  type="password"
+                  value={resetConfirmPassword}
+                  onChange={(e) => setResetConfirmPassword(e.target.value)}
+                  helperText="Debe coincidir exactamente."
+                />
+              </Box>
+            ) : (
+              <Box
+                sx={{
+                  p: 2,
+                  borderRadius: 3,
+                  border: "1px dashed",
+                  borderColor: "divider",
+                  backgroundColor: "background.default",
+                }}
+              >
+                <Typography fontWeight={700}>
+                  Se generará una contraseña temporal automática.
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                  Al finalizar, se mostrará para que la compartas con el usuario.
+                </Typography>
+              </Box>
+            )}
+          </Stack>
+        </DialogContent>
+
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button onClick={handleCloseResetDialog} disabled={resetSaving}>
+            Cancelar
+          </Button>
+
+          <Button
+            variant="contained"
+            color="warning"
+            startIcon={<LockResetRoundedIcon />}
+            onClick={() => void handleResetPasswordSubmit()}
+            disabled={resetSaving}
+          >
+            {resetSaving ? "Procesando..." : "Resetear contraseña"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={!!resetResult}
+        onClose={() => setResetResult(null)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>Contraseña restablecida</DialogTitle>
+
+        <DialogContent dividers sx={{ px: 3, py: 2.5 }}>
+          <Stack spacing={2}>
+            <Alert severity="success">
+              La contraseña se actualizó correctamente. Comparte este dato con el usuario por un medio seguro.
+            </Alert>
+
+            <TextField
+              fullWidth
+              label="Usuario"
+              value={resetResult?.email ?? ""}
+              InputProps={{ readOnly: true }}
+            />
+
+            <TextField
+              fullWidth
+              label="Contraseña temporal"
+              value={resetResult?.tempPassword ?? ""}
+              InputProps={{ readOnly: true }}
+              helperText="Guárdala antes de cerrar esta ventana."
+            />
+          </Stack>
+        </DialogContent>
+
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button variant="contained" onClick={() => setResetResult(null)}>
+            Cerrar
+          </Button>
         </DialogActions>
       </Dialog>
 
@@ -1120,13 +1492,13 @@ export default function UsuariosPage() {
         maxWidth="xs"
       >
         <DialogTitle>
-          {confirmTarget?.activo ? "Desactivar usuario" : "Activar usuario"}
+          {confirmTarget?.isActive ? "Desactivar usuario" : "Activar usuario"}
         </DialogTitle>
 
         <DialogContent dividers>
           <Typography>
             {confirmTarget
-              ? confirmTarget.activo
+              ? confirmTarget.isActive
                 ? `Se desactivará el usuario "${getDisplayName(confirmTarget)}".`
                 : `Se activará el usuario "${getDisplayName(confirmTarget)}".`
               : ""}
@@ -1143,15 +1515,15 @@ export default function UsuariosPage() {
 
           <Button
             variant="contained"
-            color={confirmTarget?.activo ? "warning" : "success"}
+            color={confirmTarget?.isActive ? "warning" : "success"}
             onClick={() => void handleConfirmToggle()}
             disabled={processingId !== null}
           >
             {processingId !== null
               ? "Procesando..."
-              : confirmTarget?.activo
-              ? "Desactivar"
-              : "Activar"}
+              : confirmTarget?.isActive
+                ? "Desactivar"
+                : "Activar"}
           </Button>
         </DialogActions>
       </Dialog>
