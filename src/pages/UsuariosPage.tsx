@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import type { SelectChangeEvent } from "@mui/material/Select";
 import {
   Alert,
   Box,
   Button,
-  Card,
-  CardContent,
+  Chip,
   CircularProgress,
   Dialog,
   DialogActions,
@@ -13,10 +12,10 @@ import {
   DialogTitle,
   FormControl,
   FormControlLabel,
-  Grid,
+  IconButton,
+  InputAdornment,
   InputLabel,
   MenuItem,
-  Paper,
   Select,
   Snackbar,
   Stack,
@@ -24,40 +23,44 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableContainer,
   TableHead,
+  TablePagination,
   TableRow,
   TextField,
   Tooltip,
   Typography,
-  Chip,
 } from "@mui/material";
+import { alpha } from "@mui/material/styles";
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
-import ManageAccountsRoundedIcon from "@mui/icons-material/ManageAccountsRounded";
-import PersonOffRoundedIcon from "@mui/icons-material/PersonOffRounded";
-import PersonRoundedIcon from "@mui/icons-material/PersonRounded";
+import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
-import LockResetRoundedIcon from "@mui/icons-material/LockResetRounded";
+import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
+import ClearRoundedIcon from "@mui/icons-material/ClearRounded";
+import GroupsRoundedIcon from "@mui/icons-material/GroupsRounded";
+import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
+import DoNotDisturbOnRoundedIcon from "@mui/icons-material/DoNotDisturbOnRounded";
+import AdminPanelSettingsRoundedIcon from "@mui/icons-material/AdminPanelSettingsRounded";
 import ShieldRoundedIcon from "@mui/icons-material/ShieldRounded";
+import LockResetRoundedIcon from "@mui/icons-material/LockResetRounded";
+import ReplayRoundedIcon from "@mui/icons-material/ReplayRounded";
+import EmailRoundedIcon from "@mui/icons-material/EmailRounded";
+import BadgeRoundedIcon from "@mui/icons-material/BadgeRounded";
 
+import AppPage from "../components/ui/AppPage";
+import HeroBanner from "../components/ui/HeroBanner";
+import MetricCard from "../components/ui/MetricCard";
+import SectionCard from "../components/ui/SectionCard";
+import { useAuth } from "../features/auth/AuthContext";
 import {
   createUsuario,
   getUsuarios,
+  updateUsuario,
   type SaveUsuarioInput,
   type Usuario,
-  updateUsuario,
 } from "../api/usuarios.api";
 
-const AVAILABLE_ROLES = ["ADMIN", "RRHH"] as const;
-
-type SnackbarState = {
-  open: boolean;
-  message: string;
-  severity: "success" | "error" | "info";
-};
-
-type UsuarioFormState = {
+type FormState = {
   email: string;
   role: string;
   activo: boolean;
@@ -65,9 +68,13 @@ type UsuarioFormState = {
   confirmPassword: string;
 };
 
-type FormErrors = Partial<Record<keyof UsuarioFormState, string>>;
+type SnackbarState = {
+  open: boolean;
+  message: string;
+  severity: "success" | "error" | "info";
+};
 
-const EMPTY_FORM: UsuarioFormState = {
+const initialForm: FormState = {
   email: "",
   role: "RRHH",
   activo: true,
@@ -75,7 +82,33 @@ const EMPTY_FORM: UsuarioFormState = {
   confirmPassword: "",
 };
 
-function formatDateTime(value?: string | null) {
+const AVAILABLE_ROLES = ["ADMIN", "RRHH"] as const;
+
+function normalizeRoles(roles?: string[] | null): string[] {
+  return (roles ?? []).map((role) => String(role).trim().toUpperCase());
+}
+
+function getPrimaryRole(usuario: Usuario): string {
+  return normalizeRoles(usuario.roles)[0] ?? "";
+}
+
+function getDisplayName(usuario: Usuario): string {
+  const nombre = String(usuario.nombre ?? "").trim();
+  if (nombre) return nombre;
+
+  const email = String(usuario.email ?? "").trim();
+  if (!email) return "Usuario";
+
+  return email.split("@")[0] ?? email;
+}
+
+function buildNombreFromEmail(email: string): string {
+  const clean = email.trim();
+  if (!clean) return "";
+  return clean.split("@")[0] ?? clean;
+}
+
+function formatDateTime(value?: string | null): string {
   if (!value) return "—";
 
   const date = new Date(value);
@@ -87,60 +120,137 @@ function formatDateTime(value?: string | null) {
   });
 }
 
-function normalizeText(value: string) {
-  return value.trim().toLowerCase();
-}
-
-function getPrimaryRole(usuario: Usuario) {
-  return usuario.roles[0] ?? "";
-}
-
-function getDisplayName(usuario: Usuario) {
-  const nombre = usuario.nombre?.trim();
-  if (nombre) return nombre;
-
-  return usuario.email?.split("@")[0] ?? "Usuario";
-}
-
-function buildNombreFromEmail(email: string) {
-  const clean = email.trim();
-  if (!clean) return "";
-  return clean.split("@")[0] ?? clean;
-}
-
-function pageCardSx() {
+function normalizePayload(form: FormState): SaveUsuarioInput {
   return {
-    borderRadius: 6,
-    border: "1px solid",
-    borderColor: "divider",
-    boxShadow: "0 10px 30px rgba(15, 23, 42, 0.05)",
+    nombre: buildNombreFromEmail(form.email),
+    email: form.email.trim(),
+    roles: [form.role.trim()],
+    activo: form.activo,
+    ...(form.password.trim() ? { password: form.password.trim() } : {}),
   };
 }
 
-function metricCardSx() {
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return "Ocurrió un error inesperado.";
+}
+
+function usuarioStatusChipSx(activo: boolean) {
+  if (activo) {
+    return {
+      bgcolor: "rgba(46, 125, 50, 0.10)",
+      color: "success.dark",
+      borderColor: "rgba(46, 125, 50, 0.34)",
+      fontWeight: 800,
+    };
+  }
+
   return {
-    height: "100%",
-    borderRadius: 7,
-    border: "1px solid",
-    borderColor: "divider",
-    boxShadow: "0 10px 30px rgba(15, 23, 42, 0.04)",
+    bgcolor: "rgba(100, 116, 139, 0.08)",
+    color: "text.secondary",
+    borderColor: "rgba(100, 116, 139, 0.24)",
+    fontWeight: 800,
+  };
+}
+
+function roleChipSx(role: string) {
+  if (role === "ADMIN") {
+    return {
+      width: "fit-content",
+      fontWeight: 800,
+      bgcolor: alpha("#1d4ed8", 0.08),
+      color: "#1d4ed8",
+      borderColor: alpha("#1d4ed8", 0.18),
+    };
+  }
+
+  return {
+    width: "fit-content",
+    fontWeight: 800,
+    bgcolor: "rgba(100, 116, 139, 0.06)",
+    color: "text.secondary",
+    borderColor: "rgba(100, 116, 139, 0.18)",
+  };
+}
+
+function actionIconButtonSx(kind: "edit" | "delete" | "restore") {
+  if (kind === "edit") {
+    return {
+      width: 36,
+      height: 36,
+      borderRadius: "12px",
+      border: `1px solid ${alpha("#1d4ed8", 0.14)}`,
+      backgroundColor: alpha("#1d4ed8", 0.05),
+      color: "#1d4ed8",
+      "&:hover": {
+        backgroundColor: alpha("#1d4ed8", 0.1),
+        borderColor: alpha("#1d4ed8", 0.24),
+      },
+    };
+  }
+
+  if (kind === "restore") {
+    return {
+      width: 36,
+      height: 36,
+      borderRadius: "12px",
+      border: `1px solid ${alpha("#2e7d32", 0.14)}`,
+      backgroundColor: alpha("#2e7d32", 0.05),
+      color: "#2e7d32",
+      "&:hover": {
+        backgroundColor: alpha("#2e7d32", 0.1),
+        borderColor: alpha("#2e7d32", 0.24),
+      },
+    };
+  }
+
+  return {
+    width: 36,
+    height: 36,
+    borderRadius: "12px",
+    border: `1px solid ${alpha("#dc2626", 0.14)}`,
+    backgroundColor: alpha("#dc2626", 0.05),
+    color: "#dc2626",
+    "&:hover": {
+      backgroundColor: alpha("#dc2626", 0.1),
+      borderColor: alpha("#dc2626", 0.24),
+    },
+  };
+}
+
+function filterToggleBoxSx() {
+  return {
+    minHeight: 40,
+    px: 1.25,
+    borderRadius: "14px",
+    border: `1px solid ${alpha("#0f172a", 0.08)}`,
+    backgroundColor: alpha("#0f172a", 0.02),
+    display: "flex",
+    alignItems: "center",
   };
 }
 
 export default function UsuariosPage() {
-  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+  const { roles } = useAuth();
+
+  const [rows, setRows] = useState<Usuario[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [processingId, setProcessingId] = useState<number | null>(null);
 
   const [q, setQ] = useState("");
   const [rolFiltro, setRolFiltro] = useState("TODOS");
-  const [estatusFiltro, setEstatusFiltro] = useState("TODOS");
+  const [soloActivos, setSoloActivos] = useState(true);
 
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingUsuario, setEditingUsuario] = useState<Usuario | null>(null);
-  const [form, setForm] = useState<UsuarioFormState>(EMPTY_FORM);
-  const [errors, setErrors] = useState<FormErrors>({});
+  const [editing, setEditing] = useState<Usuario | null>(null);
+  const [confirmTarget, setConfirmTarget] = useState<Usuario | null>(null);
+  const [form, setForm] = useState<FormState>(initialForm);
+  const [submitError, setSubmitError] = useState("");
+
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   const [snackbar, setSnackbar] = useState<SnackbarState>({
     open: false,
@@ -148,100 +258,127 @@ export default function UsuariosPage() {
     severity: "success",
   });
 
-  async function loadUsuarios(showLoader = true) {
+  const normalizedRoles = useMemo(() => normalizeRoles(roles), [roles]);
+
+  async function loadUsuarios(showInitialLoader = false) {
     try {
-      if (showLoader) {
+      if (showInitialLoader) {
         setLoading(true);
+      } else {
+        setRefreshing(true);
       }
 
       const data = await getUsuarios();
-      setUsuarios(data);
-    } catch (error: any) {
-      console.error("Error cargando usuarios:", error);
-      console.error("status:", error?.response?.status);
-      console.error("data:", error?.response?.data);
-
-      const status = error?.response?.status;
-      const serverMessage =
-        error?.response?.data?.message ??
-        error?.response?.data?.title ??
-        error?.response?.data?.detail;
-
+      setRows(data);
+    } catch (error) {
       setSnackbar({
         open: true,
-        message:
-          serverMessage ||
-          `No se pudo cargar el módulo de usuarios${
-            status ? ` (${status})` : ""
-          }.`,
+        message: getErrorMessage(error),
         severity: "error",
       });
     } finally {
-      if (showLoader) {
+      if (showInitialLoader) {
         setLoading(false);
+      } else {
+        setRefreshing(false);
       }
     }
   }
 
   useEffect(() => {
-    void loadUsuarios();
+    void loadUsuarios(true);
   }, []);
 
-  const filteredUsuarios = useMemo(() => {
-    const text = normalizeText(q);
+  const filteredRows = useMemo(() => {
+    const text = q.trim().toLowerCase();
 
-    return usuarios.filter((usuario) => {
-      const nombre = getDisplayName(usuario);
-      const role = getPrimaryRole(usuario);
+    return rows.filter((row) => {
+      const displayName = getDisplayName(row).toLowerCase();
+      const email = String(row.email ?? "").toLowerCase();
+      const role = getPrimaryRole(row).toLowerCase();
 
       const matchesText =
         !text ||
-        normalizeText(nombre).includes(text) ||
-        normalizeText(usuario.email).includes(text) ||
-        normalizeText(role).includes(text);
+        displayName.includes(text) ||
+        email.includes(text) ||
+        role.includes(text);
 
-      const matchesRol = rolFiltro === "TODOS" || role === rolFiltro;
+      const matchesRole =
+        rolFiltro === "TODOS" || getPrimaryRole(row) === rolFiltro;
 
-      const matchesEstatus =
-        estatusFiltro === "TODOS" ||
-        (estatusFiltro === "ACTIVOS" && usuario.activo) ||
-        (estatusFiltro === "INACTIVOS" && !usuario.activo);
+      const matchesActivo = soloActivos ? row.activo : true;
 
-      return matchesText && matchesRol && matchesEstatus;
+      return matchesText && matchesRole && matchesActivo;
     });
-  }, [usuarios, q, rolFiltro, estatusFiltro]);
+  }, [rows, q, rolFiltro, soloActivos]);
 
-  const totalUsuarios = usuarios.length;
-  const totalActivos = usuarios.filter((x) => x.activo).length;
-  const totalInactivos = usuarios.filter((x) => !x.activo).length;
+  const paginatedRows = useMemo(() => {
+    const start = page * rowsPerPage;
+    return filteredRows.slice(start, start + rowsPerPage);
+  }, [filteredRows, page, rowsPerPage]);
 
-  function openCreateDialog() {
-    setEditingUsuario(null);
-    setForm(EMPTY_FORM);
-    setErrors({});
+  useEffect(() => {
+    setPage(0);
+  }, [q, rolFiltro, soloActivos, filteredRows.length]);
+
+  const activeCount = useMemo(
+    () => rows.filter((row) => row.activo).length,
+    [rows]
+  );
+
+  const inactiveCount = useMemo(
+    () => rows.filter((row) => !row.activo).length,
+    [rows]
+  );
+
+  const adminCount = useMemo(
+    () => rows.filter((row) => getPrimaryRole(row) === "ADMIN").length,
+    [rows]
+  );
+
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (q.trim()) count += 1;
+    if (rolFiltro !== "TODOS") count += 1;
+    if (soloActivos) count += 1;
+    return count;
+  }, [q, rolFiltro, soloActivos]);
+
+  function handleOpenCreate() {
+    setEditing(null);
+    setForm(initialForm);
+    setSubmitError("");
     setDialogOpen(true);
   }
 
-  function openEditDialog(usuario: Usuario) {
-    setEditingUsuario(usuario);
+  function handleOpenEdit(item: Usuario) {
+    setEditing(item);
     setForm({
-      email: usuario.email,
-      role: getPrimaryRole(usuario) || "RRHH",
-      activo: usuario.activo,
+      email: item.email,
+      role: getPrimaryRole(item) || "RRHH",
+      activo: item.activo,
       password: "",
       confirmPassword: "",
     });
-    setErrors({});
+    setSubmitError("");
     setDialogOpen(true);
   }
 
-  function closeDialog() {
+  function handleCloseDialog() {
     if (saving) return;
-
     setDialogOpen(false);
-    setEditingUsuario(null);
-    setForm(EMPTY_FORM);
-    setErrors({});
+    setEditing(null);
+    setForm(initialForm);
+    setSubmitError("");
+  }
+
+  function handleTextChange(field: "email" | "password" | "confirmPassword") {
+    return (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      setForm((prev) => ({
+        ...prev,
+        [field]: event.target.value,
+      }));
+    };
   }
 
   function handleRoleChange(event: SelectChangeEvent<string>) {
@@ -251,128 +388,108 @@ export default function UsuariosPage() {
     }));
   }
 
-  function validateForm(): FormErrors {
-    const nextErrors: FormErrors = {};
+  function handleActivoChange(
+    _event: ChangeEvent<HTMLInputElement>,
+    checked: boolean
+  ) {
+    setForm((prev) => ({
+      ...prev,
+      activo: checked,
+    }));
+  }
 
-    if (!form.email.trim()) {
-      nextErrors.email = "El correo es obligatorio.";
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
-      nextErrors.email = "Ingresa un correo válido.";
+  async function handleSubmit() {
+    setSubmitError("");
+
+    const payload = normalizePayload(form);
+
+    if (!payload.email) {
+      setSubmitError("El correo es obligatorio.");
+      return;
     }
 
-    if (!form.role.trim()) {
-      nextErrors.role = "Selecciona un rol.";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) {
+      setSubmitError("Ingresa un correo válido.");
+      return;
     }
 
-    if (!editingUsuario) {
+    if (!payload.roles[0]) {
+      setSubmitError("Selecciona un rol.");
+      return;
+    }
+
+    if (!editing) {
       if (!form.password.trim()) {
-        nextErrors.password = "La contraseña es obligatoria.";
-      } else if (form.password.trim().length < 6) {
-        nextErrors.password = "La contraseña debe tener al menos 6 caracteres.";
+        setSubmitError("La contraseña es obligatoria.");
+        return;
+      }
+
+      if (form.password.trim().length < 6) {
+        setSubmitError("La contraseña debe tener al menos 6 caracteres.");
+        return;
       }
 
       if (form.password !== form.confirmPassword) {
-        nextErrors.confirmPassword = "Las contraseñas no coinciden.";
+        setSubmitError("Las contraseñas no coinciden.");
+        return;
       }
     }
-
-    return nextErrors;
-  }
-
-  async function handleSave() {
-    const validationErrors = validateForm();
-    setErrors(validationErrors);
-
-    if (Object.keys(validationErrors).length > 0) return;
-
-    const payload: SaveUsuarioInput = {
-      nombre: buildNombreFromEmail(form.email),
-      email: form.email.trim(),
-      roles: [form.role],
-      activo: form.activo,
-      ...(form.password.trim() ? { password: form.password.trim() } : {}),
-    };
 
     try {
       setSaving(true);
 
-      if (editingUsuario) {
-        await updateUsuario(editingUsuario.id, payload);
+      if (editing) {
+        await updateUsuario(editing.id, payload);
         setSnackbar({
           open: true,
-          message: "Usuario actualizado correctamente.",
+          message: "Usuario actualizado.",
           severity: "success",
         });
       } else {
         await createUsuario(payload);
         setSnackbar({
           open: true,
-          message: "Usuario creado correctamente.",
+          message: "Usuario creado.",
           severity: "success",
         });
       }
 
-      closeDialog();
+      handleCloseDialog();
       await loadUsuarios(false);
-    } catch (error: any) {
-      console.error("Error guardando usuario:", error);
-
-      const status = error?.response?.status;
-      const serverMessage =
-        error?.response?.data?.message ??
-        error?.response?.data?.title ??
-        error?.response?.data?.detail;
-
-      setSnackbar({
-        open: true,
-        message:
-          serverMessage ||
-          `No se pudo guardar el usuario${status ? ` (${status})` : ""}.`,
-        severity: "error",
-      });
+    } catch (error) {
+      setSubmitError(getErrorMessage(error));
     } finally {
       setSaving(false);
     }
   }
 
-  async function handleToggleActivo(usuario: Usuario) {
-    const role = getPrimaryRole(usuario);
+  async function handleConfirmToggle() {
+    if (!confirmTarget) return;
+
+    const role = getPrimaryRole(confirmTarget);
 
     try {
-      setProcessingId(usuario.id);
+      setProcessingId(confirmTarget.id);
 
-      await updateUsuario(usuario.id, {
-        nombre: getDisplayName(usuario),
-        email: usuario.email,
+      await updateUsuario(confirmTarget.id, {
+        nombre: getDisplayName(confirmTarget),
+        email: confirmTarget.email,
         roles: role ? [role] : [],
-        activo: !usuario.activo,
+        activo: !confirmTarget.activo,
       });
 
       setSnackbar({
         open: true,
-        message: usuario.activo
-          ? "Usuario desactivado correctamente."
-          : "Usuario activado correctamente.",
+        message: confirmTarget.activo ? "Usuario desactivado." : "Usuario activado.",
         severity: "success",
       });
 
+      setConfirmTarget(null);
       await loadUsuarios(false);
-    } catch (error: any) {
-      console.error("Error cambiando estatus:", error);
-
-      const status = error?.response?.status;
-      const serverMessage =
-        error?.response?.data?.message ??
-        error?.response?.data?.title ??
-        error?.response?.data?.detail;
-
+    } catch (error) {
       setSnackbar({
         open: true,
-        message:
-          serverMessage ||
-          `No se pudo actualizar el estatus del usuario${
-            status ? ` (${status})` : ""
-          }.`,
+        message: getErrorMessage(error),
         severity: "error",
       });
     } finally {
@@ -381,182 +498,193 @@ export default function UsuariosPage() {
   }
 
   return (
-    <Stack spacing={3}>
-      <Card elevation={0} sx={pageCardSx()}>
-        <CardContent sx={{ p: { xs: 2.25, md: 3 } }}>
-          <Stack
-            direction={{ xs: "column", lg: "row" }}
-            spacing={2}
-            justifyContent="space-between"
-            alignItems={{ xs: "flex-start", lg: "center" }}
+    <AppPage
+      eyebrow="Recursos Humanos"
+      title="Usuarios"
+      subtitle="Administra las cuentas internas, su rol, acceso y estatus operativo."
+      actions={
+        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+          <Button
+            variant="outlined"
+            startIcon={<RefreshRoundedIcon />}
+            onClick={() => void loadUsuarios(false)}
+            disabled={refreshing}
           >
-            <Box>
-              <Stack
-                direction="row"
-                spacing={1.25}
-                alignItems="center"
-                sx={{ mb: 1 }}
-              >
-                <Box
+            {refreshing ? "Actualizando..." : "Actualizar"}
+          </Button>
+
+          <Button
+            variant="contained"
+            startIcon={<AddRoundedIcon />}
+            onClick={handleOpenCreate}
+          >
+            Nuevo usuario
+          </Button>
+        </Stack>
+      }
+    >
+      <HeroBanner
+        eyebrow="Catálogo RH"
+        title="Gestión de usuarios"
+        subtitle="Controla las cuentas del sistema, su rol asignado y el acceso operativo para cada perfil interno."
+        badge="RH"
+        actions={
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            {normalizedRoles.length > 0 ? (
+              normalizedRoles.map((role) => (
+                <Chip
+                  key={role}
+                  label={role}
+                  size="small"
+                  variant="outlined"
                   sx={{
-                    width: 42,
-                    height: 42,
-                    borderRadius: 3,
-                    display: "grid",
-                    placeItems: "center",
-                    bgcolor: "primary.main",
-                    color: "primary.contrastText",
-                    boxShadow: "0 12px 30px rgba(25, 118, 210, 0.18)",
+                    color: "#ffffff",
+                    borderColor: alpha("#ffffff", 0.18),
+                    backgroundColor: alpha("#ffffff", 0.08),
+                    fontWeight: 800,
                   }}
-                >
-                  <ManageAccountsRoundedIcon />
-                </Box>
-
-                <Box>
-                  <Typography variant="h5" fontWeight={800}>
-                    Usuarios
-                  </Typography>
-                  <Typography color="text.secondary">
-                    Administración de accesos, roles y estatus del sistema.
-                  </Typography>
-                </Box>
-              </Stack>
-            </Box>
-
-            <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap>
-              <Button
+                />
+              ))
+            ) : (
+              <Chip
+                label="Sin roles detectados"
+                size="small"
                 variant="outlined"
-                startIcon={<RefreshRoundedIcon />}
-                onClick={() => void loadUsuarios()}
-                disabled={loading || saving}
-              >
-                Recargar
-              </Button>
-
-              <Button
-                variant="contained"
-                startIcon={<AddRoundedIcon />}
-                onClick={openCreateDialog}
-                disabled={saving}
-              >
-                Nuevo usuario
-              </Button>
-            </Stack>
+                sx={{
+                  color: "#ffffff",
+                  borderColor: alpha("#ffffff", 0.18),
+                  backgroundColor: alpha("#ffffff", 0.08),
+                  fontWeight: 800,
+                }}
+              />
+            )}
           </Stack>
-        </CardContent>
-      </Card>
+        }
+        aside={
+          <Stack spacing={1.5}>
+            <Typography variant="body2" sx={{ color: alpha("#ffffff", 0.78) }}>
+              Resumen rápido
+            </Typography>
 
-      <Grid container spacing={2}>
-        <Grid size={{ xs: 12, md: 4 }}>
-          <Card elevation={0} sx={metricCardSx()}>
-            <CardContent sx={{ p: 2.5 }}>
-              <Stack direction="row" spacing={1.5} alignItems="center">
-                <Box
-                  sx={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 3,
-                    display: "grid",
-                    placeItems: "center",
-                    bgcolor: "rgba(25, 118, 210, 0.10)",
-                    color: "primary.main",
-                  }}
+            <Stack direction="row" spacing={2.5}>
+              <Box>
+                <Typography variant="h4" sx={{ fontWeight: 900, lineHeight: 1 }}>
+                  {rows.length}
+                </Typography>
+                <Typography
+                  variant="caption"
+                  sx={{ color: alpha("#ffffff", 0.8) }}
                 >
-                  <ManageAccountsRoundedIcon />
-                </Box>
+                  visibles
+                </Typography>
+              </Box>
 
-                <Box>
-                  <Typography variant="overline" color="text.secondary">
-                    Total
-                  </Typography>
-                  <Typography variant="h5" fontWeight={800}>
-                    {totalUsuarios}
-                  </Typography>
-                </Box>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid size={{ xs: 12, md: 4 }}>
-          <Card elevation={0} sx={metricCardSx()}>
-            <CardContent sx={{ p: 2.5 }}>
-              <Stack direction="row" spacing={1.5} alignItems="center">
-                <Box
-                  sx={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 3,
-                    display: "grid",
-                    placeItems: "center",
-                    bgcolor: "success.light",
-                    color: "success.dark",
-                  }}
+              <Box>
+                <Typography variant="h4" sx={{ fontWeight: 900, lineHeight: 1 }}>
+                  {activeCount}
+                </Typography>
+                <Typography
+                  variant="caption"
+                  sx={{ color: alpha("#ffffff", 0.8) }}
                 >
-                  <PersonRoundedIcon />
-                </Box>
+                  activas
+                </Typography>
+              </Box>
+            </Stack>
 
-                <Box>
-                  <Typography variant="overline" color="text.secondary">
-                    Activos
-                  </Typography>
-                  <Typography variant="h5" fontWeight={800}>
-                    {totalActivos}
-                  </Typography>
-                </Box>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
+            <Typography variant="body2" sx={{ color: alpha("#ffffff", 0.84) }}>
+              Base de acceso lista para asignar seguridad y operar el sistema de RH.
+            </Typography>
+          </Stack>
+        }
+      />
 
-        <Grid size={{ xs: 12, md: 4 }}>
-          <Card elevation={0} sx={metricCardSx()}>
-            <CardContent sx={{ p: 2.5 }}>
-              <Stack direction="row" spacing={1.5} alignItems="center">
-                <Box
-                  sx={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 3,
-                    display: "grid",
-                    placeItems: "center",
-                    bgcolor: "grey.200",
-                    color: "text.secondary",
-                  }}
-                >
-                  <PersonOffRoundedIcon />
-                </Box>
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: {
+            xs: "1fr",
+            sm: "repeat(2, 1fr)",
+            xl: "repeat(4, 1fr)",
+          },
+          gap: { xs: 2, md: 2.25 },
+        }}
+      >
+        <MetricCard
+          title="Total"
+          value={rows.length}
+          subtitle="Usuarios visibles"
+          icon={<GroupsRoundedIcon fontSize="small" />}
+          badge="RH"
+        />
+        <MetricCard
+          title="Activas"
+          value={activeCount}
+          subtitle="Operando en sistema"
+          icon={<CheckCircleRoundedIcon fontSize="small" />}
+          badge="RH"
+        />
+        <MetricCard
+          title="Inactivas"
+          value={inactiveCount}
+          subtitle="Deshabilitadas"
+          icon={<DoNotDisturbOnRoundedIcon fontSize="small" />}
+          badge="RH"
+        />
+        <MetricCard
+          title="Administradores"
+          value={adminCount}
+          subtitle="Con rol ADMIN"
+          icon={<AdminPanelSettingsRoundedIcon fontSize="small" />}
+          badge="RH"
+        />
+      </Box>
 
-                <Box>
-                  <Typography variant="overline" color="text.secondary">
-                    Inactivos
-                  </Typography>
-                  <Typography variant="h5" fontWeight={800}>
-                    {totalInactivos}
-                  </Typography>
-                </Box>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-
-      <Card elevation={0} sx={pageCardSx()}>
-        <CardContent sx={{ p: { xs: 2.25, md: 3 } }}>
-          <Stack
-            direction={{ xs: "column", lg: "row" }}
-            spacing={2}
-            alignItems={{ xs: "stretch", lg: "center" }}
-          >
+      <SectionCard
+        title="Filtros"
+        subtitle="Busca por correo, nombre visible o rol y filtra el estado."
+        actions={
+          <Chip
+            size="small"
+            variant="outlined"
+            label={
+              activeFiltersCount > 0
+                ? `${activeFiltersCount} filtro${activeFiltersCount > 1 ? "s" : ""} activo${activeFiltersCount > 1 ? "s" : ""}`
+                : "Sin filtros"
+            }
+          />
+        }
+      >
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: {
+              xs: "1fr",
+              md: "repeat(12, 1fr)",
+            },
+            gap: 2,
+            alignItems: "center",
+          }}
+        >
+          <Box sx={{ gridColumn: { xs: "span 1", md: "span 5" } }}>
             <TextField
               fullWidth
               label="Buscar"
-              placeholder="Correo o rol..."
+              placeholder="Correo, nombre visible o rol"
               value={q}
               onChange={(e) => setQ(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchRoundedIcon fontSize="small" color="action" />
+                  </InputAdornment>
+                ),
+              }}
             />
+          </Box>
 
-            <FormControl sx={{ minWidth: 180 }}>
+          <Box sx={{ gridColumn: { xs: "span 1", md: "span 2" } }}>
+            <FormControl fullWidth>
               <InputLabel>Rol</InputLabel>
               <Select
                 label="Rol"
@@ -571,87 +699,132 @@ export default function UsuariosPage() {
                 ))}
               </Select>
             </FormControl>
+          </Box>
 
-            <FormControl sx={{ minWidth: 180 }}>
-              <InputLabel>Estatus</InputLabel>
-              <Select
-                label="Estatus"
-                value={estatusFiltro}
-                onChange={(e) => setEstatusFiltro(e.target.value)}
-              >
-                <MenuItem value="TODOS">Todos</MenuItem>
-                <MenuItem value="ACTIVOS">Activos</MenuItem>
-                <MenuItem value="INACTIVOS">Inactivos</MenuItem>
-              </Select>
-            </FormControl>
-          </Stack>
-        </CardContent>
-      </Card>
-
-      <Card elevation={0} sx={pageCardSx()}>
-        <CardContent sx={{ p: 0 }}>
-          {loading ? (
-            <Box py={10} display="flex" justifyContent="center">
-              <CircularProgress />
-            </Box>
-          ) : filteredUsuarios.length === 0 ? (
-            <Box py={10} textAlign="center">
-              <ManageAccountsRoundedIcon
-                sx={{ fontSize: 40, color: "text.disabled", mb: 1 }}
+          <Box sx={{ gridColumn: { xs: "span 1", md: "span 3" } }}>
+            <Box sx={filterToggleBoxSx()}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={soloActivos}
+                    onChange={(_, checked) => setSoloActivos(checked)}
+                  />
+                }
+                label="Solo activas"
+                sx={{ m: 0 }}
               />
-              <Typography variant="h6" fontWeight={800}>
-                No hay usuarios para mostrar
-              </Typography>
-              <Typography color="text.secondary">
-                Ajusta filtros o da de alta el primer usuario.
-              </Typography>
             </Box>
-          ) : (
-            <TableContainer
-              component={Paper}
-              elevation={0}
-              sx={{ borderRadius: 6 }}
+          </Box>
+
+          <Box sx={{ gridColumn: { xs: "span 1", md: "span 2" } }}>
+            <Button
+              variant="outlined"
+              color="inherit"
+              startIcon={<ClearRoundedIcon />}
+              onClick={() => {
+                setQ("");
+                setRolFiltro("TODOS");
+                setSoloActivos(true);
+              }}
+              sx={{ textTransform: "none", fontWeight: 700 }}
             >
-              <Table>
+              Limpiar filtros
+            </Button>
+          </Box>
+        </Box>
+      </SectionCard>
+
+      <SectionCard
+        title="Catálogo de usuarios"
+        subtitle="Revisión general de cuentas, rol asignado, seguridad y estado operativo."
+        actions={
+          <Chip
+            size="small"
+            variant="outlined"
+            label={`${paginatedRows.length} visibles de ${filteredRows.length}`}
+          />
+        }
+      >
+        {loading ? (
+          <Box sx={{ py: 6, display: "flex", justifyContent: "center" }}>
+            <CircularProgress />
+          </Box>
+        ) : filteredRows.length === 0 ? (
+          <Box sx={{ py: 4 }}>
+            <Alert severity="info">
+              No hay usuarios para los filtros actuales.
+            </Alert>
+          </Box>
+        ) : (
+          <>
+            <Box sx={{ overflowX: "auto", maxHeight: 620 }}>
+              <Table stickyHeader size="small">
                 <TableHead>
                   <TableRow>
-                    <TableCell>Usuario</TableCell>
-                    <TableCell>Correo</TableCell>
-                    <TableCell>Rol</TableCell>
-                    <TableCell>Estatus</TableCell>
-                    <TableCell>Seguridad</TableCell>
-                    <TableCell>Creado</TableCell>
-                    <TableCell align="right">Acciones</TableCell>
+                    <TableCell sx={{ minWidth: 220 }}>Usuario</TableCell>
+                    <TableCell sx={{ minWidth: 250 }}>Correo</TableCell>
+                    <TableCell sx={{ width: 130 }}>Rol</TableCell>
+                    <TableCell sx={{ width: 130 }}>Estado</TableCell>
+                    <TableCell sx={{ width: 180 }}>Seguridad</TableCell>
+                    <TableCell sx={{ width: 190 }}>Creado</TableCell>
+                    <TableCell align="right" sx={{ width: 120 }}>
+                      Acciones
+                    </TableCell>
                   </TableRow>
                 </TableHead>
 
                 <TableBody>
-                  {filteredUsuarios.map((usuario) => {
-                    const displayName = getDisplayName(usuario);
-                    const role = getPrimaryRole(usuario);
+                  {paginatedRows.map((row) => {
+                    const role = getPrimaryRole(row);
 
                     return (
-                      <TableRow key={usuario.id} hover>
+                      <TableRow
+                        key={row.id}
+                        hover
+                        sx={{
+                          backgroundColor: row.activo
+                            ? "transparent"
+                            : "rgba(0,0,0,0.02)",
+                        }}
+                      >
                         <TableCell>
-                          <Stack spacing={0.25}>
-                            <Typography fontWeight={800}>
-                              {displayName}
+                          <Stack spacing={0.35} sx={{ minWidth: 0 }}>
+                            <Typography fontWeight={700}>
+                              {getDisplayName(row)}
                             </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              ID: {usuario.id}
-                            </Typography>
+                            <Chip
+                              size="small"
+                              variant="outlined"
+                              icon={<BadgeRoundedIcon />}
+                              label={`ID ${row.id}`}
+                              sx={{
+                                width: "fit-content",
+                                fontWeight: 800,
+                                bgcolor: alpha("#1d4ed8", 0.05),
+                                color: "#1d4ed8",
+                                borderColor: alpha("#1d4ed8", 0.18),
+                              }}
+                            />
                           </Stack>
                         </TableCell>
 
-                        <TableCell>{usuario.email}</TableCell>
+                        <TableCell>
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <EmailRoundedIcon
+                              fontSize="small"
+                              sx={{ color: "text.secondary" }}
+                            />
+                            <Typography variant="body2">{row.email}</Typography>
+                          </Stack>
+                        </TableCell>
 
                         <TableCell>
                           {role ? (
                             <Chip
                               size="small"
+                              variant="outlined"
                               label={role}
-                              color={role === "ADMIN" ? "primary" : "default"}
-                              variant={role === "ADMIN" ? "filled" : "outlined"}
+                              sx={roleChipSx(role)}
                             />
                           ) : (
                             <Typography variant="body2" color="text.secondary">
@@ -663,83 +836,76 @@ export default function UsuariosPage() {
                         <TableCell>
                           <Chip
                             size="small"
-                            label={usuario.activo ? "ACTIVO" : "INACTIVO"}
-                            color={usuario.activo ? "success" : "default"}
-                            variant={usuario.activo ? "filled" : "outlined"}
+                            variant="outlined"
+                            label={row.activo ? "Activa" : "Inactiva"}
+                            sx={usuarioStatusChipSx(row.activo)}
                           />
                         </TableCell>
 
                         <TableCell>
-                          {usuario.mustChangePassword ? (
+                          {row.mustChangePassword ? (
                             <Chip
                               size="small"
+                              variant="outlined"
                               icon={<LockResetRoundedIcon />}
                               label="Cambio requerido"
-                              color="warning"
-                              variant="outlined"
+                              sx={{
+                                fontWeight: 800,
+                                bgcolor: alpha("#d97706", 0.06),
+                                color: "#b45309",
+                                borderColor: alpha("#d97706", 0.2),
+                              }}
                             />
                           ) : (
                             <Chip
                               size="small"
+                              variant="outlined"
                               icon={<ShieldRoundedIcon />}
                               label="Normal"
-                              color="default"
-                              variant="outlined"
+                              sx={{
+                                fontWeight: 800,
+                                bgcolor: "rgba(100, 116, 139, 0.06)",
+                                color: "text.secondary",
+                                borderColor: "rgba(100, 116, 139, 0.18)",
+                              }}
                             />
                           )}
                         </TableCell>
 
-                        <TableCell>
-                          {formatDateTime(usuario.createdAtUtc)}
-                        </TableCell>
+                        <TableCell>{formatDateTime(row.createdAtUtc)}</TableCell>
 
                         <TableCell align="right">
                           <Stack
                             direction="row"
-                            spacing={1}
+                            spacing={0.75}
                             justifyContent="flex-end"
-                            flexWrap="wrap"
-                            useFlexGap
                           >
-                            <Tooltip title="Editar usuario">
-                              <span>
-                                <Button
-                                  size="small"
-                                  variant="outlined"
-                                  startIcon={<EditRoundedIcon />}
-                                  onClick={() => openEditDialog(usuario)}
-                                  disabled={
-                                    saving || processingId === usuario.id
-                                  }
-                                >
-                                  Editar
-                                </Button>
-                              </span>
+                            <Tooltip title="Editar">
+                              <IconButton
+                                size="small"
+                                onClick={() => handleOpenEdit(row)}
+                                sx={actionIconButtonSx("edit")}
+                              >
+                                <EditRoundedIcon fontSize="small" />
+                              </IconButton>
                             </Tooltip>
 
-                            <Tooltip
-                              title={
-                                usuario.activo
-                                  ? "Desactivar usuario"
-                                  : "Activar usuario"
-                              }
-                            >
+                            <Tooltip title={row.activo ? "Desactivar" : "Activar"}>
                               <span>
-                                <Button
+                                <IconButton
                                   size="small"
-                                  variant="outlined"
-                                  color={usuario.activo ? "inherit" : "success"}
-                                  onClick={() => void handleToggleActivo(usuario)}
-                                  disabled={
-                                    saving || processingId === usuario.id
-                                  }
+                                  onClick={() => setConfirmTarget(row)}
+                                  disabled={processingId === row.id}
+                                  sx={actionIconButtonSx(
+                                    row.activo ? "delete" : "restore"
+                                  )}
                                 >
-                                  {processingId === usuario.id
-                                    ? "Procesando..."
-                                    : usuario.activo
-                                    ? "Desactivar"
-                                    : "Activar"}
-                                </Button>
+                                  {row.activo ? (
+                                    <DeleteOutlineRoundedIcon fontSize="small" />
+                                  ) : (
+                                    <ReplayRoundedIcon fontSize="small" />
+                                  )}
+                                </IconButton>
                               </span>
                             </Tooltip>
                           </Stack>
@@ -749,128 +915,191 @@ export default function UsuariosPage() {
                   })}
                 </TableBody>
               </Table>
-            </TableContainer>
-          )}
-        </CardContent>
-      </Card>
+            </Box>
 
-      <Dialog open={dialogOpen} onClose={closeDialog} fullWidth maxWidth="sm">
-        <DialogTitle sx={{ fontWeight: 800 }}>
-          {editingUsuario ? "Editar usuario" : "Nuevo usuario"}
+            <TablePagination
+              component="div"
+              count={filteredRows.length}
+              page={page}
+              onPageChange={(_, newPage) => setPage(newPage)}
+              rowsPerPage={rowsPerPage}
+              onRowsPerPageChange={(
+                e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+              ) => {
+                setRowsPerPage(Number(e.target.value));
+                setPage(0);
+              }}
+              rowsPerPageOptions={[5, 10, 25, 50]}
+              labelRowsPerPage="Filas por página"
+              labelDisplayedRows={({ from, to, count }) =>
+                `${from}-${to} de ${count !== -1 ? count : `más de ${to}`}`
+              }
+            />
+          </>
+        )}
+      </SectionCard>
+
+      <Dialog
+        open={dialogOpen}
+        onClose={saving ? undefined : handleCloseDialog}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>
+          {editing ? "Editar usuario" : "Nuevo usuario"}
         </DialogTitle>
 
         <DialogContent dividers>
-          <Stack spacing={2} pt={1}>
-            <TextField
-              label="Correo"
-              type="email"
-              value={form.email}
-              onChange={(e) =>
-                setForm((prev) => ({ ...prev, email: e.target.value }))
-              }
-              error={Boolean(errors.email)}
-              helperText={errors.email}
-              fullWidth
-            />
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            {submitError ? <Alert severity="error">{submitError}</Alert> : null}
 
-            <FormControl error={Boolean(errors.role)} fullWidth>
-              <InputLabel>Rol</InputLabel>
-              <Select label="Rol" value={form.role} onChange={handleRoleChange}>
-                {AVAILABLE_ROLES.map((role) => (
-                  <MenuItem key={role} value={role}>
-                    {role}
-                  </MenuItem>
-                ))}
-              </Select>
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: { xs: "1fr", md: "1fr 160px" },
+                gap: 2,
+              }}
+            >
+              <TextField
+                fullWidth
+                label="Correo"
+                type="email"
+                value={form.email}
+                onChange={handleTextChange("email")}
+              />
 
-              {errors.role ? (
-                <Typography variant="caption" color="error" sx={{ mt: 0.75 }}>
-                  {errors.role}
-                </Typography>
+              <FormControl fullWidth>
+                <InputLabel>Rol</InputLabel>
+                <Select
+                  label="Rol"
+                  value={form.role}
+                  onChange={handleRoleChange}
+                >
+                  {AVAILABLE_ROLES.map((role) => (
+                    <MenuItem key={role} value={role}>
+                      {role}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              {!editing ? (
+                <>
+                  <TextField
+                    fullWidth
+                    label="Contraseña"
+                    type="password"
+                    value={form.password}
+                    onChange={handleTextChange("password")}
+                  />
+
+                  <TextField
+                    fullWidth
+                    label="Confirmar contraseña"
+                    type="password"
+                    value={form.confirmPassword}
+                    onChange={handleTextChange("confirmPassword")}
+                  />
+                </>
               ) : null}
-            </FormControl>
 
-            {!editingUsuario ? (
-              <>
-                <TextField
-                  label="Contraseña"
-                  type="password"
-                  value={form.password}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, password: e.target.value }))
+              <Box sx={{ gridColumn: "1 / -1" }}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={form.activo}
+                      onChange={handleActivoChange}
+                    />
                   }
-                  error={Boolean(errors.password)}
-                  helperText={errors.password}
-                  fullWidth
+                  label="Usuario activo"
                 />
-
-                <TextField
-                  label="Confirmar contraseña"
-                  type="password"
-                  value={form.confirmPassword}
-                  onChange={(e) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      confirmPassword: e.target.value,
-                    }))
-                  }
-                  error={Boolean(errors.confirmPassword)}
-                  helperText={errors.confirmPassword}
-                  fullWidth
-                />
-              </>
-            ) : null}
-
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={form.activo}
-                  onChange={(e) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      activo: e.target.checked,
-                    }))
-                  }
-                />
-              }
-              label="Usuario activo"
-            />
+              </Box>
+            </Box>
           </Stack>
         </DialogContent>
 
         <DialogActions sx={{ px: 3, py: 2 }}>
-          <Button onClick={closeDialog} disabled={saving}>
+          <Button onClick={handleCloseDialog} disabled={saving}>
             Cancelar
           </Button>
 
-          <Button
-            onClick={() => void handleSave()}
-            variant="contained"
-            disabled={saving}
-          >
+          <Button variant="contained" onClick={handleSubmit} disabled={saving}>
             {saving
               ? "Guardando..."
-              : editingUsuario
+              : editing
               ? "Guardar cambios"
               : "Crear usuario"}
           </Button>
         </DialogActions>
       </Dialog>
 
+      <Dialog
+        open={!!confirmTarget}
+        onClose={processingId ? undefined : () => setConfirmTarget(null)}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>
+          {confirmTarget?.activo ? "Desactivar usuario" : "Activar usuario"}
+        </DialogTitle>
+
+        <DialogContent dividers>
+          <Typography>
+            {confirmTarget
+              ? confirmTarget.activo
+                ? `Se desactivará el usuario "${getDisplayName(confirmTarget)}".`
+                : `Se activará el usuario "${getDisplayName(confirmTarget)}".`
+              : ""}
+          </Typography>
+        </DialogContent>
+
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button
+            onClick={() => setConfirmTarget(null)}
+            disabled={processingId !== null}
+          >
+            Cancelar
+          </Button>
+
+          <Button
+            variant="contained"
+            color={confirmTarget?.activo ? "warning" : "success"}
+            onClick={() => void handleConfirmToggle()}
+            disabled={processingId !== null}
+          >
+            {processingId !== null
+              ? "Procesando..."
+              : confirmTarget?.activo
+              ? "Desactivar"
+              : "Activar"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       <Snackbar
         open={snackbar.open}
-        autoHideDuration={3800}
-        onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+        autoHideDuration={3500}
+        onClose={() =>
+          setSnackbar((prev) => ({
+            ...prev,
+            open: false,
+          }))
+        }
         anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
       >
         <Alert
           severity={snackbar.severity}
           variant="filled"
-          onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+          onClose={() =>
+            setSnackbar((prev) => ({
+              ...prev,
+              open: false,
+            }))
+          }
         >
           {snackbar.message}
         </Alert>
       </Snackbar>
-    </Stack>
+    </AppPage>
   );
 }
