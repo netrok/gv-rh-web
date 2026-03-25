@@ -1,5 +1,7 @@
 import type { ReactElement, ReactNode } from "react";
 import { useMemo } from "react";
+import { Link as RouterLink } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import {
   Alert,
   Box,
@@ -16,12 +18,12 @@ import {
   Typography,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
+import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import DashboardRoundedIcon from "@mui/icons-material/DashboardRounded";
 import ApartmentRoundedIcon from "@mui/icons-material/ApartmentRounded";
 import WorkOutlineRoundedIcon from "@mui/icons-material/WorkOutlineRounded";
 import GavelRoundedIcon from "@mui/icons-material/GavelRounded";
 import StoreRoundedIcon from "@mui/icons-material/StoreRounded";
-import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import LoginRoundedIcon from "@mui/icons-material/LoginRounded";
 import EditNoteRoundedIcon from "@mui/icons-material/EditNoteRounded";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
@@ -29,7 +31,6 @@ import RestoreRoundedIcon from "@mui/icons-material/RestoreRounded";
 import SecurityRoundedIcon from "@mui/icons-material/SecurityRounded";
 import Groups2OutlinedIcon from "@mui/icons-material/Groups2Outlined";
 import PendingActionsOutlinedIcon from "@mui/icons-material/PendingActionsOutlined";
-import EventNoteOutlinedIcon from "@mui/icons-material/EventNoteOutlined";
 import BadgeRoundedIcon from "@mui/icons-material/BadgeRounded";
 import AssessmentRoundedIcon from "@mui/icons-material/AssessmentRounded";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
@@ -42,24 +43,21 @@ import BeachAccessRoundedIcon from "@mui/icons-material/BeachAccessRounded";
 import LocalHospitalRoundedIcon from "@mui/icons-material/LocalHospitalRounded";
 import FingerprintRoundedIcon from "@mui/icons-material/FingerprintRounded";
 import axios from "axios";
-import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
 
-import { useAuth } from "../features/auth/AuthContext";
 import AppPage from "../components/ui/AppPage";
 import HeroBanner from "../components/ui/HeroBanner";
-import ActionTile from "../components/ui/ActionTile";
 import MetricCard from "../components/ui/MetricCard";
 import SectionCard from "../components/ui/SectionCard";
+import { useAuth } from "../features/auth/AuthContext";
+import { api } from "../api/axios";
 import {
   getDashboard,
   getDashboardStats,
   type DashboardCountBy,
   type DashboardData,
-  type DashboardIncidenciaReciente,
   type DashboardStats,
 } from "../api/dashboard.api";
-import type { AuditItem } from "../api/audit.api";
+import { getUsers } from "../api/usuarios.api";
 
 const dashboardTokens = {
   softSurface: "#f8fafc",
@@ -88,6 +86,25 @@ type DashboardMetric = {
   badge?: string;
 };
 
+type AuditDisplayItem = {
+  id?: number | string;
+  occurredAtUtc?: string | null;
+  action?: string | null;
+  entityName?: string | null;
+  recordId?: string | null;
+  userEmail?: string | null;
+};
+
+type RecentIncidenciaItem = {
+  id?: number | string;
+  empleadoNombre?: string | null;
+  comentario?: string | null;
+  tipo?: string | null;
+  estatus?: string | null;
+  fechaInicio?: string | null;
+  fechaFin?: string | null;
+};
+
 function normalizeRoles(roles?: string[] | null): string[] {
   return [
     ...new Set((roles ?? []).map((r) => r.trim().toUpperCase()).filter(Boolean)),
@@ -97,10 +114,6 @@ function normalizeRoles(roles?: string[] | null): string[] {
 function canAccess(userRoles: string[], allowedRoles?: string[]): boolean {
   if (!allowedRoles || allowedRoles.length === 0) return true;
   return allowedRoles.some((role) => userRoles.includes(role.toUpperCase()));
-}
-
-function formatNumber(value: number): string {
-  return new Intl.NumberFormat("es-MX").format(value);
 }
 
 function formatDateOnly(value?: string | null): string {
@@ -149,10 +162,7 @@ function getQueryErrorMessage(error: unknown, fallback: string): string {
     );
   }
 
-  if (error instanceof Error) {
-    return error.message;
-  }
-
+  if (error instanceof Error) return error.message;
   return fallback;
 }
 
@@ -173,18 +183,20 @@ function getActionColor(
     case "REFRESH":
     case "LOGOUT":
     case "LOGOUT_ALL":
+    case "PASSWORD_CHANGE":
       return "secondary";
     default:
       return "default";
   }
 }
 
-function getActionIcon(action: string): ReactNode {
+function getActionIcon(action: string): ReactElement {
   switch (action) {
     case "LOGIN":
     case "REFRESH":
     case "LOGOUT":
     case "LOGOUT_ALL":
+    case "PASSWORD_CHANGE":
       return <LoginRoundedIcon fontSize="small" />;
     case "CREATE":
     case "UPDATE":
@@ -231,7 +243,7 @@ function getStatusIcon(estatus?: string | null): ReactElement {
   }
 }
 
-function getTipoIcon(tipo?: string | null): ReactNode {
+function getTipoIcon(tipo?: string | null): ReactElement {
   const normalized = (tipo ?? "").trim().toUpperCase();
 
   switch (normalized) {
@@ -250,6 +262,29 @@ function getTipoIcon(tipo?: string | null): ReactNode {
     default:
       return <BadgeRoundedIcon fontSize="small" />;
   }
+}
+
+function actionCardSx() {
+  return {
+    display: "flex",
+    flexDirection: "column",
+    gap: 1,
+    p: 2,
+    minHeight: 140,
+    borderRadius: "22px",
+    border: "1px solid",
+    borderColor: "divider",
+    backgroundColor: "background.paper",
+    textDecoration: "none",
+    color: "inherit",
+    transition: "all .18s ease",
+    "&:hover": {
+      transform: "translateY(-2px)",
+      boxShadow: "0 16px 36px rgba(15, 23, 42, 0.08)",
+      borderColor: alpha("#1d4ed8", 0.18),
+      backgroundColor: alpha("#1d4ed8", 0.02),
+    },
+  } as const;
 }
 
 type SummaryListCardProps = {
@@ -299,7 +334,12 @@ function SummaryListCard({
                   spacing={2}
                   sx={{ mb: 1.1 }}
                 >
-                  <Stack direction="row" spacing={1.25} alignItems="center" sx={{ minWidth: 0 }}>
+                  <Stack
+                    direction="row"
+                    spacing={1.25}
+                    alignItems="center"
+                    sx={{ minWidth: 0 }}
+                  >
                     <Box
                       sx={{
                         width: 34,
@@ -366,8 +406,20 @@ function SummaryListCard({
   );
 }
 
+async function getRecentAuditFallback(): Promise<AuditDisplayItem[]> {
+  const { data } = await api.get("/api/Audit", {
+    params: { page: 1, pageSize: 8 },
+  });
+
+  if (Array.isArray(data)) return data as AuditDisplayItem[];
+  if (Array.isArray(data?.items)) return data.items as AuditDisplayItem[];
+  if (Array.isArray(data?.data)) return data.data as AuditDisplayItem[];
+  if (Array.isArray(data?.results)) return data.results as AuditDisplayItem[];
+
+  return [];
+}
+
 export default function DashboardPage() {
-  const navigate = useNavigate();
   const { roles = [] } = useAuth();
 
   const normalizedRoles = useMemo(() => normalizeRoles(roles), [roles]);
@@ -386,6 +438,33 @@ export default function DashboardPage() {
     enabled: canSeeRhModules,
   });
 
+  const usersQuery = useQuery({
+    queryKey: ["dashboard-users-total"],
+    queryFn: () => getUsers({ page: 1, pageSize: 1 }),
+    enabled: canSeeRhModules,
+  });
+
+  const auditFallbackQuery = useQuery<AuditDisplayItem[]>({
+    queryKey: ["dashboard-audit-fallback"],
+    queryFn: getRecentAuditFallback,
+    enabled: canSeeAudit,
+  });
+
+  const statsData = statsQuery.data;
+  const dashboardData = dashboardQuery.data;
+
+  const recentAuditFromStats = Array.isArray((statsData as any)?.recentAudit)
+    ? (((statsData as any).recentAudit as AuditDisplayItem[]) ?? [])
+    : [];
+
+  const recentAudit: AuditDisplayItem[] =
+    recentAuditFromStats.length > 0
+      ? recentAuditFromStats
+      : auditFallbackQuery.data ?? [];
+
+  const recientes = (dashboardData?.incidenciasRecientes ??
+    []) as RecentIncidenciaItem[];
+
   const quickActions: QuickAction[] = useMemo(
     () =>
       [
@@ -395,6 +474,13 @@ export default function DashboardPage() {
           to: "/empleados",
           allow: ["ADMIN", "RRHH"],
           icon: <Groups2OutlinedIcon fontSize="small" />,
+        },
+        {
+          label: "Usuarios",
+          description: "Cuentas, roles y acceso al sistema.",
+          to: "/usuarios",
+          allow: ["ADMIN"],
+          icon: <BadgeRoundedIcon fontSize="small" />,
         },
         {
           label: "Incidencias",
@@ -435,12 +521,6 @@ export default function DashboardPage() {
     [normalizedRoles]
   );
 
-  const statsData = statsQuery.data;
-  const dashboardData = dashboardQuery.data;
-  const recentAudit: AuditItem[] = statsData?.recentAudit ?? [];
-  const recientes: DashboardIncidenciaReciente[] =
-    dashboardData?.incidenciasRecientes ?? [];
-
   const primaryKpis: DashboardMetric[] = canSeeRhModules
     ? [
         {
@@ -468,7 +548,7 @@ export default function DashboardPage() {
           title: "Incidencias del mes",
           value: dashboardData?.incidenciasMes ?? 0,
           subtitle: "Registradas en el mes actual",
-          icon: <EventNoteOutlinedIcon fontSize="small" />,
+          icon: <DashboardRoundedIcon fontSize="small" />,
           badge: "RH",
         },
       ]
@@ -478,16 +558,25 @@ export default function DashboardPage() {
     ...(canSeeRhModules
       ? [
           {
+            title: "Usuarios",
+            value: usersQuery.data?.total ?? 0,
+            subtitle: "Cuentas registradas",
+            icon: <BadgeRoundedIcon fontSize="small" />,
+            badge: "ADMIN",
+          },
+          {
             title: "Departamentos",
             value: statsData?.departamentosTotal ?? 0,
             subtitle: "Catálogo vigente",
             icon: <ApartmentRoundedIcon fontSize="small" />,
+            badge: "RH",
           },
           {
             title: "Puestos",
             value: statsData?.puestosTotal ?? 0,
             subtitle: "Roles y posiciones",
             icon: <WorkOutlineRoundedIcon fontSize="small" />,
+            badge: "RH",
           },
         ]
       : []),
@@ -498,6 +587,7 @@ export default function DashboardPage() {
             value: statsData?.auditoriaTotal ?? 0,
             subtitle: "Eventos registrados",
             icon: <GavelRoundedIcon fontSize="small" />,
+            badge: "RH",
           },
         ]
       : []),
@@ -506,51 +596,75 @@ export default function DashboardPage() {
   const refreshAll = () => {
     if (canSeeRhModules) {
       void dashboardQuery.refetch();
+      void usersQuery.refetch();
     }
 
     if (canSeeRhModules || canSeeAudit) {
       void statsQuery.refetch();
     }
+
+    if (canSeeAudit) {
+      void auditFallbackQuery.refetch();
+    }
   };
 
   const primaryKpisLoading = canSeeRhModules && dashboardQuery.isLoading;
   const secondaryKpisLoading =
-    (canSeeRhModules || canSeeAudit) && statsQuery.isLoading;
+    (canSeeRhModules || canSeeAudit) &&
+    (statsQuery.isLoading || (canSeeRhModules && usersQuery.isLoading));
+
+  const auditLoading =
+    (canSeeAudit && statsQuery.isLoading) ||
+    (canSeeAudit &&
+      recentAuditFromStats.length === 0 &&
+      auditFallbackQuery.isLoading);
+
   const isRefreshing =
-    (canSeeRhModules && dashboardQuery.isFetching) ||
-    ((canSeeRhModules || canSeeAudit) && statsQuery.isFetching);
+    (canSeeRhModules &&
+      (dashboardQuery.isFetching || usersQuery.isFetching)) ||
+    ((canSeeRhModules || canSeeAudit) && statsQuery.isFetching) ||
+    (canSeeAudit && auditFallbackQuery.isFetching);
 
   return (
     <AppPage
       eyebrow="Recursos Humanos"
       title="Dashboard RH"
       subtitle="Panorama ejecutivo del módulo para revisar personal, incidencias, catálogos y actividad reciente."
+      actions={
+        <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap>
+          <Button
+            variant="outlined"
+            startIcon={<RefreshRoundedIcon />}
+            onClick={refreshAll}
+            disabled={isRefreshing}
+          >
+            {isRefreshing ? "Actualizando..." : "Actualizar"}
+          </Button>
+        </Stack>
+      }
     >
       <HeroBanner
         eyebrow="Dashboard RH"
         title="Tablero principal de operación"
-        subtitle="Vista ejecutiva y operativa del módulo RH: empleados, sucursales, incidencias y actividad reciente."
-        badge="Activo"
+        subtitle="Vista ejecutiva y operativa del módulo RH: empleados, sucursales, incidencias, usuarios y actividad reciente."
+        badge="RH"
         actions={
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-            {normalizedRoles.length > 0 ? (
-              normalizedRoles.map((role) => (
-                <Chip
-                  key={role}
-                  label={role}
-                  size="small"
-                  variant="outlined"
-                  sx={{
-                    color: "#ffffff",
-                    borderColor: alpha("#ffffff", 0.18),
-                    backgroundColor: alpha("#ffffff", 0.08),
-                    fontWeight: 800,
-                  }}
-                />
-              ))
-            ) : (
+            <Chip
+              label="Activo"
+              size="small"
+              variant="outlined"
+              sx={{
+                color: "#ffffff",
+                borderColor: alpha("#ffffff", 0.18),
+                backgroundColor: alpha("#ffffff", 0.08),
+                fontWeight: 800,
+              }}
+            />
+            {normalizedRoles.map((role) => (
               <Chip
-                label="Sin roles detectados"
+                key={role}
+                label={role}
                 size="small"
                 variant="outlined"
                 sx={{
@@ -560,124 +674,225 @@ export default function DashboardPage() {
                   fontWeight: 800,
                 }}
               />
-            )}
+            ))}
           </Stack>
         }
         aside={
           <Stack spacing={1.5}>
-            <Stack direction="row" spacing={1.25} alignItems="center">
-              <Box
-                sx={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: "14px",
-                  display: "grid",
-                  placeItems: "center",
-                  backgroundColor: alpha("#ffffff", 0.08),
-                  border: `1px solid ${alpha("#ffffff", 0.12)}`,
-                  flexShrink: 0,
-                }}
-              >
-                <DashboardRoundedIcon fontSize="small" />
-              </Box>
+            <Typography variant="body2" sx={{ color: alpha("#ffffff", 0.78) }}>
+              Resumen rápido
+            </Typography>
 
+            <Stack direction="row" spacing={2.5}>
               <Box>
-                <Typography variant="body2" sx={{ color: alpha("#ffffff", 0.76) }}>
-                  Resumen rápido
-                </Typography>
                 <Typography variant="h4" sx={{ fontWeight: 900, lineHeight: 1 }}>
                   {quickActions.length}
+                </Typography>
+                <Typography
+                  variant="caption"
+                  sx={{ color: alpha("#ffffff", 0.8) }}
+                >
+                  módulos disponibles para tu sesión
                 </Typography>
               </Box>
             </Stack>
 
-            <Typography variant="body2" sx={{ color: alpha("#ffffff", 0.84) }}>
-              módulos disponibles para tu sesión actual
-            </Typography>
-
-            <Stack direction={{ xs: "column", sm: "row", lg: "column" }} spacing={1}>
-              {canSeeRhModules ? (
-                <Button
-                  variant="contained"
-                  startIcon={<PendingActionsOutlinedIcon />}
-                  onClick={() => navigate("/incidencias")}
-                  sx={{
-                    bgcolor: "#ffffff",
-                    color: dashboardTokens.text,
-                    "&:hover": {
-                      bgcolor: "#f8fafc",
-                    },
-                  }}
-                >
-                  Ver incidencias
-                </Button>
-              ) : null}
+            <Stack spacing={1}>
+              <Button
+                component={RouterLink}
+                to="/incidencias"
+                variant="contained"
+                startIcon={<PendingActionsOutlinedIcon />}
+                sx={{
+                  fontWeight: 800,
+                  backgroundColor: "#1d4ed8",
+                  color: "#ffffff",
+                  "&:hover": {
+                    backgroundColor: "#1e40af",
+                  },
+                }}
+              >
+                Ver incidencias
+              </Button>
 
               <Button
                 variant="outlined"
                 startIcon={<RefreshRoundedIcon />}
                 onClick={refreshAll}
-                disabled={isRefreshing || (!canSeeRhModules && !canSeeAudit)}
+                disabled={isRefreshing}
                 sx={{
                   color: "#ffffff",
-                  borderColor: alpha("#ffffff", 0.18),
+                  borderColor: alpha("#ffffff", 0.2),
+                  backgroundColor: alpha("#ffffff", 0.04),
                   "&:hover": {
-                    borderColor: alpha("#ffffff", 0.28),
-                    backgroundColor: alpha("#ffffff", 0.04),
-                  },
-                  "&.Mui-disabled": {
-                    color: alpha("#ffffff", 0.5),
-                    borderColor: alpha("#ffffff", 0.12),
+                    borderColor: alpha("#ffffff", 0.32),
+                    backgroundColor: alpha("#ffffff", 0.08),
                   },
                 }}
               >
-                {isRefreshing ? "Actualizando..." : "Actualizar"}
+                Actualizar
               </Button>
             </Stack>
           </Stack>
         }
       />
 
-      {!canSeeRhModules && !canSeeAudit ? (
-        <Alert severity="info">
-          Tu sesión tiene visibilidad limitada. Solo se muestran opciones
-          autorizadas para tu rol actual.
-        </Alert>
-      ) : null}
-
-      {(statsQuery.isError || dashboardQuery.isError) && (
+      {(dashboardQuery.isError ||
+        statsQuery.isError ||
+        usersQuery.isError ||
+        auditFallbackQuery.isError) && (
         <Stack spacing={1.5}>
-          {statsQuery.isError && (canSeeRhModules || canSeeAudit) && (
+          {dashboardQuery.isError && canSeeRhModules ? (
             <Alert severity="error">
               No se pudo cargar el resumen general.
               <br />
               {getQueryErrorMessage(
-                statsQuery.error,
-                "Error al consultar estadísticas generales."
+                dashboardQuery.error,
+                "Error al consultar dashboard."
               )}
             </Alert>
-          )}
+          ) : null}
 
-          {dashboardQuery.isError && canSeeRhModules && (
+          {statsQuery.isError && (canSeeRhModules || canSeeAudit) ? (
             <Alert severity="error">
-              No se pudo cargar el resumen de incidencias.
+              No se pudo cargar el resumen estadístico.
               <br />
               {getQueryErrorMessage(
-                dashboardQuery.error,
-                "Error al consultar incidencias."
+                statsQuery.error,
+                "Error al consultar estadísticas."
               )}
             </Alert>
-          )}
+          ) : null}
+
+          {usersQuery.isError && canSeeRhModules ? (
+            <Alert severity="error">
+              No se pudo cargar el resumen de usuarios.
+              <br />
+              {getQueryErrorMessage(
+                usersQuery.error,
+                "Error al consultar usuarios."
+              )}
+            </Alert>
+          ) : null}
+
+          {auditFallbackQuery.isError &&
+          canSeeAudit &&
+          recentAuditFromStats.length === 0 ? (
+            <Alert severity="error">
+              No se pudo cargar la actividad reciente de auditoría.
+              <br />
+              {getQueryErrorMessage(
+                auditFallbackQuery.error,
+                "Error al consultar auditoría reciente."
+              )}
+            </Alert>
+          ) : null}
         </Stack>
       )}
 
       <SectionCard
+        title="Indicadores principales"
+        subtitle="KPIs operativos del módulo RH."
+      >
+        {primaryKpisLoading ? (
+          <Box sx={{ py: 6, display: "flex", justifyContent: "center" }}>
+            <CircularProgress />
+          </Box>
+        ) : (
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: {
+                xs: "1fr",
+                sm: "repeat(2, 1fr)",
+                xl: "repeat(4, 1fr)",
+              },
+              gap: { xs: 2, md: 2.25 },
+            }}
+          >
+            {primaryKpis.map((metric) => (
+              <MetricCard
+                key={metric.title}
+                title={metric.title}
+                value={metric.value}
+                subtitle={metric.subtitle}
+                icon={metric.icon}
+                badge={metric.badge}
+              />
+            ))}
+          </Box>
+        )}
+      </SectionCard>
+
+      <SectionCard
         title="Accesos rápidos"
         subtitle="Atajos directos a los módulos más usados."
+        actions={
+          <Chip
+            size="small"
+            variant="outlined"
+            label={`${quickActions.length} módulo${
+              quickActions.length === 1 ? "" : "s"
+            } visible${quickActions.length === 1 ? "" : "s"}`}
+          />
+        }
       >
-        {quickActions.length === 0 ? (
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: {
+              xs: "1fr",
+              md: "repeat(2, 1fr)",
+              xl: "repeat(3, 1fr)",
+            },
+            gap: 2,
+          }}
+        >
+          {quickActions.map((action) => (
+            <Box
+              key={action.to}
+              component={RouterLink}
+              to={action.to}
+              sx={actionCardSx()}
+            >
+              <Stack
+                direction="row"
+                spacing={1}
+                alignItems="center"
+                sx={{ color: "primary.main" }}
+              >
+                {action.icon}
+                <Typography fontWeight={800}>{action.label}</Typography>
+              </Stack>
+
+              <Typography variant="body2" color="text.secondary">
+                {action.description}
+              </Typography>
+
+              <Box sx={{ mt: "auto" }}>
+                <Chip
+                  size="small"
+                  variant="outlined"
+                  label={action.to}
+                  sx={{ fontWeight: 700 }}
+                />
+              </Box>
+            </Box>
+          ))}
+        </Box>
+      </SectionCard>
+
+      <SectionCard
+        title="Resumen administrativo"
+        subtitle="Catálogos, seguridad y trazabilidad del sistema."
+      >
+        {secondaryKpisLoading ? (
+          <Box sx={{ py: 6, display: "flex", justifyContent: "center" }}>
+            <CircularProgress />
+          </Box>
+        ) : secondaryKpis.length === 0 ? (
           <Alert severity="info">
-            No hay módulos operativos disponibles para tu rol actual.
+            No hay indicadores administrativos visibles para tu perfil.
           </Alert>
         ) : (
           <Box
@@ -686,281 +901,201 @@ export default function DashboardPage() {
               gridTemplateColumns: {
                 xs: "1fr",
                 sm: "repeat(2, 1fr)",
-                xl: "repeat(3, 1fr)",
+                xl: "repeat(4, 1fr)",
               },
-              gap: { xs: 1.5, md: 2 },
+              gap: { xs: 2, md: 2.25 },
             }}
           >
-            {quickActions.map((action) => (
-              <ActionTile
-                key={action.to}
-                title={action.label}
-                subtitle={action.description}
-                icon={action.icon}
-                to={action.to}
+            {secondaryKpis.map((metric) => (
+              <MetricCard
+                key={metric.title}
+                title={metric.title}
+                value={metric.value}
+                subtitle={metric.subtitle}
+                icon={metric.icon}
+                badge={metric.badge}
               />
             ))}
           </Box>
         )}
       </SectionCard>
 
-      {primaryKpis.length > 0 ? (
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: {
-              xs: "1fr",
-              sm: "repeat(2, 1fr)",
-              xl: "repeat(4, 1fr)",
-            },
-            gap: { xs: 2, md: 2.25 },
-          }}
-        >
-          {primaryKpis.map((item) => (
-            <MetricCard
-              key={item.title}
-              title={item.title}
-              value={primaryKpisLoading ? "..." : formatNumber(item.value)}
-              subtitle={primaryKpisLoading ? "Cargando información..." : item.subtitle}
-              icon={item.icon}
-              badge={item.badge}
-            />
-          ))}
-        </Box>
-      ) : null}
-
-      {secondaryKpis.length > 0 ? (
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: {
-              xs: "1fr",
-              md: secondaryKpis.length >= 3 ? "repeat(3, 1fr)" : "repeat(2, 1fr)",
-            },
-            gap: { xs: 2, md: 2.25 },
-          }}
-        >
-          {secondaryKpis.map((item) => (
-            <MetricCard
-              key={item.title}
-              title={item.title}
-              value={secondaryKpisLoading ? "..." : formatNumber(item.value)}
-              subtitle={secondaryKpisLoading ? "Cargando información..." : item.subtitle}
-              icon={item.icon}
-            />
-          ))}
-        </Box>
-      ) : null}
-
-      {canSeeRhModules ? (
-        <>
-          <Box
-            sx={{
-              display: "grid",
-              gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" },
-              gap: { xs: 2.25, md: 2.5 },
-            }}
-          >
-            <SummaryListCard
-              title="Incidencias por tipo"
-              subtitle="Qué clase de movimientos se están registrando."
-              emptyText="No hay incidencias registradas en el mes."
-              items={dashboardData?.incidenciasPorTipo ?? []}
-              kind="tipo"
-            />
-
-            <SummaryListCard
-              title="Incidencias por estatus"
-              subtitle="Cómo va el flujo de revisión actual."
-              emptyText="No hay incidencias registradas."
-              items={dashboardData?.incidenciasPorEstatus ?? []}
-              kind="estatus"
-            />
-          </Box>
-
-          <SectionCard
-            title="Incidencias recientes"
-            subtitle="Últimos movimientos registrados en el módulo."
-            actions={
-              <Button size="small" onClick={() => navigate("/incidencias")}>
-                Ver todas
-              </Button>
-            }
-          >
-            {dashboardQuery.isLoading ? (
-              <Box sx={{ py: 5, display: "flex", justifyContent: "center" }}>
-                <CircularProgress />
-              </Box>
-            ) : recientes.length === 0 ? (
-              <Typography variant="body2" color="text.secondary">
-                No hay incidencias recientes.
-              </Typography>
-            ) : (
-              <Box sx={{ overflowX: "auto" }}>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell><strong>Empleado</strong></TableCell>
-                      <TableCell><strong>Número</strong></TableCell>
-                      <TableCell><strong>Tipo</strong></TableCell>
-                      <TableCell><strong>Estatus</strong></TableCell>
-                      <TableCell><strong>Inicio</strong></TableCell>
-                      <TableCell><strong>Fin</strong></TableCell>
-                      <TableCell><strong>Creada</strong></TableCell>
-                    </TableRow>
-                  </TableHead>
-
-                  <TableBody>
-                    {recientes.map((item) => (
-                      <TableRow key={item.id} hover>
-                        <TableCell>
-                          <Stack spacing={0.25}>
-                            <Typography fontWeight={700} sx={{ color: dashboardTokens.text }}>
-                              {item.empleadoNombre}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              ID #{item.empleadoId}
-                            </Typography>
-                          </Stack>
-                        </TableCell>
-
-                        <TableCell>{item.numEmpleado}</TableCell>
-
-                        <TableCell>
-                          <Stack direction="row" spacing={1} alignItems="center">
-                            <Box
-                              sx={{
-                                width: 28,
-                                height: 28,
-                                borderRadius: "10px",
-                                display: "grid",
-                                placeItems: "center",
-                                backgroundColor: dashboardTokens.softSurface,
-                                color: alpha(dashboardTokens.text, 0.75),
-                                border: `1px solid ${alpha(dashboardTokens.text, 0.06)}`,
-                                flexShrink: 0,
-                              }}
-                            >
-                              {getTipoIcon(item.tipo)}
-                            </Box>
-
-                            <Typography variant="body2" sx={{ color: dashboardTokens.text }}>
-                              {formatEnumLabel(item.tipo)}
-                            </Typography>
-                          </Stack>
-                        </TableCell>
-
-                        <TableCell>
-                          <Chip
-                            icon={getStatusIcon(item.estatus)}
-                            label={formatEnumLabel(item.estatus)}
-                            size="small"
-                            color={getStatusColor(item.estatus)}
-                            variant="outlined"
-                          />
-                        </TableCell>
-
-                        <TableCell>{formatDateOnly(item.fechaInicio)}</TableCell>
-                        <TableCell>{formatDateOnly(item.fechaFin)}</TableCell>
-                        <TableCell>{formatDateTime(item.createdAtUtc)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </Box>
-            )}
-          </SectionCard>
-        </>
-      ) : null}
-
       <SectionCard
-        title="Auditoría reciente"
-        subtitle="Actividad y trazabilidad del sistema."
+        title="Actividad reciente"
+        subtitle="Últimos eventos relevantes de auditoría del sistema."
+        actions={
+          canSeeAudit ? (
+            <Button
+              component={RouterLink}
+              to="/audit"
+              variant="outlined"
+              size="small"
+              startIcon={<GavelRoundedIcon />}
+            >
+              Ver auditoría
+            </Button>
+          ) : undefined
+        }
       >
-        {!canSeeAudit ? (
-          <Alert severity="info">
-            Tu rol actual no tiene acceso a la bitácora de auditoría.
-          </Alert>
-        ) : statsQuery.isLoading ? (
-          <Box sx={{ py: 4, display: "flex", justifyContent: "center" }}>
+        {auditLoading ? (
+          <Box sx={{ py: 6, display: "flex", justifyContent: "center" }}>
             <CircularProgress />
           </Box>
         ) : recentAudit.length === 0 ? (
           <Alert severity="info">No hay actividad reciente para mostrar.</Alert>
         ) : (
           <Stack spacing={1.5}>
-            {recentAudit.map((row) => (
-              <Box
-                key={row.id}
-                sx={{
-                  display: "grid",
-                  gridTemplateColumns: { xs: "1fr", md: "1fr auto" },
-                  gap: 1.5,
-                  alignItems: "center",
-                  px: 1.75,
-                  py: 1.75,
-                  borderRadius: "18px",
-                  border: `1px solid ${dashboardTokens.borderSoft}`,
-                  backgroundColor: dashboardTokens.softSurface2,
-                }}
-              >
-                <Stack direction="row" spacing={1.25} alignItems="flex-start">
-                  <Box
-                    sx={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: "12px",
-                      display: "grid",
-                      placeItems: "center",
-                      backgroundColor: dashboardTokens.softSurface,
-                      color: alpha(dashboardTokens.text, 0.75),
-                      border: `1px solid ${alpha(dashboardTokens.text, 0.06)}`,
-                      flexShrink: 0,
-                    }}
+            {recentAudit.slice(0, 8).map((item, index) => {
+              const action = String(item.action ?? "EVENTO").toUpperCase();
+
+              return (
+                <Box
+                  key={`${item.id ?? item.recordId ?? index}`}
+                  sx={{
+                    border: `1px solid ${dashboardTokens.borderSoft}`,
+                    borderRadius: "18px",
+                    p: 1.75,
+                    backgroundColor: dashboardTokens.softSurface2,
+                  }}
+                >
+                  <Stack
+                    direction={{ xs: "column", md: "row" }}
+                    justifyContent="space-between"
+                    spacing={1.5}
                   >
-                    {getActionIcon(row.action)}
-                  </Box>
-
-                  <Box sx={{ minWidth: 0 }}>
-                    <Stack
-                      direction={{ xs: "column", sm: "row" }}
-                      spacing={1}
-                      alignItems={{ xs: "flex-start", sm: "center" }}
-                      sx={{ mb: 0.5 }}
-                    >
-                      <Typography
-                        sx={{
-                          fontWeight: 800,
-                          color: dashboardTokens.text,
-                          minWidth: 0,
-                        }}
+                    <Stack spacing={0.75} sx={{ minWidth: 0 }}>
+                      <Stack
+                        direction="row"
+                        spacing={1}
+                        alignItems="center"
+                        flexWrap="wrap"
+                        useFlexGap
                       >
-                        {row.entityName || "Sistema"}
-                      </Typography>
+                        <Chip
+                          size="small"
+                          color={getActionColor(action)}
+                          icon={getActionIcon(action)}
+                          label={formatEnumLabel(action)}
+                          variant="outlined"
+                          sx={{ fontWeight: 800 }}
+                        />
 
-                      <Chip
-                        size="small"
-                        label={row.action}
-                        color={getActionColor(row.action)}
-                      />
+                        <Typography variant="body2" fontWeight={700}>
+                          {item.entityName ?? "Sistema"}
+                        </Typography>
+                      </Stack>
+
+                      <Typography variant="body2" color="text.secondary">
+                        Registro: {item.recordId ?? "-"} · Usuario:{" "}
+                        {item.userEmail ?? "Sistema"}
+                      </Typography>
                     </Stack>
 
-                    <Typography variant="body2" color="text.secondary">
-                      Usuario: {row.userEmail ?? "-"} · Rol: {row.userRole ?? "-"} ·
-                      Registro: {row.recordId ?? "-"}
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{ whiteSpace: "nowrap" }}
+                    >
+                      {formatDateTime(item.occurredAtUtc)}
                     </Typography>
-                  </Box>
-                </Stack>
-
-                <Typography
-                  variant="body2"
-                  sx={{ textAlign: { md: "right" }, color: dashboardTokens.subtext }}
-                >
-                  {formatDateTime(row.occurredAtUtc)}
-                </Typography>
-              </Box>
-            ))}
+                  </Stack>
+                </Box>
+              );
+            })}
           </Stack>
+        )}
+      </SectionCard>
+
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: { xs: "1fr", xl: "1fr 1fr" },
+          gap: 2,
+        }}
+      >
+        <SummaryListCard
+          title="Incidencias por tipo"
+          subtitle="Distribución de incidencias registradas por categoría."
+          emptyText="No hay datos de incidencias por tipo."
+          items={dashboardData?.incidenciasPorTipo ?? []}
+          kind="tipo"
+        />
+
+        <SummaryListCard
+          title="Incidencias por estatus"
+          subtitle="Comportamiento de revisión y resolución."
+          emptyText="No hay datos de incidencias por estatus."
+          items={dashboardData?.incidenciasPorEstatus ?? []}
+          kind="estatus"
+        />
+      </Box>
+
+      <SectionCard
+        title="Incidencias recientes"
+        subtitle="Últimos registros capturados en el módulo."
+      >
+        {dashboardQuery.isLoading ? (
+          <Box sx={{ py: 6, display: "flex", justifyContent: "center" }}>
+            <CircularProgress />
+          </Box>
+        ) : recientes.length === 0 ? (
+          <Alert severity="info">No hay incidencias recientes para mostrar.</Alert>
+        ) : (
+          <Box sx={{ overflowX: "auto" }}>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Empleado</TableCell>
+                  <TableCell>Tipo</TableCell>
+                  <TableCell>Estatus</TableCell>
+                  <TableCell>Desde</TableCell>
+                  <TableCell>Hasta</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {recientes.slice(0, 8).map((item, index) => (
+                  <TableRow key={item.id ?? index} hover>
+                    <TableCell>
+                      <Stack spacing={0.35}>
+                        <Typography fontWeight={700}>
+                          {item.empleadoNombre ?? "Sin nombre"}
+                        </Typography>
+                        {item.comentario ? (
+                          <Typography variant="body2" color="text.secondary">
+                            {item.comentario}
+                          </Typography>
+                        ) : null}
+                      </Stack>
+                    </TableCell>
+
+                    <TableCell>
+                      <Chip
+                        size="small"
+                        variant="outlined"
+                        icon={getTipoIcon(item.tipo)}
+                        label={formatEnumLabel(item.tipo)}
+                        sx={{ fontWeight: 800 }}
+                      />
+                    </TableCell>
+
+                    <TableCell>
+                      <Chip
+                        size="small"
+                        color={getStatusColor(item.estatus)}
+                        icon={getStatusIcon(item.estatus)}
+                        label={formatEnumLabel(item.estatus)}
+                        variant="outlined"
+                        sx={{ fontWeight: 800 }}
+                      />
+                    </TableCell>
+
+                    <TableCell>{formatDateOnly(item.fechaInicio)}</TableCell>
+                    <TableCell>{formatDateOnly(item.fechaFin)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Box>
         )}
       </SectionCard>
     </AppPage>
