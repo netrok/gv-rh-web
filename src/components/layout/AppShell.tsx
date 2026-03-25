@@ -1,9 +1,9 @@
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
 import { useMemo, useState } from "react";
 import {
   AppBar,
+  Avatar,
   Box,
-  Button,
   Chip,
   Divider,
   Drawer,
@@ -12,6 +12,8 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
+  Menu,
+  MenuItem,
   Stack,
   Toolbar,
   Typography,
@@ -28,14 +30,17 @@ import EventNoteRoundedIcon from "@mui/icons-material/EventNoteRounded";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
 import ShieldRoundedIcon from "@mui/icons-material/ShieldRounded";
 import KeyboardDoubleArrowRightRoundedIcon from "@mui/icons-material/KeyboardDoubleArrowRightRounded";
+import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownRounded";
 import MenuRoundedIcon from "@mui/icons-material/MenuRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import VpnKeyRoundedIcon from "@mui/icons-material/VpnKeyRounded";
+import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../features/auth/AuthContext";
 
 const drawerWidth = 264;
 const appBarHeight = 72;
+const changePasswordRoute = "/cambiar-password";
 
 type MenuItemConfig = {
   label: string;
@@ -94,6 +99,12 @@ const menuItems: MenuItemConfig[] = [
   },
 ];
 
+type AuthUserShape = {
+  fullName?: string | null;
+  name?: string | null;
+  email?: string | null;
+} | null | undefined;
+
 function normalizeRoles(roles?: string[] | null): string[] {
   return [
     ...new Set((roles ?? []).map((r) => r.trim().toUpperCase()).filter(Boolean)),
@@ -101,7 +112,7 @@ function normalizeRoles(roles?: string[] | null): string[] {
 }
 
 function canAccess(userRoles: string[], allowedRoles?: string[]) {
-  if (!allowedRoles || allowedRoles.length === 0) return true;
+  if (!allowedRoles?.length) return true;
   return allowedRoles.some((role) => userRoles.includes(role.toUpperCase()));
 }
 
@@ -125,30 +136,63 @@ function getCurrentSectionText(pathname: string) {
   return "Sistema interno";
 }
 
+function getUserDisplayName(user: AuthUserShape) {
+  const fullName = user?.fullName?.trim();
+  if (fullName) return fullName;
+
+  const name = user?.name?.trim();
+  if (name) return name;
+
+  const email = user?.email?.trim();
+  if (email) return email.split("@")[0] || email;
+
+  return "Usuario";
+}
+
+function getUserInitial(displayName: string) {
+  const normalized = displayName.trim();
+  return normalized ? normalized.charAt(0).toUpperCase() : "U";
+}
+
+function roleChipSx() {
+  return {
+    color: "#e5e7eb",
+    borderColor: alpha("#ffffff", 0.12),
+    backgroundColor: alpha("#ffffff", 0.06),
+    fontWeight: 800,
+    borderRadius: "999px",
+  } as const;
+}
+
+function topbarRoleChipSx() {
+  return {
+    fontWeight: 800,
+    borderColor: alpha("#0f172a", 0.08),
+    backgroundColor: alpha("#0f172a", 0.04),
+    color: "#334155",
+    borderRadius: "999px",
+    height: 28,
+  } as const;
+}
+
 function sidebarItemSx(selected: boolean) {
   return {
-    minHeight: 50,
-    borderRadius: "16px",
+    minHeight: 52,
+    borderRadius: "18px",
     mb: 0.75,
     px: 1.5,
     color: selected ? "#ffffff" : "#cbd5e1",
     backgroundColor: selected ? "rgba(255,255,255,0.10)" : "transparent",
-    border: `1px solid ${
-      selected ? "rgba(255,255,255,0.10)" : "transparent"
-    }`,
+    border: `1px solid ${selected ? "rgba(255,255,255,0.12)" : "transparent"}`,
     transition:
-      "background-color 160ms ease, border-color 160ms ease, transform 160ms ease",
+      "background-color 180ms ease, border-color 180ms ease, transform 180ms ease",
     "&:hover": {
-      backgroundColor: selected
-        ? "rgba(255,255,255,0.14)"
-        : "rgba(255,255,255,0.06)",
-      borderColor: selected
-        ? "rgba(255,255,255,0.14)"
-        : "rgba(255,255,255,0.06)",
+      backgroundColor: selected ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.06)",
+      borderColor: selected ? "rgba(255,255,255,0.16)" : "rgba(255,255,255,0.06)",
       transform: "translateX(1px)",
     },
     "& .MuiListItemIcon-root": {
-      minWidth: 38,
+      minWidth: 40,
       color: selected ? "#ffffff" : "#94a3b8",
     },
   } as const;
@@ -170,68 +214,58 @@ function sidebarIconWrapSx(selected: boolean) {
   } as const;
 }
 
-function roleChipSx() {
+function topbarUserButtonSx(open: boolean) {
   return {
-    color: "#e5e7eb",
-    borderColor: alpha("#ffffff", 0.12),
-    backgroundColor: alpha("#ffffff", 0.06),
-    fontWeight: 800,
-  } as const;
-}
-
-function topbarRoleChipSx() {
-  return {
-    fontWeight: 800,
-    borderColor: alpha("#0f172a", 0.1),
-    backgroundColor: alpha("#0f172a", 0.03),
-    color: "#334155",
-  } as const;
-}
-
-function topbarGhostButtonSx() {
-  return {
-    display: { xs: "none", sm: "inline-flex" },
+    appearance: "none",
+    border: `1px solid ${alpha("#0f172a", open ? 0.14 : 0.08)}`,
+    backgroundColor: open ? alpha("#0f172a", 0.05) : alpha("#ffffff", 0.96),
+    color: "#0f172a",
     borderRadius: "999px",
-    textTransform: "none",
-    fontWeight: 700,
-    px: 2,
-  } as const;
-}
-
-function sessionInfoCardSx() {
-  return {
-    p: 2,
-    borderRadius: "20px",
-    backgroundColor: "rgba(255,255,255,0.05)",
-    border: "1px solid rgba(255,255,255,0.08)",
-  } as const;
-}
-
-function mobileSessionButtonSx() {
-  return {
-    color: "#e5e7eb",
-    borderColor: "rgba(255,255,255,0.12)",
-    fontWeight: 700,
+    px: { xs: 0.9, sm: 1.05, md: 1.2 },
+    py: 0.65,
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 0.9,
+    minHeight: 46,
+    cursor: "pointer",
+    transition: "all 180ms ease",
+    boxShadow: open ? "0 8px 20px rgba(15, 23, 42, 0.06)" : "none",
     "&:hover": {
-      borderColor: "rgba(255,255,255,0.22)",
-      backgroundColor: "rgba(255,255,255,0.05)",
+      backgroundColor: alpha("#0f172a", 0.045),
+      borderColor: alpha("#0f172a", 0.12),
+      boxShadow: "0 8px 20px rgba(15, 23, 42, 0.05)",
     },
   } as const;
 }
 
-function getUserDisplayName(
-  user?: {
-    fullName?: string | null;
-    email?: string | null;
-  } | null
-) {
-  const fullName = user?.fullName?.trim();
-  if (fullName) return fullName;
+function userMenuPaperSx() {
+  return {
+    mt: 1.25,
+    minWidth: 312,
+    borderRadius: "22px",
+    border: `1px solid ${alpha("#0f172a", 0.08)}`,
+    boxShadow: "0 24px 60px rgba(15, 23, 42, 0.14)",
+    overflow: "hidden",
+    backgroundImage:
+      "linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(248,250,252,1) 100%)",
+  } as const;
+}
 
-  const email = user?.email?.trim();
-  if (email) return email.split("@")[0] || email;
-
-  return "Usuario";
+function userMenuActionSx(danger = false) {
+  return {
+    mx: 1,
+    my: 0.5,
+    borderRadius: "14px",
+    py: 1.15,
+    px: 1.25,
+    gap: 1,
+    color: danger ? "#b91c1c" : "#0f172a",
+    "&:hover": {
+      backgroundColor: danger
+        ? alpha("#b91c1c", 0.06)
+        : alpha("#0f172a", 0.045),
+    },
+  } as const;
 }
 
 export default function AppShell() {
@@ -240,10 +274,13 @@ export default function AppShell() {
   const navigate = useNavigate();
 
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [userMenuAnchorEl, setUserMenuAnchorEl] = useState<null | HTMLElement>(null);
 
   const normalizedRoles = useMemo(() => normalizeRoles(roles), [roles]);
   const displayName = useMemo(() => getUserDisplayName(user), [user]);
+  const userInitial = useMemo(() => getUserInitial(displayName), [displayName]);
   const primaryRole = normalizedRoles[0] ?? "SIN ROL";
+  const isUserMenuOpen = Boolean(userMenuAnchorEl);
 
   const visibleMenuItems = useMemo(
     () => menuItems.filter((item) => canAccess(normalizedRoles, item.allow)),
@@ -265,45 +302,25 @@ export default function AppShell() {
     setMobileOpen(false);
   };
 
-  const handleLogout = async () => {
-    setMobileOpen(false);
-    await logout();
+  const handleOpenUserMenu = (event: MouseEvent<HTMLElement>) => {
+    setUserMenuAnchorEl(event.currentTarget);
+  };
+
+  const handleCloseUserMenu = () => {
+    setUserMenuAnchorEl(null);
   };
 
   const handleGoToChangePassword = () => {
-    navigate("/cambiar-password");
+    handleCloseUserMenu();
     setMobileOpen(false);
+    navigate(changePasswordRoute);
   };
 
-  const sessionInfoContent = (
-    <Stack spacing={1}>
-      <Typography variant="body2" sx={{ color: "#94a3b8", fontWeight: 700 }}>
-        Sesión activa
-      </Typography>
-
-      <Typography sx={{ fontWeight: 800, color: "#f8fafc", lineHeight: 1.15 }}>
-        {displayName}
-      </Typography>
-
-      <Typography variant="body2" sx={{ color: "#cbd5e1" }}>
-        {user?.email ?? "Sin correo"}
-      </Typography>
-
-      <Chip
-        size="small"
-        label={primaryRole}
-        variant="outlined"
-        sx={{
-          width: "fit-content",
-          ...roleChipSx(),
-        }}
-      />
-
-      <Typography variant="body2" sx={{ color: "#94a3b8", pt: 0.5 }}>
-        Acceso a módulos, catálogos, incidencias y bitácora del sistema.
-      </Typography>
-    </Stack>
-  );
+  const handleLogout = async () => {
+    handleCloseUserMenu();
+    setMobileOpen(false);
+    await logout();
+  };
 
   const sidebarContent = (
     <>
@@ -312,20 +329,21 @@ export default function AppShell() {
           <Box>
             <Box
               sx={{
-                width: 44,
-                height: 44,
-                borderRadius: "14px",
+                width: 46,
+                height: 46,
+                borderRadius: "15px",
                 display: "grid",
                 placeItems: "center",
                 backgroundColor: "rgba(255,255,255,0.08)",
                 border: "1px solid rgba(255,255,255,0.08)",
                 mb: 1.5,
+                boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
               }}
             >
               <ShieldRoundedIcon />
             </Box>
 
-            <Typography variant="h6" fontWeight={800} lineHeight={1.1}>
+            <Typography variant="h6" fontWeight={900} lineHeight={1.05}>
               GV RH
             </Typography>
 
@@ -423,42 +441,6 @@ export default function AppShell() {
       </List>
 
       <Box sx={{ flexGrow: 1 }} />
-
-      <Box sx={{ p: 1.5 }}>
-        <Box sx={sessionInfoCardSx()}>
-          {sessionInfoContent}
-
-          <Stack
-            spacing={1}
-            sx={{
-              mt: 1.5,
-              display: { xs: "flex", lg: "none" },
-            }}
-          >
-            <Button
-              fullWidth
-              variant="outlined"
-              startIcon={<VpnKeyRoundedIcon />}
-              onClick={handleGoToChangePassword}
-              sx={mobileSessionButtonSx()}
-            >
-              Cambiar contraseña
-            </Button>
-
-            <Button
-              fullWidth
-              variant="outlined"
-              startIcon={<LogoutRoundedIcon />}
-              onClick={() => {
-                void handleLogout();
-              }}
-              sx={mobileSessionButtonSx()}
-            >
-              Cerrar sesión
-            </Button>
-          </Stack>
-        </Box>
-      </Box>
     </>
   );
 
@@ -518,10 +500,10 @@ export default function AppShell() {
               <Typography
                 variant="h6"
                 sx={{
-                  fontWeight: 800,
+                  fontWeight: 900,
                   color: "#0f172a",
                   lineHeight: 1.1,
-                  letterSpacing: "-0.01em",
+                  letterSpacing: "-0.015em",
                   whiteSpace: "nowrap",
                   overflow: "hidden",
                   textOverflow: "ellipsis",
@@ -532,68 +514,225 @@ export default function AppShell() {
             </Box>
           </Stack>
 
-          <Stack
-            direction="row"
-            spacing={1}
-            alignItems="center"
-            sx={{ flexShrink: 0 }}
+          <Box
+            component="button"
+            type="button"
+            onClick={handleOpenUserMenu}
+            sx={topbarUserButtonSx(isUserMenuOpen)}
           >
+            <Avatar
+              sx={{
+                width: 36,
+                height: 36,
+                fontSize: 14,
+                fontWeight: 900,
+                bgcolor: "#0f172a",
+                boxShadow: "0 8px 20px rgba(15, 23, 42, 0.18)",
+              }}
+            >
+              {userInitial}
+            </Avatar>
+
             <Stack
-              direction="column"
-              spacing={0.1}
-              alignItems="flex-end"
-              sx={{ display: { xs: "none", md: "flex" }, mr: 0.5 }}
+              spacing={0}
+              sx={{
+                display: { xs: "none", sm: "flex" },
+                minWidth: 0,
+                textAlign: "left",
+              }}
             >
               <Typography
                 variant="body2"
-                sx={{ fontWeight: 800, color: "#0f172a", lineHeight: 1.1 }}
+                sx={{
+                  fontWeight: 800,
+                  color: "#0f172a",
+                  lineHeight: 1.1,
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  maxWidth: 150,
+                }}
               >
                 {displayName}
               </Typography>
-              <Typography variant="caption" sx={{ color: "#64748b" }}>
+
+              <Typography
+                variant="caption"
+                sx={{
+                  display: { xs: "none", md: "block" },
+                  color: "#64748b",
+                  lineHeight: 1.1,
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  maxWidth: 170,
+                }}
+              >
                 {user?.email ?? "Sin correo"}
               </Typography>
             </Stack>
 
-            <Stack
-              direction="row"
-              spacing={1}
-              alignItems="center"
-              sx={{ display: { xs: "none", md: "flex" } }}
+            <Chip
+              size="small"
+              label={primaryRole}
+              variant="outlined"
+              sx={{
+                display: { xs: "none", lg: "inline-flex" },
+                ...topbarRoleChipSx(),
+              }}
+            />
+
+            <KeyboardArrowDownRoundedIcon
+              fontSize="small"
+              sx={{
+                color: "#64748b",
+                transform: isUserMenuOpen ? "rotate(180deg)" : "rotate(0deg)",
+                transition: "transform 180ms ease",
+              }}
+            />
+          </Box>
+        </Toolbar>
+      </AppBar>
+
+      <Menu
+        anchorEl={userMenuAnchorEl}
+        open={isUserMenuOpen}
+        onClose={handleCloseUserMenu}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+        transformOrigin={{ vertical: "top", horizontal: "right" }}
+        slotProps={{
+          paper: {
+            sx: userMenuPaperSx(),
+          },
+        }}
+      >
+        <Box
+          sx={{
+            px: 2,
+            py: 2,
+            background:
+              "linear-gradient(135deg, rgba(15,23,42,1) 0%, rgba(30,64,175,0.94) 100%)",
+            color: "#ffffff",
+          }}
+        >
+          <Stack direction="row" spacing={1.5} alignItems="center">
+            <Avatar
+              sx={{
+                width: 46,
+                height: 46,
+                fontSize: 16,
+                fontWeight: 900,
+                bgcolor: alpha("#ffffff", 0.16),
+                color: "#ffffff",
+                border: `1px solid ${alpha("#ffffff", 0.18)}`,
+              }}
             >
-              {normalizedRoles.slice(0, 2).map((role) => (
+              {userInitial}
+            </Avatar>
+
+            <Box sx={{ minWidth: 0 }}>
+              <Typography
+                variant="body2"
+                sx={{
+                  fontWeight: 900,
+                  lineHeight: 1.2,
+                }}
+              >
+                {displayName}
+              </Typography>
+
+              <Typography
+                variant="caption"
+                sx={{
+                  display: "block",
+                  mt: 0.25,
+                  color: alpha("#ffffff", 0.82),
+                  wordBreak: "break-word",
+                }}
+              >
+                {user?.email ?? "Sin correo"}
+              </Typography>
+            </Box>
+          </Stack>
+
+          <Stack
+            direction="row"
+            spacing={0.75}
+            flexWrap="wrap"
+            useFlexGap
+            sx={{ mt: 1.5 }}
+          >
+            {normalizedRoles.length > 0 ? (
+              normalizedRoles.slice(0, 3).map((role) => (
                 <Chip
                   key={role}
                   size="small"
                   label={role}
                   variant="outlined"
-                  sx={topbarRoleChipSx()}
+                  sx={{
+                    color: "#ffffff",
+                    borderColor: alpha("#ffffff", 0.22),
+                    backgroundColor: alpha("#ffffff", 0.08),
+                    fontWeight: 800,
+                  }}
                 />
-              ))}
-            </Stack>
-
-            <Button
-              variant="outlined"
-              startIcon={<VpnKeyRoundedIcon />}
-              onClick={handleGoToChangePassword}
-              sx={topbarGhostButtonSx()}
-            >
-              Cambiar contraseña
-            </Button>
-
-            <Button
-              variant="outlined"
-              startIcon={<LogoutRoundedIcon />}
-              onClick={() => {
-                void handleLogout();
-              }}
-              sx={topbarGhostButtonSx()}
-            >
-              Cerrar sesión
-            </Button>
+              ))
+            ) : (
+              <Chip
+                size="small"
+                label="SIN ROL"
+                variant="outlined"
+                sx={{
+                  color: "#ffffff",
+                  borderColor: alpha("#ffffff", 0.22),
+                  backgroundColor: alpha("#ffffff", 0.08),
+                  fontWeight: 800,
+                }}
+              />
+            )}
           </Stack>
-        </Toolbar>
-      </AppBar>
+        </Box>
+
+        <Box sx={{ py: 1 }}>
+          <MenuItem onClick={handleGoToChangePassword} sx={userMenuActionSx(false)}>
+            <ListItemIcon sx={{ minWidth: 34, color: "#334155" }}>
+              <VpnKeyRoundedIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText
+              primary="Cambiar contraseña"
+              secondary="Actualizar credenciales de acceso"
+              primaryTypographyProps={{ fontWeight: 800, fontSize: 14 }}
+              secondaryTypographyProps={{ fontSize: 12, color: "#64748b" }}
+            />
+            <ChevronRightRoundedIcon fontSize="small" sx={{ color: "#94a3b8" }} />
+          </MenuItem>
+
+          <MenuItem
+            onClick={() => {
+              void handleLogout();
+            }}
+            sx={userMenuActionSx(true)}
+          >
+            <ListItemIcon sx={{ minWidth: 34, color: "#b91c1c" }}>
+              <LogoutRoundedIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText
+              primary="Cerrar sesión"
+              secondary="Salir de la sesión actual"
+              primaryTypographyProps={{
+                fontWeight: 800,
+                fontSize: 14,
+                color: "#b91c1c",
+              }}
+              secondaryTypographyProps={{ fontSize: 12, color: "#7f1d1d" }}
+            />
+            <ChevronRightRoundedIcon
+              fontSize="small"
+              sx={{ color: alpha("#b91c1c", 0.55) }}
+            />
+          </MenuItem>
+        </Box>
+      </Menu>
 
       <Drawer
         variant="permanent"
