@@ -30,6 +30,7 @@ import ShieldRoundedIcon from "@mui/icons-material/ShieldRounded";
 import KeyboardDoubleArrowRightRoundedIcon from "@mui/icons-material/KeyboardDoubleArrowRightRounded";
 import MenuRoundedIcon from "@mui/icons-material/MenuRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
+import VpnKeyRoundedIcon from "@mui/icons-material/VpnKeyRounded";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../features/auth/AuthContext";
 
@@ -113,14 +114,14 @@ function getCurrentTitle(pathname: string, items: MenuItemConfig[]) {
 }
 
 function getCurrentSectionText(pathname: string) {
-  if (isRouteSelected(pathname, "/dashboard")) return "Panel principal";
-  if (isRouteSelected(pathname, "/usuarios")) return "Accesos y seguridad";
-  if (isRouteSelected(pathname, "/empleados")) return "Catálogo de personal";
-  if (isRouteSelected(pathname, "/incidencias")) return "Control operativo";
-  if (isRouteSelected(pathname, "/audit")) return "Bitácora del sistema";
-  if (isRouteSelected(pathname, "/departamentos")) return "Estructura organizacional";
-  if (isRouteSelected(pathname, "/puestos")) return "Puestos y roles";
-  if (isRouteSelected(pathname, "/sucursales")) return "Sedes operativas";
+  if (isRouteSelected(pathname, "/dashboard")) return "Vista general";
+  if (isRouteSelected(pathname, "/usuarios")) return "Seguridad y accesos";
+  if (isRouteSelected(pathname, "/empleados")) return "Gestión de personal";
+  if (isRouteSelected(pathname, "/incidencias")) return "Operación diaria";
+  if (isRouteSelected(pathname, "/audit")) return "Trazabilidad del sistema";
+  if (isRouteSelected(pathname, "/departamentos")) return "Estructura interna";
+  if (isRouteSelected(pathname, "/puestos")) return "Catálogo organizacional";
+  if (isRouteSelected(pathname, "/sucursales")) return "Cobertura operativa";
   return "Sistema interno";
 }
 
@@ -150,7 +151,7 @@ function sidebarItemSx(selected: boolean) {
       minWidth: 38,
       color: selected ? "#ffffff" : "#94a3b8",
     },
-  };
+  } as const;
 }
 
 function sidebarIconWrapSx(selected: boolean) {
@@ -166,7 +167,7 @@ function sidebarIconWrapSx(selected: boolean) {
     border: `1px solid ${
       selected ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.05)"
     }`,
-  };
+  } as const;
 }
 
 function roleChipSx() {
@@ -175,7 +176,7 @@ function roleChipSx() {
     borderColor: alpha("#ffffff", 0.12),
     backgroundColor: alpha("#ffffff", 0.06),
     fontWeight: 800,
-  };
+  } as const;
 }
 
 function topbarRoleChipSx() {
@@ -184,17 +185,65 @@ function topbarRoleChipSx() {
     borderColor: alpha("#0f172a", 0.1),
     backgroundColor: alpha("#0f172a", 0.03),
     color: "#334155",
-  };
+  } as const;
+}
+
+function topbarGhostButtonSx() {
+  return {
+    display: { xs: "none", sm: "inline-flex" },
+    borderRadius: "999px",
+    textTransform: "none",
+    fontWeight: 700,
+    px: 2,
+  } as const;
+}
+
+function sessionInfoCardSx() {
+  return {
+    p: 2,
+    borderRadius: "20px",
+    backgroundColor: "rgba(255,255,255,0.05)",
+    border: "1px solid rgba(255,255,255,0.08)",
+  } as const;
+}
+
+function mobileSessionButtonSx() {
+  return {
+    color: "#e5e7eb",
+    borderColor: "rgba(255,255,255,0.12)",
+    fontWeight: 700,
+    "&:hover": {
+      borderColor: "rgba(255,255,255,0.22)",
+      backgroundColor: "rgba(255,255,255,0.05)",
+    },
+  } as const;
+}
+
+function getUserDisplayName(
+  user?: {
+    fullName?: string | null;
+    email?: string | null;
+  } | null
+) {
+  const fullName = user?.fullName?.trim();
+  if (fullName) return fullName;
+
+  const email = user?.email?.trim();
+  if (email) return email.split("@")[0] || email;
+
+  return "Usuario";
 }
 
 export default function AppShell() {
-  const { logout, roles = [] } = useAuth();
+  const { logout, roles = [], user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const normalizedRoles = useMemo(() => normalizeRoles(roles), [roles]);
+  const displayName = useMemo(() => getUserDisplayName(user), [user]);
+  const primaryRole = normalizedRoles[0] ?? "SIN ROL";
 
   const visibleMenuItems = useMemo(
     () => menuItems.filter((item) => canAccess(normalizedRoles, item.allow)),
@@ -221,6 +270,41 @@ export default function AppShell() {
     await logout();
   };
 
+  const handleGoToChangePassword = () => {
+    navigate("/cambiar-password");
+    setMobileOpen(false);
+  };
+
+  const sessionInfoContent = (
+    <Stack spacing={1}>
+      <Typography variant="body2" sx={{ color: "#94a3b8", fontWeight: 700 }}>
+        Sesión activa
+      </Typography>
+
+      <Typography sx={{ fontWeight: 800, color: "#f8fafc", lineHeight: 1.15 }}>
+        {displayName}
+      </Typography>
+
+      <Typography variant="body2" sx={{ color: "#cbd5e1" }}>
+        {user?.email ?? "Sin correo"}
+      </Typography>
+
+      <Chip
+        size="small"
+        label={primaryRole}
+        variant="outlined"
+        sx={{
+          width: "fit-content",
+          ...roleChipSx(),
+        }}
+      />
+
+      <Typography variant="body2" sx={{ color: "#94a3b8", pt: 0.5 }}>
+        Acceso a módulos, catálogos, incidencias y bitácora del sistema.
+      </Typography>
+    </Stack>
+  );
+
   const sidebarContent = (
     <>
       <Box sx={{ px: 2.5, py: 2.5 }}>
@@ -246,7 +330,7 @@ export default function AppShell() {
             </Typography>
 
             <Typography variant="body2" sx={{ color: "#94a3b8", mt: 0.5 }}>
-              Administración interna
+              Administración de personal
             </Typography>
           </Box>
 
@@ -295,11 +379,11 @@ export default function AppShell() {
             letterSpacing: "0.08em",
           }}
         >
-          Navegación
+          Navegación principal
         </Typography>
       </Box>
 
-      <List sx={{ px: 1.5, py: 0.5 }}>
+      <List sx={{ px: 1.25, py: 0.5 }}>
         {visibleMenuItems.map((item) => {
           const selected = isRouteSelected(location.pathname, item.to);
 
@@ -316,9 +400,14 @@ export default function AppShell() {
 
               <ListItemText
                 primary={item.label}
+                secondary={selected ? "Vista actual" : undefined}
                 primaryTypographyProps={{
+                  fontWeight: selected ? 800 : 700,
                   fontSize: 14,
-                  fontWeight: selected ? 800 : 600,
+                }}
+                secondaryTypographyProps={{
+                  fontSize: 11,
+                  color: "rgba(255,255,255,0.56)",
                 }}
               />
 
@@ -335,49 +424,39 @@ export default function AppShell() {
 
       <Box sx={{ flexGrow: 1 }} />
 
-      <Box sx={{ px: 2, pb: 2.25, pt: 1.5 }}>
-        <Box
-          sx={{
-            p: 1.5,
-            borderRadius: "16px",
-            border: "1px solid rgba(255,255,255,0.08)",
-            backgroundColor: "rgba(255,255,255,0.04)",
-          }}
-        >
-          <Typography
-            variant="body2"
-            sx={{ color: "#e5e7eb", fontWeight: 700, mb: 0.25 }}
-          >
-            Entorno interno
-          </Typography>
+      <Box sx={{ p: 1.5 }}>
+        <Box sx={sessionInfoCardSx()}>
+          {sessionInfoContent}
 
-          <Typography
-            variant="caption"
-            sx={{ color: "#94a3b8", lineHeight: 1.5 }}
-          >
-            RH operativo con catálogos, incidencias y bitácora centralizada.
-          </Typography>
-
-          <Button
-            fullWidth
-            variant="outlined"
-            startIcon={<LogoutRoundedIcon />}
-            onClick={() => {
-              void handleLogout();
-            }}
+          <Stack
+            spacing={1}
             sx={{
               mt: 1.5,
-              color: "#e5e7eb",
-              borderColor: "rgba(255,255,255,0.12)",
-              fontWeight: 700,
-              "&:hover": {
-                borderColor: "rgba(255,255,255,0.22)",
-                backgroundColor: "rgba(255,255,255,0.05)",
-              },
+              display: { xs: "flex", lg: "none" },
             }}
           >
-            Cerrar sesión
-          </Button>
+            <Button
+              fullWidth
+              variant="outlined"
+              startIcon={<VpnKeyRoundedIcon />}
+              onClick={handleGoToChangePassword}
+              sx={mobileSessionButtonSx()}
+            >
+              Cambiar contraseña
+            </Button>
+
+            <Button
+              fullWidth
+              variant="outlined"
+              startIcon={<LogoutRoundedIcon />}
+              onClick={() => {
+                void handleLogout();
+              }}
+              sx={mobileSessionButtonSx()}
+            >
+              Cerrar sesión
+            </Button>
+          </Stack>
         </Box>
       </Box>
     </>
@@ -460,6 +539,23 @@ export default function AppShell() {
             sx={{ flexShrink: 0 }}
           >
             <Stack
+              direction="column"
+              spacing={0.1}
+              alignItems="flex-end"
+              sx={{ display: { xs: "none", md: "flex" }, mr: 0.5 }}
+            >
+              <Typography
+                variant="body2"
+                sx={{ fontWeight: 800, color: "#0f172a", lineHeight: 1.1 }}
+              >
+                {displayName}
+              </Typography>
+              <Typography variant="caption" sx={{ color: "#64748b" }}>
+                {user?.email ?? "Sin correo"}
+              </Typography>
+            </Stack>
+
+            <Stack
               direction="row"
               spacing={1}
               alignItems="center"
@@ -478,17 +574,20 @@ export default function AppShell() {
 
             <Button
               variant="outlined"
+              startIcon={<VpnKeyRoundedIcon />}
+              onClick={handleGoToChangePassword}
+              sx={topbarGhostButtonSx()}
+            >
+              Cambiar contraseña
+            </Button>
+
+            <Button
+              variant="outlined"
               startIcon={<LogoutRoundedIcon />}
               onClick={() => {
                 void handleLogout();
               }}
-              sx={{
-                display: { xs: "none", sm: "inline-flex" },
-                borderRadius: "999px",
-                textTransform: "none",
-                fontWeight: 700,
-                px: 2,
-              }}
+              sx={topbarGhostButtonSx()}
             >
               Cerrar sesión
             </Button>
