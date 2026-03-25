@@ -6,6 +6,7 @@ import AuditPage from "./pages/AuditPage";
 import DepartamentosPage from "./pages/DepartamentosPage";
 import PuestosPage from "./pages/PuestosPage";
 import EmpleadosPage from "./pages/EmpleadosPage";
+import ExpedienteEmpleadoPage from "./pages/ExpedienteEmpleadoPage";
 import SucursalesPage from "./pages/SucursalesPage";
 import IncidenciasPage from "./pages/IncidenciasPage";
 import UsuariosPage from "./pages/UsuariosPage";
@@ -146,6 +147,19 @@ export default function App() {
               allow={["ADMIN", "RRHH"]}
             >
               <EmpleadosPage />
+            </RoleGuard>
+          }
+        />
+
+        <Route
+          path="empleados/:id/expediente"
+          element={
+            <RoleGuard
+              isAuthenticated={isAuthenticated}
+              userRoles={roles}
+              allow={["ADMIN", "RRHH"]}
+            >
+              <ExpedienteEmpleadoPage />
             </RoleGuard>
           }
         />

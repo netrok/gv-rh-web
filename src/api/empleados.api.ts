@@ -36,11 +36,35 @@ export type SaveEmpleadoInput = {
   sucursalId?: number | null;
 };
 
+export type GetEmpleadosParams = {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  activo?: boolean;
+  departamentoId?: number;
+  puestoId?: number;
+  sucursalId?: number;
+  sort?: string;
+  dir?: "asc" | "desc";
+};
+
+export type EmpleadoListResponse = {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  items: Empleado[];
+};
+
 type EmpleadoListEnvelope =
   | Empleado[]
   | {
       items?: Empleado[];
       data?: Empleado[];
+      page?: number;
+      pageSize?: number;
+      total?: number;
+      totalPages?: number;
     };
 
 function normalizeEmpleados(payload: EmpleadoListEnvelope): Empleado[] {
@@ -48,9 +72,94 @@ function normalizeEmpleados(payload: EmpleadoListEnvelope): Empleado[] {
   return payload.items ?? payload.data ?? [];
 }
 
-export async function getEmpleados(): Promise<Empleado[]> {
-  const { data } = await api.get<EmpleadoListEnvelope>("/api/Empleados");
+function normalizeEmpleadoListResponse(
+  payload: EmpleadoListEnvelope,
+  requestedPage = 1,
+  requestedPageSize = 20
+): EmpleadoListResponse {
+  if (Array.isArray(payload)) {
+    return {
+      page: requestedPage,
+      pageSize: payload.length || requestedPageSize,
+      total: payload.length,
+      totalPages: payload.length > 0 ? 1 : 0,
+      items: payload,
+    };
+  }
+
+  const items = payload.items ?? payload.data ?? [];
+  const total = payload.total ?? items.length;
+  const pageSize = payload.pageSize ?? requestedPageSize;
+  const page = payload.page ?? requestedPage;
+  const totalPages =
+    payload.totalPages ?? (pageSize > 0 ? Math.ceil(total / pageSize) : 0);
+
+  return {
+    page,
+    pageSize,
+    total,
+    totalPages,
+    items,
+  };
+}
+
+function normalizeNullableString(value?: string | null): string | null {
+  if (value == null) return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeSaveEmpleadoInput(input: SaveEmpleadoInput): SaveEmpleadoInput {
+  return {
+    nombres: input.nombres.trim(),
+    apellidoPaterno: input.apellidoPaterno.trim(),
+    apellidoMaterno: normalizeNullableString(input.apellidoMaterno),
+    fechaNacimiento: normalizeNullableString(input.fechaNacimiento),
+    telefono: normalizeNullableString(input.telefono),
+    email: normalizeNullableString(input.email),
+    fechaIngreso: input.fechaIngreso,
+    activo: input.activo,
+    departamentoId: input.departamentoId,
+    puestoId: input.puestoId,
+    sucursalId: input.sucursalId ?? null,
+  };
+}
+
+export function getEmpleadoNombreCompleto(empleado: Pick<
+  Empleado,
+  "nombres" | "apellidoPaterno" | "apellidoMaterno"
+>): string {
+  return [
+    empleado.nombres,
+    empleado.apellidoPaterno,
+    empleado.apellidoMaterno ?? "",
+  ]
+    .map((part) => part?.trim())
+    .filter(Boolean)
+    .join(" ");
+}
+
+export async function getEmpleados(
+  params?: GetEmpleadosParams
+): Promise<Empleado[]> {
+  const { data } = await api.get<EmpleadoListEnvelope>("/api/Empleados", {
+    params,
+  });
+
   return normalizeEmpleados(data);
+}
+
+export async function getEmpleadosPage(
+  params?: GetEmpleadosParams
+): Promise<EmpleadoListResponse> {
+  const requestedPage = params?.page ?? 1;
+  const requestedPageSize = params?.pageSize ?? 20;
+
+  const { data } = await api.get<EmpleadoListEnvelope>("/api/Empleados", {
+    params,
+  });
+
+  return normalizeEmpleadoListResponse(data, requestedPage, requestedPageSize);
 }
 
 export async function getEmpleadoById(id: number): Promise<Empleado> {
@@ -61,7 +170,8 @@ export async function getEmpleadoById(id: number): Promise<Empleado> {
 export async function createEmpleado(
   input: SaveEmpleadoInput
 ): Promise<Empleado> {
-  const { data } = await api.post<Empleado>("/api/Empleados", input);
+  const payload = normalizeSaveEmpleadoInput(input);
+  const { data } = await api.post<Empleado>("/api/Empleados", payload);
   return data;
 }
 
@@ -69,6 +179,7 @@ export async function updateEmpleado(
   id: number,
   input: SaveEmpleadoInput
 ): Promise<Empleado> {
-  const { data } = await api.put<Empleado>(`/api/Empleados/${id}`, input);
+  const payload = normalizeSaveEmpleadoInput(input);
+  const { data } = await api.put<Empleado>(`/api/Empleados/${id}`, payload);
   return data;
 }

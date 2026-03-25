@@ -38,10 +38,12 @@ import Groups2OutlinedIcon from "@mui/icons-material/Groups2Outlined";
 import PersonAddAlt1RoundedIcon from "@mui/icons-material/PersonAddAlt1Rounded";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import BlockRoundedIcon from "@mui/icons-material/BlockRounded";
+import FolderOpenRoundedIcon from "@mui/icons-material/FolderOpenRounded";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useNavigate } from "react-router-dom";
 
 import {
   createEmpleado,
@@ -138,92 +140,91 @@ function getPuestoDepartamentoId(puesto: Puesto) {
     }).departamentoID ??
     (puesto as Puesto & {
       departamento?: { id?: number | string | null } | null;
-    }).departamento?.id ??
-    0;
+    }).departamento?.id;
 
-  return Number(maybeDepartamentoId || 0);
+  return Number(maybeDepartamentoId ?? 0);
 }
 
 function normalizeRoles(roles?: string[] | null): string[] {
-  return (roles ?? []).map((role) => String(role).trim().toUpperCase());
+  return [
+    ...new Set((roles ?? []).map((r) => r.trim().toUpperCase()).filter(Boolean)),
+  ];
 }
 
-function hasSomeRole(userRoles: string[] | null | undefined, allowed: string[]) {
-  const normalizedUserRoles = normalizeRoles(userRoles);
-  const normalizedAllowed = normalizeRoles(allowed);
-  return normalizedAllowed.some((role) => normalizedUserRoles.includes(role));
-}
-
-function empleadoStatusChipSx(activo: boolean) {
-  if (activo) {
-    return {
-      bgcolor: "rgba(46, 125, 50, 0.10)",
-      color: "success.dark",
-      borderColor: "rgba(46, 125, 50, 0.34)",
-      fontWeight: 800,
-    };
-  }
-
-  return {
-    bgcolor: "rgba(100, 116, 139, 0.08)",
-    color: "text.secondary",
-    borderColor: "rgba(100, 116, 139, 0.24)",
-    fontWeight: 800,
-  };
+function hasSomeRole(roles?: string[] | null, allowed: string[] = []) {
+  const normalized = normalizeRoles(roles);
+  return allowed.some((role) => normalized.includes(role.toUpperCase()));
 }
 
 function departmentChipSx() {
   return {
-    bgcolor: alpha("#1d4ed8", 0.05),
-    color: "#1d4ed8",
-    borderColor: alpha("#1d4ed8", 0.18),
+    width: "fit-content",
+    borderRadius: "999px",
     fontWeight: 800,
-  };
+    borderColor: alpha("#2563eb", 0.24),
+    color: "#1d4ed8",
+    backgroundColor: alpha("#2563eb", 0.04),
+    "& .MuiChip-icon": {
+      color: "#2563eb",
+    },
+  } as const;
 }
 
-function actionIconButtonSx(kind: "edit" | "toggle-active" | "toggle-inactive") {
-  if (kind === "edit") {
-    return {
-      width: 36,
-      height: 36,
-      borderRadius: "12px",
-      border: `1px solid ${alpha("#1d4ed8", 0.14)}`,
-      backgroundColor: alpha("#1d4ed8", 0.05),
-      color: "#1d4ed8",
-      "&:hover": {
-        backgroundColor: alpha("#1d4ed8", 0.10),
-        borderColor: alpha("#1d4ed8", 0.24),
-      },
-    };
-  }
+function empleadoStatusChipSx(activo: boolean) {
+  return {
+    fontWeight: 800,
+    borderRadius: "999px",
+    color: activo ? "#166534" : "#991b1b",
+    borderColor: activo
+      ? alpha("#16a34a", 0.22)
+      : alpha("#dc2626", 0.22),
+    backgroundColor: activo
+      ? alpha("#16a34a", 0.05)
+      : alpha("#dc2626", 0.05),
+  } as const;
+}
 
-  if (kind === "toggle-active") {
-    return {
-      width: 36,
-      height: 36,
-      borderRadius: "12px",
-      border: `1px solid ${alpha("#d97706", 0.18)}`,
-      backgroundColor: alpha("#d97706", 0.06),
+function actionIconButtonSx(
+  variant: "view" | "edit" | "toggle-active" | "toggle-inactive"
+) {
+  const map = {
+    view: {
+      color: "#0f766e",
+      border: alpha("#0f766e", 0.16),
+      bg: alpha("#0f766e", 0.05),
+      hover: alpha("#0f766e", 0.1),
+    },
+    edit: {
+      color: "#1d4ed8",
+      border: alpha("#1d4ed8", 0.16),
+      bg: alpha("#1d4ed8", 0.05),
+      hover: alpha("#1d4ed8", 0.1),
+    },
+    "toggle-active": {
       color: "#b45309",
-      "&:hover": {
-        backgroundColor: alpha("#d97706", 0.10),
-        borderColor: alpha("#d97706", 0.28),
-      },
-    };
-  }
+      border: alpha("#b45309", 0.18),
+      bg: alpha("#b45309", 0.05),
+      hover: alpha("#b45309", 0.1),
+    },
+    "toggle-inactive": {
+      color: "#15803d",
+      border: alpha("#15803d", 0.18),
+      bg: alpha("#15803d", 0.05),
+      hover: alpha("#15803d", 0.1),
+    },
+  }[variant];
 
   return {
-    width: 36,
-    height: 36,
+    width: 34,
+    height: 34,
     borderRadius: "12px",
-    border: `1px solid ${alpha("#15803d", 0.18)}`,
-    backgroundColor: alpha("#15803d", 0.06),
-    color: "#15803d",
+    border: `1px solid ${map.border}`,
+    color: map.color,
+    backgroundColor: map.bg,
     "&:hover": {
-      backgroundColor: alpha("#15803d", 0.10),
-      borderColor: alpha("#15803d", 0.28),
+      backgroundColor: map.hover,
     },
-  };
+  } as const;
 }
 
 function EmpleadoDialog({
@@ -248,11 +249,11 @@ function EmpleadoDialog({
   const isEdit = !!initialValues;
 
   const {
-    register,
     handleSubmit,
     reset,
     watch,
     setValue,
+    register,
     formState: { errors },
   } = useForm<EmpleadoFormInput, unknown, EmpleadoFormValues>({
     resolver: zodResolver(empleadoSchema),
@@ -518,6 +519,7 @@ function EmpleadoDialog({
 }
 
 export default function EmpleadosPage() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { showSnackbar } = useAppSnackbar();
   const { roles } = useAuth();
@@ -535,29 +537,29 @@ export default function EmpleadosPage() {
   const normalizedRoles = useMemo(() => normalizeRoles(roles), [roles]);
   const canManageEmpleados = hasSomeRole(roles, ["ADMIN", "RRHH"]);
 
-  const empleadosQuery = useQuery({
+  const empleadosQuery = useQuery<Empleado[], Error>({
     queryKey: ["empleados"],
-    queryFn: getEmpleados,
+    queryFn: () => getEmpleados(),
   });
 
-  const departamentosQuery = useQuery({
+  const departamentosQuery = useQuery<Departamento[], Error>({
     queryKey: ["departamentos"],
-    queryFn: getDepartamentos,
+    queryFn: () => getDepartamentos(),
   });
 
-  const puestosQuery = useQuery({
+  const puestosQuery = useQuery<Puesto[], Error>({
     queryKey: ["puestos"],
-    queryFn: getPuestos,
+    queryFn: () => getPuestos(),
   });
 
-  const sucursalesQuery = useQuery({
+  const sucursalesQuery = useQuery<SucursalDto[], Error>({
     queryKey: ["sucursales-select"],
     queryFn: () => getSucursales({ activo: true }),
   });
 
-  const departamentos = departamentosQuery.data ?? [];
-  const puestos = puestosQuery.data ?? [];
-  const sucursales = sucursalesQuery.data ?? [];
+  const departamentos: Departamento[] = departamentosQuery.data ?? [];
+  const puestos: Puesto[] = puestosQuery.data ?? [];
+  const sucursales: SucursalDto[] = sucursalesQuery.data ?? [];
 
   const departamentosMap = useMemo(() => {
     return new Map(departamentos.map((d) => [Number(d.id), d]));
@@ -627,11 +629,11 @@ export default function EmpleadosPage() {
     },
   });
 
-  const filteredRows = useMemo(() => {
-    const rows = empleadosQuery.data ?? [];
+  const filteredRows = useMemo<Empleado[]>(() => {
+    const rows: Empleado[] = empleadosQuery.data ?? [];
     const term = search.trim().toLowerCase();
 
-    return rows.filter((row) => {
+    return rows.filter((row: Empleado) => {
       const departamento = row.departamentoId
         ? departamentosMap.get(Number(row.departamentoId))
         : undefined;
@@ -694,7 +696,7 @@ export default function EmpleadosPage() {
     sucursalesMap,
   ]);
 
-  const paginatedRows = useMemo(() => {
+  const paginatedRows = useMemo<Empleado[]>(() => {
     const start = page * rowsPerPage;
     return filteredRows.slice(start, start + rowsPerPage);
   }, [filteredRows, page, rowsPerPage]);
@@ -704,19 +706,19 @@ export default function EmpleadosPage() {
   }, [search, departamentoFilter, sucursalFilter, statusFilter, filteredRows.length]);
 
   const activeCount = useMemo(
-    () => filteredRows.filter((row) => row.activo).length,
+    () => filteredRows.filter((row: Empleado) => row.activo).length,
     [filteredRows]
   );
 
   const inactiveCount = useMemo(
-    () => filteredRows.filter((row) => !row.activo).length,
+    () => filteredRows.filter((row: Empleado) => !row.activo).length,
     [filteredRows]
   );
 
   const assignedBranchCount = useMemo(() => {
     return new Set(
       filteredRows
-        .map((row) => row.sucursalId)
+        .map((row: Empleado) => row.sucursalId)
         .filter((value): value is number => Number(value) > 0)
     ).size;
   }, [filteredRows]);
@@ -738,6 +740,10 @@ export default function EmpleadosPage() {
   const openEditDialog = (row: Empleado) => {
     setEditing(row);
     setDialogOpen(true);
+  };
+
+  const openExpediente = (row: Empleado) => {
+    navigate(`/empleados/${row.id}/expediente`);
   };
 
   const canOpenDialog =
@@ -1110,7 +1116,7 @@ export default function EmpleadosPage() {
                 </TableHead>
 
                 <TableBody>
-                  {paginatedRows.map((row) => {
+                  {paginatedRows.map((row: Empleado) => {
                     const departamento = row.departamentoId
                       ? departamentosMap.get(Number(row.departamentoId))
                       : undefined;
@@ -1211,6 +1217,18 @@ export default function EmpleadosPage() {
                             spacing={0.75}
                             justifyContent="flex-end"
                           >
+                            {canManageEmpleados && (
+                              <Tooltip title="Expediente">
+                                <IconButton
+                                  onClick={() => openExpediente(row)}
+                                  sx={actionIconButtonSx("view")}
+                                  disabled={saveMutation.isPending || toggleMutation.isPending}
+                                >
+                                  <FolderOpenRoundedIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+
                             {canManageEmpleados && (
                               <Tooltip title="Editar">
                                 <IconButton
