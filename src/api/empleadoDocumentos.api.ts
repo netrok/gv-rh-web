@@ -36,6 +36,31 @@ export type TipoDocumentoOption = {
   label: string;
 };
 
+export type EmpleadoDocumentoChecklistItem = {
+  tipo: number;
+  tipoNombre: string;
+  requerido: boolean;
+  tieneDocumento: boolean;
+  estatus: "CARGADO" | "FALTANTE" | "POR_VENCER" | "VENCIDO" | "OPCIONAL";
+  documentoId?: number | null;
+  nombreArchivoOriginal?: string | null;
+  fechaDocumento?: string | null;
+  fechaVencimiento?: string | null;
+};
+
+export type EmpleadoDocumentoChecklist = {
+  empleadoId: number;
+  totalRequeridos: number;
+  totalCargados: number;
+  totalFaltantes: number;
+  totalPorVencer: number;
+  totalVencidos: number;
+  porcentajeCumplimiento: number;
+  items: EmpleadoDocumentoChecklistItem[];
+};
+
+export type ChecklistStatusTone = "success" | "warning" | "error" | "default";
+
 export const TIPOS_DOCUMENTO_EMPLEADO: TipoDocumentoOption[] = [
   { value: 1, label: "INE" },
   { value: 2, label: "CURP" },
@@ -56,11 +81,57 @@ export function getTipoDocumentoEmpleadoLabel(tipo: number): string {
   );
 }
 
+export function getChecklistStatusLabel(
+  estatus: EmpleadoDocumentoChecklistItem["estatus"]
+): string {
+  switch (estatus) {
+    case "CARGADO":
+      return "Cargado";
+    case "FALTANTE":
+      return "Faltante";
+    case "POR_VENCER":
+      return "Por vencer";
+    case "VENCIDO":
+      return "Vencido";
+    case "OPCIONAL":
+      return "Opcional";
+    default:
+      return estatus;
+  }
+}
+
+export function getChecklistStatusTone(
+  estatus: EmpleadoDocumentoChecklistItem["estatus"]
+): ChecklistStatusTone {
+  switch (estatus) {
+    case "CARGADO":
+      return "success";
+    case "POR_VENCER":
+      return "warning";
+    case "VENCIDO":
+      return "error";
+    case "FALTANTE":
+    case "OPCIONAL":
+    default:
+      return "default";
+  }
+}
+
 export async function getEmpleadoDocumentos(
   empleadoId: number
 ): Promise<EmpleadoDocumento[]> {
   const { data } = await api.get<EmpleadoDocumento[]>(
     `/api/Empleados/${empleadoId}/documentos`
+  );
+
+  return data;
+}
+
+export async function getEmpleadoDocumentosChecklist(
+  empleadoId: number
+): Promise<EmpleadoDocumentoChecklist> {
+  const { data } = await api.get<EmpleadoDocumentoChecklist>(
+    `/api/Empleados/${empleadoId}/documentos/checklist`
   );
 
   return data;
@@ -122,18 +193,23 @@ export async function deleteEmpleadoDocumento(id: number): Promise<void> {
   await api.delete(`/api/EmpleadoDocumentos/${id}`);
 }
 
+export async function getEmpleadoDocumentoBlob(id: number): Promise<Blob> {
+  const response = await api.get(`/api/EmpleadoDocumentos/${id}/download`, {
+    responseType: "blob",
+  });
+
+  return response.data as Blob;
+}
+
 export async function downloadEmpleadoDocumento(
   id: number,
   fallbackFileName?: string
 ): Promise<void> {
-  const response = await api.get<Blob>(`/api/EmpleadoDocumentos/${id}/download`, {
+  const response = await api.get(`/api/EmpleadoDocumentos/${id}/download`, {
     responseType: "blob",
   });
 
-  const blob = new Blob([response.data], {
-    type: response.headers["content-type"] || "application/octet-stream",
-  });
-
+  const blob = response.data as Blob;
   const objectUrl = window.URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = objectUrl;
