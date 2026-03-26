@@ -2,6 +2,7 @@ import type { ReactElement, ReactNode } from "react";
 import { useMemo } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import axios from "axios";
 import {
   Alert,
   Box,
@@ -19,7 +20,6 @@ import {
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
-import DashboardRoundedIcon from "@mui/icons-material/DashboardRounded";
 import ApartmentRoundedIcon from "@mui/icons-material/ApartmentRounded";
 import WorkOutlineRoundedIcon from "@mui/icons-material/WorkOutlineRounded";
 import GavelRoundedIcon from "@mui/icons-material/GavelRounded";
@@ -42,7 +42,13 @@ import EventAvailableRoundedIcon from "@mui/icons-material/EventAvailableRounded
 import BeachAccessRoundedIcon from "@mui/icons-material/BeachAccessRounded";
 import LocalHospitalRoundedIcon from "@mui/icons-material/LocalHospitalRounded";
 import FingerprintRoundedIcon from "@mui/icons-material/FingerprintRounded";
-import axios from "axios";
+import FolderOpenRoundedIcon from "@mui/icons-material/FolderOpenRounded";
+import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
+import TaskAltRoundedIcon from "@mui/icons-material/TaskAltRounded";
+import DescriptionRoundedIcon from "@mui/icons-material/DescriptionRounded";
+import HourglassBottomRoundedIcon from "@mui/icons-material/HourglassBottomRounded";
+import ChecklistRoundedIcon from "@mui/icons-material/ChecklistRounded";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 
 import AppPage from "../components/ui/AppPage";
 import HeroBanner from "../components/ui/HeroBanner";
@@ -52,9 +58,11 @@ import { useAuth } from "../features/auth/AuthContext";
 import { api } from "../api/axios";
 import {
   getDashboard,
+  getDashboardDocumentosResumen,
   getDashboardStats,
   type DashboardCountBy,
   type DashboardData,
+  type DashboardDocumentosResumen,
   type DashboardStats,
 } from "../api/dashboard.api";
 import { getUsers } from "../api/usuarios.api";
@@ -145,108 +153,123 @@ function formatEnumLabel(value?: string | null): string {
   if (!value) return "-";
 
   return value
-    .replace(/_/g, " ")
+    .replaceAll("_", " ")
     .toLowerCase()
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function extractTotal(payload: unknown): number {
+  if (Array.isArray(payload)) return payload.length;
+  if (!isRecord(payload)) return 0;
+
+  const total = payload.total;
+  if (typeof total === "number") return total;
+
+  const totalCount = payload.totalCount;
+  if (typeof totalCount === "number") return totalCount;
+
+  const count = payload.count;
+  if (typeof count === "number") return count;
+
+  const items = payload.items;
+  if (Array.isArray(items)) return items.length;
+
+  const data = payload.data;
+  if (Array.isArray(data)) return data.length;
+
+  return 0;
+}
+
 function getQueryErrorMessage(error: unknown, fallback: string): string {
   if (axios.isAxiosError(error)) {
-    return (
+    const apiMessage =
       error.response?.data?.message ||
       error.response?.data?.title ||
-      `${error.response?.status ?? ""} ${
-        error.response?.statusText ?? error.message
-      }`.trim() ||
-      fallback
-    );
+      error.response?.data?.error;
+
+    if (typeof apiMessage === "string" && apiMessage.trim()) {
+      return apiMessage;
+    }
+
+    return error.message || fallback;
   }
 
   if (error instanceof Error) return error.message;
   return fallback;
 }
 
-function getActionColor(
-  action: string
-): "default" | "success" | "info" | "error" | "warning" | "secondary" {
-  switch (action) {
+function getActionIcon(action?: string | null): ReactElement {
+  switch ((action ?? "").toUpperCase()) {
     case "CREATE":
-      return "success";
-    case "UPDATE":
-      return "info";
-    case "SOFT_DELETE":
-    case "DELETE":
-      return "error";
-    case "RESTORE":
-      return "warning";
-    case "LOGIN":
-    case "REFRESH":
-    case "LOGOUT":
-    case "LOGOUT_ALL":
-    case "PASSWORD_CHANGE":
-      return "secondary";
-    default:
-      return "default";
-  }
-}
-
-function getActionIcon(action: string): ReactElement {
-  switch (action) {
-    case "LOGIN":
-    case "REFRESH":
-    case "LOGOUT":
-    case "LOGOUT_ALL":
-    case "PASSWORD_CHANGE":
-      return <LoginRoundedIcon fontSize="small" />;
-    case "CREATE":
+      return <CheckCircleRoundedIcon fontSize="small" />;
     case "UPDATE":
       return <EditNoteRoundedIcon fontSize="small" />;
-    case "SOFT_DELETE":
     case "DELETE":
       return <DeleteOutlineRoundedIcon fontSize="small" />;
     case "RESTORE":
       return <RestoreRoundedIcon fontSize="small" />;
+    case "LOGIN":
+      return <LoginRoundedIcon fontSize="small" />;
+    case "REFRESH":
+      return <RefreshRoundedIcon fontSize="small" />;
     default:
       return <SecurityRoundedIcon fontSize="small" />;
   }
 }
 
-function getStatusColor(
-  estatus?: string | null
-): "default" | "success" | "error" | "warning" | "info" {
-  const normalized = (estatus ?? "").trim().toUpperCase();
-
-  switch (normalized) {
-    case "APROBADA":
+function getActionColor(
+  action?: string | null
+): "success" | "warning" | "error" | "info" | "default" {
+  switch ((action ?? "").toUpperCase()) {
+    case "CREATE":
+    case "RESTORE":
       return "success";
-    case "RECHAZADA":
+    case "UPDATE":
+    case "REFRESH":
+      return "info";
+    case "DELETE":
       return "error";
-    case "PENDIENTE":
-      return "warning";
+    case "LOGIN":
+      return "default";
     default:
       return "default";
   }
 }
 
-function getStatusIcon(estatus?: string | null): ReactElement {
-  const normalized = (estatus ?? "").trim().toUpperCase();
-
-  switch (normalized) {
+function getStatusIcon(value?: string | null): ReactElement {
+  switch ((value ?? "").toUpperCase()) {
+    case "PENDIENTE":
+      return <HourglassTopRoundedIcon fontSize="small" />;
     case "APROBADA":
       return <CheckCircleRoundedIcon fontSize="small" />;
     case "RECHAZADA":
       return <CancelRoundedIcon fontSize="small" />;
-    case "PENDIENTE":
-      return <HourglassTopRoundedIcon fontSize="small" />;
     default:
       return <AssessmentRoundedIcon fontSize="small" />;
   }
 }
 
-function getTipoIcon(tipo?: string | null): ReactElement {
-  const normalized = (tipo ?? "").trim().toUpperCase();
+function getIncidenciaStatusChipColor(
+  value?: string | null
+): "default" | "success" | "warning" | "error" {
+  switch ((value ?? "").toUpperCase()) {
+    case "PENDIENTE":
+      return "warning";
+    case "APROBADA":
+      return "success";
+    case "RECHAZADA":
+      return "error";
+    default:
+      return "default";
+  }
+}
 
-  switch (normalized) {
+function getTipoIcon(value?: string | null): ReactElement {
+  switch ((value ?? "").toUpperCase()) {
     case "RETARDO":
       return <ScheduleRoundedIcon fontSize="small" />;
     case "FALTA":
@@ -261,6 +284,27 @@ function getTipoIcon(tipo?: string | null): ReactElement {
       return <FingerprintRoundedIcon fontSize="small" />;
     default:
       return <BadgeRoundedIcon fontSize="small" />;
+  }
+}
+
+function getIncidenciaTipoChipColor(
+  value?: string | null
+): "default" | "success" | "warning" | "error" | "info" {
+  switch ((value ?? "").toUpperCase()) {
+    case "RETARDO":
+      return "warning";
+    case "FALTA":
+      return "error";
+    case "PERMISO":
+      return "info";
+    case "VACACIONES":
+      return "success";
+    case "INCAPACIDAD":
+      return "success";
+    case "OMISION_DE_CHECADA":
+      return "default";
+    default:
+      return "default";
   }
 }
 
@@ -412,9 +456,9 @@ async function getRecentAuditFallback(): Promise<AuditDisplayItem[]> {
   });
 
   if (Array.isArray(data)) return data as AuditDisplayItem[];
-  if (Array.isArray(data?.items)) return data.items as AuditDisplayItem[];
-  if (Array.isArray(data?.data)) return data.data as AuditDisplayItem[];
-  if (Array.isArray(data?.results)) return data.results as AuditDisplayItem[];
+  if (Array.isArray((data as any)?.items)) return (data as any).items as AuditDisplayItem[];
+  if (Array.isArray((data as any)?.data)) return (data as any).data as AuditDisplayItem[];
+  if (Array.isArray((data as any)?.results)) return (data as any).results as AuditDisplayItem[];
 
   return [];
 }
@@ -438,9 +482,15 @@ export default function DashboardPage() {
     enabled: canSeeRhModules,
   });
 
-  const usersQuery = useQuery({
+  const usersQuery = useQuery<unknown>({
     queryKey: ["dashboard-users-total"],
     queryFn: () => getUsers({ page: 1, pageSize: 1 }),
+    enabled: canSeeRhModules,
+  });
+
+  const documentosQuery = useQuery<DashboardDocumentosResumen>({
+    queryKey: ["dashboard-documentos"],
+    queryFn: getDashboardDocumentosResumen,
     enabled: canSeeRhModules,
   });
 
@@ -452,6 +502,7 @@ export default function DashboardPage() {
 
   const statsData = statsQuery.data;
   const dashboardData = dashboardQuery.data;
+  const documentosData = documentosQuery.data;
 
   const recentAuditFromStats = Array.isArray((statsData as any)?.recentAudit)
     ? (((statsData as any).recentAudit as AuditDisplayItem[]) ?? [])
@@ -462,8 +513,7 @@ export default function DashboardPage() {
       ? recentAuditFromStats
       : auditFallbackQuery.data ?? [];
 
-  const recientes = (dashboardData?.incidenciasRecientes ??
-    []) as RecentIncidenciaItem[];
+  const recientes = (dashboardData?.incidenciasRecientes ?? []) as RecentIncidenciaItem[];
 
   const quickActions: QuickAction[] = useMemo(
     () =>
@@ -521,48 +571,71 @@ export default function DashboardPage() {
     [normalizedRoles]
   );
 
-  const primaryKpis: DashboardMetric[] = canSeeRhModules
-    ? [
-        {
-          title: "Empleados activos",
-          value: dashboardData?.empleadosActivos ?? 0,
-          subtitle: "Personal activo registrado",
-          icon: <Groups2OutlinedIcon fontSize="small" />,
-          badge: "RH",
-        },
-        {
-          title: "Sucursales activas",
-          value: dashboardData?.sucursalesActivas ?? 0,
-          subtitle: "Sedes disponibles",
-          icon: <StoreRoundedIcon fontSize="small" />,
-          badge: "RH",
-        },
-        {
-          title: "Incidencias pendientes",
-          value: dashboardData?.incidenciasPendientes ?? 0,
-          subtitle: "Esperando revisión",
-          icon: <PendingActionsOutlinedIcon fontSize="small" />,
-          badge: "RH",
-        },
-        {
-          title: "Incidencias del mes",
-          value: dashboardData?.incidenciasMes ?? 0,
-          subtitle: "Registradas en el mes actual",
-          icon: <DashboardRoundedIcon fontSize="small" />,
-          badge: "RH",
-        },
-      ]
-    : [];
+  const primaryKpis: DashboardMetric[] = [
+    ...(canSeeRhModules
+      ? [
+          {
+            title: "Empleados activos",
+            value: dashboardData?.empleadosActivos ?? 0,
+            subtitle: "Personal vigente",
+            icon: <Groups2OutlinedIcon fontSize="small" />,
+            badge: "RH",
+          },
+          {
+            title: "Incidencias pendientes",
+            value: dashboardData?.incidenciasPendientes ?? 0,
+            subtitle: "Atención requerida",
+            icon: <PendingActionsOutlinedIcon fontSize="small" />,
+            badge: "RH",
+          },
+          {
+            title: "Incidencias del mes",
+            value: dashboardData?.incidenciasMes ?? 0,
+            subtitle: "Movimiento del periodo",
+            icon: <AssessmentRoundedIcon fontSize="small" />,
+            badge: "RH",
+          },
+          {
+            title: "Expedientes incompletos",
+            value: documentosData?.expedientesIncompletos ?? 0,
+            subtitle: "Documentación pendiente",
+            icon: <FolderOpenRoundedIcon fontSize="small" />,
+            badge: "RH",
+          },
+          {
+            title: "Docs por vencer",
+            value: documentosData?.documentosPorVencer ?? 0,
+            subtitle: "Próximos 30 días",
+            icon: <DescriptionRoundedIcon fontSize="small" />,
+            badge: "RH",
+          },
+          {
+            title: "Docs vencidos",
+            value: documentosData?.documentosVencidos ?? 0,
+            subtitle: "Requieren actualización",
+            icon: <WarningAmberRoundedIcon fontSize="small" />,
+            badge: "RH",
+          },
+        ]
+      : []),
+  ];
 
   const secondaryKpis: DashboardMetric[] = [
     ...(canSeeRhModules
       ? [
           {
             title: "Usuarios",
-            value: usersQuery.data?.total ?? 0,
+            value: extractTotal(usersQuery.data),
             subtitle: "Cuentas registradas",
             icon: <BadgeRoundedIcon fontSize="small" />,
-            badge: "ADMIN",
+            badge: "RH",
+          },
+          {
+            title: "Sucursales",
+            value: statsData?.sucursalesTotal ?? 0,
+            subtitle: "Cobertura operativa",
+            icon: <StoreRoundedIcon fontSize="small" />,
+            badge: "RH",
           },
           {
             title: "Departamentos",
@@ -576,6 +649,18 @@ export default function DashboardPage() {
             value: statsData?.puestosTotal ?? 0,
             subtitle: "Roles y posiciones",
             icon: <WorkOutlineRoundedIcon fontSize="small" />,
+            badge: "RH",
+          },
+          {
+            title: "Expedientes completos",
+            value: documentosData?.totalEmpleadosActivos
+              ? Math.max(
+                  0,
+                  documentosData.totalEmpleadosActivos - documentosData.expedientesIncompletos
+                )
+              : 0,
+            subtitle: "Cumplimiento documental",
+            icon: <TaskAltRoundedIcon fontSize="small" />,
             badge: "RH",
           },
         ]
@@ -597,6 +682,7 @@ export default function DashboardPage() {
     if (canSeeRhModules) {
       void dashboardQuery.refetch();
       void usersQuery.refetch();
+      void documentosQuery.refetch();
     }
 
     if (canSeeRhModules || canSeeAudit) {
@@ -608,10 +694,14 @@ export default function DashboardPage() {
     }
   };
 
-  const primaryKpisLoading = canSeeRhModules && dashboardQuery.isLoading;
+  const primaryKpisLoading =
+    canSeeRhModules && (dashboardQuery.isLoading || documentosQuery.isLoading);
+
   const secondaryKpisLoading =
     (canSeeRhModules || canSeeAudit) &&
-    (statsQuery.isLoading || (canSeeRhModules && usersQuery.isLoading));
+    (statsQuery.isLoading ||
+      (canSeeRhModules && usersQuery.isLoading) ||
+      (canSeeRhModules && documentosQuery.isLoading));
 
   const auditLoading =
     (canSeeAudit && statsQuery.isLoading) ||
@@ -621,15 +711,24 @@ export default function DashboardPage() {
 
   const isRefreshing =
     (canSeeRhModules &&
-      (dashboardQuery.isFetching || usersQuery.isFetching)) ||
+      (dashboardQuery.isFetching ||
+        usersQuery.isFetching ||
+        documentosQuery.isFetching)) ||
     ((canSeeRhModules || canSeeAudit) && statsQuery.isFetching) ||
     (canSeeAudit && auditFallbackQuery.isFetching);
+
+  const hasError =
+    dashboardQuery.isError ||
+    statsQuery.isError ||
+    usersQuery.isError ||
+    documentosQuery.isError ||
+    auditFallbackQuery.isError;
 
   return (
     <AppPage
       eyebrow="Recursos Humanos"
       title="Dashboard RH"
-      subtitle="Panorama ejecutivo del módulo para revisar personal, incidencias, catálogos y actividad reciente."
+      subtitle="Panorama ejecutivo del módulo para revisar personal, incidencias, catálogos, documentos y actividad reciente."
       actions={
         <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap>
           <Button
@@ -646,7 +745,7 @@ export default function DashboardPage() {
       <HeroBanner
         eyebrow="Dashboard RH"
         title="Tablero principal de operación"
-        subtitle="Vista ejecutiva y operativa del módulo RH: empleados, sucursales, incidencias, usuarios y actividad reciente."
+        subtitle="Vista ejecutiva y operativa del módulo RH: empleados, sucursales, incidencias, usuarios, documentos y actividad reciente."
         badge="RH"
         actions={
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
@@ -695,6 +794,18 @@ export default function DashboardPage() {
                   módulos disponibles para tu sesión
                 </Typography>
               </Box>
+
+              <Box>
+                <Typography variant="h4" sx={{ fontWeight: 900, lineHeight: 1 }}>
+                  {documentosData?.expedientesIncompletos ?? 0}
+                </Typography>
+                <Typography
+                  variant="caption"
+                  sx={{ color: alpha("#ffffff", 0.8) }}
+                >
+                  expedientes incompletos
+                </Typography>
+              </Box>
             </Stack>
 
             <Stack spacing={1}>
@@ -737,10 +848,7 @@ export default function DashboardPage() {
         }
       />
 
-      {(dashboardQuery.isError ||
-        statsQuery.isError ||
-        usersQuery.isError ||
-        auditFallbackQuery.isError) && (
+      {hasError && (
         <Stack spacing={1.5}>
           {dashboardQuery.isError && canSeeRhModules ? (
             <Alert severity="error">
@@ -775,6 +883,17 @@ export default function DashboardPage() {
             </Alert>
           ) : null}
 
+          {documentosQuery.isError && canSeeRhModules ? (
+            <Alert severity="error">
+              No se pudo cargar el resumen documental.
+              <br />
+              {getQueryErrorMessage(
+                documentosQuery.error,
+                "Error al consultar documentos."
+              )}
+            </Alert>
+          ) : null}
+
           {auditFallbackQuery.isError &&
           canSeeAudit &&
           recentAuditFromStats.length === 0 ? (
@@ -798,6 +917,10 @@ export default function DashboardPage() {
           <Box sx={{ py: 6, display: "flex", justifyContent: "center" }}>
             <CircularProgress />
           </Box>
+        ) : primaryKpis.length === 0 ? (
+          <Alert severity="info">
+            No hay indicadores principales visibles para tu perfil.
+          </Alert>
         ) : (
           <Box
             sx={{
@@ -884,7 +1007,7 @@ export default function DashboardPage() {
 
       <SectionCard
         title="Resumen administrativo"
-        subtitle="Catálogos, seguridad y trazabilidad del sistema."
+        subtitle="Catálogos, seguridad, trazabilidad y documentación del sistema."
       >
         {secondaryKpisLoading ? (
           <Box sx={{ py: 6, display: "flex", justifyContent: "center" }}>
@@ -916,6 +1039,168 @@ export default function DashboardPage() {
                 badge={metric.badge}
               />
             ))}
+          </Box>
+        )}
+      </SectionCard>
+
+      <SectionCard
+        title="Alertas documentales"
+        subtitle="Empleados con expediente incompleto, documentos por vencer o vencidos."
+        actions={
+          canSeeRhModules ? (
+            <Button
+              component={RouterLink}
+              to="/empleados"
+              variant="outlined"
+              size="small"
+              startIcon={<FolderOpenRoundedIcon />}
+            >
+              Ver empleados
+            </Button>
+          ) : undefined
+        }
+      >
+        {documentosQuery.isLoading ? (
+          <Box sx={{ py: 6, display: "flex", justifyContent: "center" }}>
+            <CircularProgress />
+          </Box>
+        ) : !documentosData || documentosData.alertas.length === 0 ? (
+          <Alert severity="info">
+            No hay alertas documentales activas por el momento.
+          </Alert>
+        ) : (
+          <Box sx={{ overflowX: "auto" }}>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Empleado</TableCell>
+                  <TableCell>Departamento</TableCell>
+                  <TableCell>Faltantes</TableCell>
+                  <TableCell>Por vencer</TableCell>
+                  <TableCell>Vencidos</TableCell>
+                  <TableCell>Cumplimiento</TableCell>
+                  <TableCell align="right">Acción</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {documentosData.alertas.map((item) => (
+                  <TableRow key={`doc-alert-${item.empleadoId}`} hover>
+                    <TableCell>
+                      <Stack spacing={0.25}>
+                        <Typography fontWeight={800}>
+                          {item.nombreEmpleado}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {item.numEmpleado}
+                        </Typography>
+                      </Stack>
+                    </TableCell>
+
+                    <TableCell>
+                      <Chip
+                        size="small"
+                        icon={<ApartmentRoundedIcon fontSize="small" />}
+                        label={item.departamentoNombre ?? "-"}
+                        variant="outlined"
+                        sx={{
+                          fontWeight: 800,
+                          "& .MuiChip-icon": { color: "inherit" },
+                        }}
+                      />
+                    </TableCell>
+
+                    <TableCell>
+                      <Chip
+                        size="small"
+                        icon={<DescriptionRoundedIcon fontSize="small" />}
+                        label={item.totalFaltantes}
+                        variant="outlined"
+                        sx={{
+                          fontWeight: 800,
+                          "& .MuiChip-icon": { color: "inherit" },
+                        }}
+                      />
+                    </TableCell>
+
+                    <TableCell>
+                      <Chip
+                        size="small"
+                        icon={<HourglassBottomRoundedIcon fontSize="small" />}
+                        label={item.totalPorVencer}
+                        color="warning"
+                        variant="outlined"
+                        sx={{
+                          fontWeight: 800,
+                          "& .MuiChip-icon": { color: "inherit" },
+                        }}
+                      />
+                    </TableCell>
+
+                    <TableCell>
+                      <Chip
+                        size="small"
+                        icon={<WarningAmberRoundedIcon fontSize="small" />}
+                        label={item.totalVencidos}
+                        color="error"
+                        variant="outlined"
+                        sx={{
+                          fontWeight: 800,
+                          "& .MuiChip-icon": { color: "inherit" },
+                        }}
+                      />
+                    </TableCell>
+
+                    <TableCell sx={{ minWidth: 180 }}>
+                      <Stack spacing={0.75}>
+                        <Stack
+                          direction="row"
+                          spacing={0.75}
+                          alignItems="center"
+                        >
+                          <ChecklistRoundedIcon
+                            fontSize="small"
+                            sx={{ color: dashboardTokens.accent }}
+                          />
+                          <Typography variant="body2" fontWeight={800}>
+                            {item.porcentajeCumplimiento.toFixed(
+                              item.porcentajeCumplimiento % 1 === 0 ? 0 : 2
+                            )}
+                            %
+                          </Typography>
+                        </Stack>
+                        <LinearProgress
+                          variant="determinate"
+                          value={Math.max(
+                            0,
+                            Math.min(100, Number(item.porcentajeCumplimiento))
+                          )}
+                          sx={{
+                            height: 8,
+                            borderRadius: 999,
+                            backgroundColor: dashboardTokens.progressBg,
+                            "& .MuiLinearProgress-bar": {
+                              backgroundColor: dashboardTokens.accent,
+                              borderRadius: 999,
+                            },
+                          }}
+                        />
+                      </Stack>
+                    </TableCell>
+
+                    <TableCell align="right">
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        component={RouterLink}
+                        to={`/empleados/${item.empleadoId}/expediente`}
+                      >
+                        Expediente
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </Box>
         )}
       </SectionCard>
@@ -977,27 +1262,33 @@ export default function DashboardPage() {
                           icon={getActionIcon(action)}
                           label={formatEnumLabel(action)}
                           variant="outlined"
-                          sx={{ fontWeight: 800 }}
+                          sx={{
+                            fontWeight: 800,
+                            "& .MuiChip-icon": { color: "inherit" },
+                          }}
                         />
 
-                        <Typography variant="body2" fontWeight={700}>
-                          {item.entityName ?? "Sistema"}
+                        <Chip
+                          size="small"
+                          variant="outlined"
+                          icon={<InfoOutlinedIcon fontSize="small" />}
+                          label={item.entityName ?? "Entidad"}
+                          sx={{
+                            fontWeight: 700,
+                            "& .MuiChip-icon": { color: "inherit" },
+                          }}
+                        />
+
+                        <Typography variant="body2" color="text.secondary">
+                          #{item.recordId ?? "-"}
                         </Typography>
                       </Stack>
 
                       <Typography variant="body2" color="text.secondary">
-                        Registro: {item.recordId ?? "-"} · Usuario:{" "}
-                        {item.userEmail ?? "Sistema"}
+                        {item.userEmail ?? "Sistema"} •{" "}
+                        {formatDateTime(item.occurredAtUtc)}
                       </Typography>
                     </Stack>
-
-                    <Typography
-                      variant="body2"
-                      color="text.secondary"
-                      sx={{ whiteSpace: "nowrap" }}
-                    >
-                      {formatDateTime(item.occurredAtUtc)}
-                    </Typography>
                   </Stack>
                 </Box>
               );
@@ -1010,29 +1301,42 @@ export default function DashboardPage() {
         sx={{
           display: "grid",
           gridTemplateColumns: { xs: "1fr", xl: "1fr 1fr" },
-          gap: 2,
+          gap: 2.25,
         }}
       >
         <SummaryListCard
           title="Incidencias por tipo"
-          subtitle="Distribución de incidencias registradas por categoría."
-          emptyText="No hay datos de incidencias por tipo."
+          subtitle="Distribución de registros según su clasificación."
           items={dashboardData?.incidenciasPorTipo ?? []}
+          emptyText="No hay datos de incidencias por tipo."
           kind="tipo"
         />
 
         <SummaryListCard
           title="Incidencias por estatus"
-          subtitle="Comportamiento de revisión y resolución."
-          emptyText="No hay datos de incidencias por estatus."
+          subtitle="Panorama de seguimiento del flujo de incidencias."
           items={dashboardData?.incidenciasPorEstatus ?? []}
+          emptyText="No hay datos de incidencias por estatus."
           kind="estatus"
         />
       </Box>
 
       <SectionCard
         title="Incidencias recientes"
-        subtitle="Últimos registros capturados en el módulo."
+        subtitle="Últimos movimientos registrados en el módulo de incidencias."
+        actions={
+          canSeeRhModules ? (
+            <Button
+              component={RouterLink}
+              to="/incidencias"
+              variant="outlined"
+              size="small"
+              startIcon={<PendingActionsOutlinedIcon />}
+            >
+              Ver incidencias
+            </Button>
+          ) : undefined
+        }
       >
         {dashboardQuery.isLoading ? (
           <Box sx={{ py: 6, display: "flex", justifyContent: "center" }}>
@@ -1048,44 +1352,48 @@ export default function DashboardPage() {
                   <TableCell>Empleado</TableCell>
                   <TableCell>Tipo</TableCell>
                   <TableCell>Estatus</TableCell>
-                  <TableCell>Desde</TableCell>
-                  <TableCell>Hasta</TableCell>
+                  <TableCell>Fecha inicio</TableCell>
+                  <TableCell>Fecha fin</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {recientes.slice(0, 8).map((item, index) => (
-                  <TableRow key={item.id ?? index} hover>
+                {recientes.map((item, index) => (
+                  <TableRow key={`inc-${item.id ?? index}`} hover>
                     <TableCell>
-                      <Stack spacing={0.35}>
-                        <Typography fontWeight={700}>
-                          {item.empleadoNombre ?? "Sin nombre"}
-                        </Typography>
-                        {item.comentario ? (
-                          <Typography variant="body2" color="text.secondary">
-                            {item.comentario}
-                          </Typography>
-                        ) : null}
-                      </Stack>
+                      <Typography fontWeight={800}>
+                        {item.empleadoNombre ?? "-"}
+                      </Typography>
                     </TableCell>
 
                     <TableCell>
                       <Chip
                         size="small"
-                        variant="outlined"
                         icon={getTipoIcon(item.tipo)}
                         label={formatEnumLabel(item.tipo)}
-                        sx={{ fontWeight: 800 }}
+                        color={getIncidenciaTipoChipColor(item.tipo)}
+                        variant="outlined"
+                        sx={{
+                          fontWeight: 800,
+                          "& .MuiChip-icon": {
+                            color: "inherit",
+                          },
+                        }}
                       />
                     </TableCell>
 
                     <TableCell>
                       <Chip
                         size="small"
-                        color={getStatusColor(item.estatus)}
                         icon={getStatusIcon(item.estatus)}
                         label={formatEnumLabel(item.estatus)}
+                        color={getIncidenciaStatusChipColor(item.estatus)}
                         variant="outlined"
-                        sx={{ fontWeight: 800 }}
+                        sx={{
+                          fontWeight: 800,
+                          "& .MuiChip-icon": {
+                            color: "inherit",
+                          },
+                        }}
                       />
                     </TableCell>
 

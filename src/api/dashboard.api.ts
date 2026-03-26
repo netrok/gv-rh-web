@@ -37,6 +37,27 @@ export type DashboardData = {
   incidenciasRecientes: DashboardIncidenciaReciente[];
 };
 
+export type DashboardDocumentoAlertaItem = {
+  empleadoId: number;
+  numEmpleado: string;
+  nombreEmpleado: string;
+  departamentoNombre?: string | null;
+  puestoNombre?: string | null;
+  sucursalNombre?: string | null;
+  totalFaltantes: number;
+  totalPorVencer: number;
+  totalVencidos: number;
+  porcentajeCumplimiento: number;
+};
+
+export type DashboardDocumentosResumen = {
+  totalEmpleadosActivos: number;
+  expedientesIncompletos: number;
+  documentosPorVencer: number;
+  documentosVencidos: number;
+  alertas: DashboardDocumentoAlertaItem[];
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -116,5 +137,13 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 
 export async function getDashboard(): Promise<DashboardData> {
   const { data } = await api.get<DashboardData>("/api/Dashboard");
+  return data;
+}
+
+export async function getDashboardDocumentosResumen(): Promise<DashboardDocumentosResumen> {
+  const { data } = await api.get<DashboardDocumentosResumen>(
+    "/api/Dashboard/documentos"
+  );
+
   return data;
 }
