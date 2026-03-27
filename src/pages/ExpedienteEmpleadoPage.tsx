@@ -3,6 +3,8 @@ import {
   Alert,
   Box,
   Button,
+  Card,
+  CardContent,
   Chip,
   CircularProgress,
   Dialog,
@@ -18,6 +20,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableContainer,
   TableHead,
   TableRow,
   TextField,
@@ -26,8 +29,11 @@ import {
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
+import ApartmentRoundedIcon from "@mui/icons-material/ApartmentRounded";
 import AttachFileRoundedIcon from "@mui/icons-material/AttachFileRounded";
-import ClearRoundedIcon from "@mui/icons-material/ClearRounded";
+import BadgeRoundedIcon from "@mui/icons-material/BadgeRounded";
+import BusinessRoundedIcon from "@mui/icons-material/BusinessRounded";
+import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import DescriptionRoundedIcon from "@mui/icons-material/DescriptionRounded";
 import DownloadRoundedIcon from "@mui/icons-material/DownloadRounded";
@@ -35,23 +41,15 @@ import DriveFolderUploadRoundedIcon from "@mui/icons-material/DriveFolderUploadR
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import FilterAltRoundedIcon from "@mui/icons-material/FilterAltRounded";
 import FolderOpenRoundedIcon from "@mui/icons-material/FolderOpenRounded";
+import HourglassBottomRoundedIcon from "@mui/icons-material/HourglassBottomRounded";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
+import SwapHorizRoundedIcon from "@mui/icons-material/SwapHorizRounded";
+import TaskAltRoundedIcon from "@mui/icons-material/TaskAltRounded";
 import VisibilityRoundedIcon from "@mui/icons-material/VisibilityRounded";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
-import BadgeRoundedIcon from "@mui/icons-material/BadgeRounded";
-import BusinessRoundedIcon from "@mui/icons-material/BusinessRounded";
-import ApartmentRoundedIcon from "@mui/icons-material/ApartmentRounded";
 import WorkOutlineRoundedIcon from "@mui/icons-material/WorkOutlineRounded";
-import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
-import HourglassBottomRoundedIcon from "@mui/icons-material/HourglassBottomRounded";
-import TaskAltRoundedIcon from "@mui/icons-material/TaskAltRounded";
 import { useNavigate, useParams } from "react-router-dom";
-import AppPage from "../components/ui/AppPage";
-import HeroBanner from "../components/ui/HeroBanner";
-import MetricCard from "../components/ui/MetricCard";
-import SectionCard from "../components/ui/SectionCard";
-import EmptyState from "../components/ui/EmptyState";
 import {
   createEmpleadoDocumento,
   deleteEmpleadoDocumento,
@@ -62,11 +60,11 @@ import {
   getEmpleadoDocumentos,
   getEmpleadoDocumentosChecklist,
   getTipoDocumentoEmpleadoLabel,
+  replaceEmpleadoDocumento,
   TIPOS_DOCUMENTO_EMPLEADO,
   updateEmpleadoDocumento,
   type EmpleadoDocumento,
   type EmpleadoDocumentoChecklist,
-  type EmpleadoDocumentoChecklistItem,
 } from "../api/empleadoDocumentos.api";
 import {
   getEmpleadoById,
@@ -95,6 +93,13 @@ type EditFormState = {
   comentario: string;
 };
 
+type ReplaceFormState = {
+  fechaDocumento: string;
+  fechaVencimiento: string;
+  comentario: string;
+  archivo: File | null;
+};
+
 type DocumentoStatusTone = "success" | "warning" | "error" | "default";
 
 type DocumentoStatus = {
@@ -105,7 +110,7 @@ type DocumentoStatus = {
 type DocumentoStatusFilter = "TODOS" | DocumentoStatus["label"];
 
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
-const ALLOWED_FILE_EXTENSIONS = [".pdf", ".jpg", ".jpeg", ".png"];
+const ALLOWED_FILE_EXTENSIONS = [".pdf", ".jpg", ".jpeg", ".png", ".webp"];
 
 const emptyCreateForm: CreateFormState = {
   tipo: 1,
@@ -122,6 +127,241 @@ const emptyEditForm: EditFormState = {
   comentario: "",
 };
 
+const emptyReplaceForm: ReplaceFormState = {
+  fechaDocumento: "",
+  fechaVencimiento: "",
+  comentario: "",
+  archivo: null,
+};
+
+function formatDate(value?: string | null) {
+  if (!value) return "—";
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [year, month, day] = value.split("-");
+    return `${day}/${month}/${year}`;
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return new Intl.DateTimeFormat("es-MX", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
+}
+
+function formatBytes(bytes: number) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+function getDocumentoStatus(fechaVencimiento?: string | null): DocumentoStatus {
+  if (!fechaVencimiento) {
+    return { label: "Sin vencimiento", tone: "default" };
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const expiration = new Date(`${fechaVencimiento}T00:00:00`);
+  if (Number.isNaN(expiration.getTime())) {
+    return { label: "Sin vencimiento", tone: "default" };
+  }
+
+  if (expiration < today) {
+    return { label: "Vencido", tone: "error" };
+  }
+
+  const warningDate = new Date(today);
+  warningDate.setDate(warningDate.getDate() + 30);
+
+  if (expiration <= warningDate) {
+    return { label: "Por vencer", tone: "warning" };
+  }
+
+  return { label: "Vigente", tone: "success" };
+}
+
+function getPreviewKind(mimeType?: string | null): "image" | "pdf" | "unsupported" {
+  if (!mimeType) return "unsupported";
+  if (mimeType.startsWith("image/")) return "image";
+  if (mimeType === "application/pdf") return "pdf";
+  return "unsupported";
+}
+
+function validateSelectedFile(file: File | null): string | null {
+  if (!file) return "Debes seleccionar un archivo.";
+
+  if (file.size > MAX_FILE_SIZE_BYTES) {
+    return "El archivo excede el tamaño máximo permitido de 10 MB.";
+  }
+
+  const extension = `.${file.name.split(".").pop()?.toLowerCase() ?? ""}`;
+  if (!ALLOWED_FILE_EXTENSIONS.includes(extension)) {
+    return "Solo se permiten archivos PDF, JPG, JPEG, PNG o WEBP.";
+  }
+
+  return null;
+}
+
+function normalizeNullableText(value: string): string | null {
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function SectionPanel({
+  title,
+  subtitle,
+  actions,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  actions?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <Card
+      elevation={0}
+      sx={{
+        borderRadius: "24px",
+        border: "1px solid",
+        borderColor: "divider",
+        boxShadow: "0 10px 24px rgba(15,23,42,0.05)",
+      }}
+    >
+      <CardContent sx={{ p: { xs: 2.25, md: 3 } }}>
+        <Stack spacing={2}>
+          <Stack
+            direction={{ xs: "column", md: "row" }}
+            spacing={1.5}
+            justifyContent="space-between"
+            alignItems={{ xs: "flex-start", md: "center" }}
+          >
+            <Box>
+              <Typography variant="h6" fontWeight={800}>
+                {title}
+              </Typography>
+              {subtitle ? (
+                <Typography variant="body2" color="text.secondary">
+                  {subtitle}
+                </Typography>
+              ) : null}
+            </Box>
+
+            {actions ? <Box>{actions}</Box> : null}
+          </Stack>
+
+          {children}
+        </Stack>
+      </CardContent>
+    </Card>
+  );
+}
+
+function MetricTile({
+  title,
+  value,
+  subtitle,
+  icon,
+}: {
+  title: string;
+  value: number;
+  subtitle: string;
+  icon: ReactNode;
+}) {
+  return (
+    <Card
+      elevation={0}
+      sx={{
+        borderRadius: "22px",
+        border: "1px solid",
+        borderColor: "divider",
+        boxShadow: "0 10px 24px rgba(15,23,42,0.04)",
+        minHeight: 134,
+      }}
+    >
+      <CardContent sx={{ p: 2.5 }}>
+        <Stack direction="row" spacing={1.5} alignItems="flex-start">
+          <Box
+            sx={{
+              width: 44,
+              height: 44,
+              borderRadius: "14px",
+              display: "grid",
+              placeItems: "center",
+              bgcolor: (theme) => alpha(theme.palette.primary.main, 0.08),
+              flexShrink: 0,
+            }}
+          >
+            {icon}
+          </Box>
+
+          <Box>
+            <Typography variant="body2" color="text.secondary">
+              {title}
+            </Typography>
+            <Typography variant="h4" fontWeight={800} lineHeight={1.1}>
+              {value}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {subtitle}
+            </Typography>
+          </Box>
+        </Stack>
+      </CardContent>
+    </Card>
+  );
+}
+
+function EmptyPanel({
+  title,
+  description,
+  actionLabel,
+  onAction,
+}: {
+  title: string;
+  description: string;
+  actionLabel?: string;
+  onAction?: () => void;
+}) {
+  return (
+    <Box
+      sx={{
+        py: 5,
+        px: 3,
+        borderRadius: "20px",
+        border: "1px dashed",
+        borderColor: "divider",
+        textAlign: "center",
+        bgcolor: (theme) => alpha(theme.palette.primary.main, 0.015),
+      }}
+    >
+      <Stack spacing={1.25} alignItems="center">
+        <Typography variant="h6" fontWeight={800}>
+          {title}
+        </Typography>
+        <Typography
+          variant="body2"
+          color="text.secondary"
+          sx={{ maxWidth: 520 }}
+        >
+          {description}
+        </Typography>
+        {actionLabel && onAction ? (
+          <Button variant="contained" onClick={onAction} sx={{ mt: 1 }}>
+            {actionLabel}
+          </Button>
+        ) : null}
+      </Stack>
+    </Box>
+  );
+}
+
 export default function ExpedienteEmpleadoPage() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -131,21 +371,26 @@ export default function ExpedienteEmpleadoPage() {
   const [empleado, setEmpleado] = useState<Empleado | null>(null);
   const [documentos, setDocumentos] = useState<EmpleadoDocumento[]>([]);
   const [checklist, setChecklist] = useState<EmpleadoDocumentoChecklist | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [replaceDialogOpen, setReplaceDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
 
   const [createForm, setCreateForm] = useState<CreateFormState>(emptyCreateForm);
   const [editForm, setEditForm] = useState<EditFormState>(emptyEditForm);
+  const [replaceForm, setReplaceForm] = useState<ReplaceFormState>(emptyReplaceForm);
+
   const [selectedDocumento, setSelectedDocumento] =
     useState<EmpleadoDocumento | null>(null);
 
   const [savingCreate, setSavingCreate] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
+  const [savingReplace, setSavingReplace] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
   const [previewingId, setPreviewingId] = useState<number | null>(null);
@@ -227,26 +472,34 @@ export default function ExpedienteEmpleadoPage() {
     return getEmpleadoNombreCompleto(empleado);
   }, [empleado]);
 
+  const empleadoMeta = empleado as Empleado & {
+    numEmpleado?: string | null;
+    sucursalNombre?: string | null;
+    departamentoNombre?: string | null;
+    puestoNombre?: string | null;
+  };
+
   const documentosEnriquecidos = useMemo(() => {
     return documentos.map((item) => ({
       ...item,
+      tipoLabel: getTipoDocumentoEmpleadoLabel(item.tipo),
       status: getDocumentoStatus(item.fechaVencimiento),
     }));
   }, [documentos]);
 
   const metrics = useMemo(() => {
     const total = documentosEnriquecidos.length;
+    const vigentes = documentosEnriquecidos.filter(
+      (item) => item.status.label === "Vigente"
+    ).length;
     const porVencer = documentosEnriquecidos.filter(
       (item) => item.status.label === "Por vencer"
     ).length;
     const vencidos = documentosEnriquecidos.filter(
       (item) => item.status.label === "Vencido"
     ).length;
-    const sinVencimiento = documentosEnriquecidos.filter(
-      (item) => item.status.label === "Sin vencimiento"
-    ).length;
 
-    return { total, porVencer, vencidos, sinVencimiento };
+    return { total, vigentes, porVencer, vencidos };
   }, [documentosEnriquecidos]);
 
   const filteredDocuments = useMemo(() => {
@@ -260,13 +513,16 @@ export default function ExpedienteEmpleadoPage() {
         statusFilter === "TODOS" ? true : item.status.label === statusFilter;
 
       const matchesSearch =
-        !term
+        term.length === 0
           ? true
-          : item.nombreArchivoOriginal.toLowerCase().includes(term) ||
-            item.tipoNombre.toLowerCase().includes(term) ||
-            getTipoDocumentoEmpleadoLabel(item.tipo).toLowerCase().includes(term) ||
-            (item.comentario ?? "").toLowerCase().includes(term) ||
-            item.mimeType.toLowerCase().includes(term);
+          : [
+              item.nombreArchivoOriginal,
+              item.tipoLabel,
+              item.comentario ?? "",
+            ]
+              .join(" ")
+              .toLowerCase()
+              .includes(term);
 
       return matchesTipo && matchesStatus && matchesSearch;
     });
@@ -281,31 +537,17 @@ export default function ExpedienteEmpleadoPage() {
   }, [search, tipoFilter, statusFilter]);
 
   const checklistSortedItems = useMemo(() => {
-    return [...(checklist?.items ?? [])].sort((a, b) => {
-      if (a.requerido !== b.requerido) return a.requerido ? -1 : 1;
-
-      const priority = (estatus: EmpleadoDocumentoChecklistItem["estatus"]) => {
-        switch (estatus) {
-          case "FALTANTE":
-            return 0;
-          case "VENCIDO":
-            return 1;
-          case "POR_VENCER":
-            return 2;
-          case "CARGADO":
-            return 3;
-          case "OPCIONAL":
-            return 4;
-          default:
-            return 5;
+    return [...(checklist?.items ?? [])]
+      .map((item) => ({
+        ...item,
+        tipoLabel: getTipoDocumentoEmpleadoLabel(item.tipo),
+      }))
+      .sort((a, b) => {
+        if (a.requerido !== b.requerido) {
+          return a.requerido ? -1 : 1;
         }
-      };
-
-      const statusCompare = priority(a.estatus) - priority(b.estatus);
-      if (statusCompare !== 0) return statusCompare;
-
-      return a.tipo - b.tipo;
-    });
+        return a.tipo - b.tipo;
+      });
   }, [checklist]);
 
   const handleRefresh = async () => {
@@ -316,26 +558,26 @@ export default function ExpedienteEmpleadoPage() {
     navigate("/empleados");
   };
 
-  const openUploadDialogForTipo = (tipo: number) => {
-    setCreateForm({
-      ...emptyCreateForm,
-      tipo,
-    });
-    setUploadDialogOpen(true);
-  };
-
-  const handleOpenUploadDialog = () => {
-    setCreateForm(emptyCreateForm);
-    setUploadDialogOpen(true);
-  };
-
-  const handleCloseUploadDialog = () => {
-    if (savingCreate) return;
-    setUploadDialogOpen(false);
+  const resetCreateForm = () => {
     setCreateForm(emptyCreateForm);
   };
 
-  const handleOpenEditDialog = (documento: EmpleadoDocumento) => {
+  const resetEditForm = () => {
+    setEditForm(emptyEditForm);
+    setSelectedDocumento(null);
+  };
+
+  const resetReplaceForm = () => {
+    setReplaceForm(emptyReplaceForm);
+    setSelectedDocumento(null);
+  };
+
+  const openUploadDialog = () => {
+    resetCreateForm();
+    setUploadDialogOpen(true);
+  };
+
+  const openEditDialog = (documento: EmpleadoDocumento) => {
     setSelectedDocumento(documento);
     setEditForm({
       tipo: documento.tipo,
@@ -346,99 +588,37 @@ export default function ExpedienteEmpleadoPage() {
     setEditDialogOpen(true);
   };
 
-  const handleCloseEditDialog = () => {
-    if (savingEdit) return;
-    setEditDialogOpen(false);
-    setSelectedDocumento(null);
-    setEditForm(emptyEditForm);
+  const openReplaceDialog = (documento: EmpleadoDocumento) => {
+    setSelectedDocumento(documento);
+    setReplaceForm({
+      fechaDocumento: documento.fechaDocumento ?? "",
+      fechaVencimiento: documento.fechaVencimiento ?? "",
+      comentario: documento.comentario ?? "",
+      archivo: null,
+    });
+    setReplaceDialogOpen(true);
   };
 
-  const handleOpenDeleteDialog = (documento: EmpleadoDocumento) => {
+  const openDeleteDialog = (documento: EmpleadoDocumento) => {
     setSelectedDocumento(documento);
     setDeleteDialogOpen(true);
   };
 
-  const handleCloseDeleteDialog = () => {
-    if (deleting) return;
-    setDeleteDialogOpen(false);
-    setSelectedDocumento(null);
-  };
-
-  const handleClosePreviewDialog = () => {
+  const handleClosePreview = () => {
     setPreviewDialogOpen(false);
-    setSelectedDocumento(null);
-
     if (previewUrl) {
       window.URL.revokeObjectURL(previewUrl);
       setPreviewUrl(null);
     }
   };
 
-  const handleCreateInputChange = (
-    field: keyof Omit<CreateFormState, "archivo">,
-    value: string | number
-  ) => {
-    setCreateForm((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
-  };
+  const validateDates = (fechaDocumento: string, fechaVencimiento: string) => {
+    if (!fechaDocumento || !fechaVencimiento) return null;
 
-  const handleEditInputChange = (
-    field: keyof EditFormState,
-    value: string | number
-  ) => {
-    setEditForm((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
-  };
+    const docDate = new Date(`${fechaDocumento}T00:00:00`);
+    const expDate = new Date(`${fechaVencimiento}T00:00:00`);
 
-  const handleCreateFileChange = (file: File | null) => {
-    setCreateForm((prev) => ({
-      ...prev,
-      archivo: file,
-    }));
-  };
-
-  const clearFilters = () => {
-    setSearch("");
-    setTipoFilter("TODOS");
-    setStatusFilter("TODOS");
-  };
-
-  const validateCreateForm = (): string | null => {
-    if (!createForm.tipo) return "Debes seleccionar el tipo de documento.";
-    if (!createForm.archivo) return "Debes seleccionar un archivo.";
-
-    const fileExtension = getFileExtension(createForm.archivo.name);
-    if (!ALLOWED_FILE_EXTENSIONS.includes(fileExtension)) {
-      return "Solo se permiten archivos PDF, JPG, JPEG o PNG.";
-    }
-
-    if (createForm.archivo.size > MAX_FILE_SIZE_BYTES) {
-      return "El archivo excede el tamaño máximo permitido de 10 MB.";
-    }
-
-    if (
-      createForm.fechaDocumento &&
-      createForm.fechaVencimiento &&
-      createForm.fechaVencimiento < createForm.fechaDocumento
-    ) {
-      return "La fecha de vencimiento no puede ser menor que la fecha del documento.";
-    }
-
-    return null;
-  };
-
-  const validateEditForm = (): string | null => {
-    if (!editForm.tipo) return "Debes seleccionar el tipo de documento.";
-
-    if (
-      editForm.fechaDocumento &&
-      editForm.fechaVencimiento &&
-      editForm.fechaVencimiento < editForm.fechaDocumento
-    ) {
+    if (expDate < docDate) {
       return "La fecha de vencimiento no puede ser menor que la fecha del documento.";
     }
 
@@ -446,36 +626,40 @@ export default function ExpedienteEmpleadoPage() {
   };
 
   const handleCreateSubmit = async () => {
-    const validationMessage = validateCreateForm();
-    if (validationMessage) {
-      showSnackbar("warning", validationMessage);
+    const fileError = validateSelectedFile(createForm.archivo);
+    if (fileError) {
+      showSnackbar("error", fileError);
       return;
     }
 
-    if (!createForm.archivo) {
-      showSnackbar("warning", "Debes seleccionar un archivo.");
+    const dateError = validateDates(
+      createForm.fechaDocumento,
+      createForm.fechaVencimiento
+    );
+    if (dateError) {
+      showSnackbar("error", dateError);
       return;
     }
-
-    setSavingCreate(true);
 
     try {
+      setSavingCreate(true);
+
       await createEmpleadoDocumento(empleadoId, {
         tipo: createForm.tipo,
-        archivo: createForm.archivo,
-        fechaDocumento: normalizeOptionalDate(createForm.fechaDocumento),
-        fechaVencimiento: normalizeOptionalDate(createForm.fechaVencimiento),
-        comentario: normalizeOptionalText(createForm.comentario),
+        archivo: createForm.archivo!,
+        fechaDocumento: createForm.fechaDocumento || null,
+        fechaVencimiento: createForm.fechaVencimiento || null,
+        comentario: normalizeNullableText(createForm.comentario),
       });
 
       setUploadDialogOpen(false);
-      setCreateForm(emptyCreateForm);
+      resetCreateForm();
       showSnackbar("success", "Documento cargado correctamente.");
       await loadPageData(true);
     } catch (error: any) {
       const message =
         error?.response?.data?.message ||
-        "No fue posible cargar el documento.";
+        "No se pudo cargar el documento.";
       showSnackbar("error", message);
     } finally {
       setSavingCreate(false);
@@ -485,44 +669,89 @@ export default function ExpedienteEmpleadoPage() {
   const handleEditSubmit = async () => {
     if (!selectedDocumento) return;
 
-    const validationMessage = validateEditForm();
-    if (validationMessage) {
-      showSnackbar("warning", validationMessage);
+    const dateError = validateDates(
+      editForm.fechaDocumento,
+      editForm.fechaVencimiento
+    );
+    if (dateError) {
+      showSnackbar("error", dateError);
       return;
     }
 
-    setSavingEdit(true);
-
     try {
+      setSavingEdit(true);
+
       await updateEmpleadoDocumento(selectedDocumento.id, {
         tipo: editForm.tipo,
-        fechaDocumento: normalizeOptionalDate(editForm.fechaDocumento),
-        fechaVencimiento: normalizeOptionalDate(editForm.fechaVencimiento),
-        comentario: normalizeOptionalText(editForm.comentario),
+        fechaDocumento: editForm.fechaDocumento || null,
+        fechaVencimiento: editForm.fechaVencimiento || null,
+        comentario: normalizeNullableText(editForm.comentario),
       });
 
       setEditDialogOpen(false);
-      setSelectedDocumento(null);
-      setEditForm(emptyEditForm);
+      resetEditForm();
       showSnackbar("success", "Documento actualizado correctamente.");
       await loadPageData(true);
     } catch (error: any) {
       const message =
         error?.response?.data?.message ||
-        "No fue posible actualizar el documento.";
+        "No se pudo actualizar el documento.";
       showSnackbar("error", message);
     } finally {
       setSavingEdit(false);
     }
   };
 
-  const handleDeleteSubmit = async () => {
+  const handleReplaceSubmit = async () => {
     if (!selectedDocumento) return;
 
-    setDeleting(true);
+    const fileError = validateSelectedFile(replaceForm.archivo);
+    if (fileError) {
+      showSnackbar("error", fileError);
+      return;
+    }
+
+    const dateError = validateDates(
+      replaceForm.fechaDocumento,
+      replaceForm.fechaVencimiento
+    );
+    if (dateError) {
+      showSnackbar("error", dateError);
+      return;
+    }
 
     try {
+      setSavingReplace(true);
+
+      await replaceEmpleadoDocumento(selectedDocumento.id, {
+        archivo: replaceForm.archivo!,
+        fechaDocumento: replaceForm.fechaDocumento || null,
+        fechaVencimiento: replaceForm.fechaVencimiento || null,
+        comentario: normalizeNullableText(replaceForm.comentario),
+      });
+
+      setReplaceDialogOpen(false);
+      resetReplaceForm();
+      showSnackbar("success", "Archivo reemplazado correctamente.");
+      await loadPageData(true);
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.message ||
+        "No se pudo reemplazar el archivo.";
+      showSnackbar("error", message);
+    } finally {
+      setSavingReplace(false);
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!selectedDocumento) return;
+
+    try {
+      setDeleting(true);
+
       await deleteEmpleadoDocumento(selectedDocumento.id);
+
       setDeleteDialogOpen(false);
       setSelectedDocumento(null);
       showSnackbar("success", "Documento eliminado correctamente.");
@@ -530,7 +759,7 @@ export default function ExpedienteEmpleadoPage() {
     } catch (error: any) {
       const message =
         error?.response?.data?.message ||
-        "No fue posible eliminar el documento.";
+        "No se pudo eliminar el documento.";
       showSnackbar("error", message);
     } finally {
       setDeleting(false);
@@ -538,9 +767,8 @@ export default function ExpedienteEmpleadoPage() {
   };
 
   const handleDownload = async (documento: EmpleadoDocumento) => {
-    setDownloadingId(documento.id);
-
     try {
+      setDownloadingId(documento.id);
       await downloadEmpleadoDocumento(
         documento.id,
         documento.nombreArchivoOriginal
@@ -548,7 +776,7 @@ export default function ExpedienteEmpleadoPage() {
     } catch (error: any) {
       const message =
         error?.response?.data?.message ||
-        "No fue posible descargar el documento.";
+        "No se pudo descargar el documento.";
       showSnackbar("error", message);
     } finally {
       setDownloadingId(null);
@@ -556,47 +784,39 @@ export default function ExpedienteEmpleadoPage() {
   };
 
   const handlePreview = async (documento: EmpleadoDocumento) => {
-    setPreviewingId(documento.id);
-
     try {
+      setPreviewingId(documento.id);
+
       const blob = await getEmpleadoDocumentoBlob(documento.id);
-      const objectUrl = window.URL.createObjectURL(blob);
 
       if (previewUrl) {
         window.URL.revokeObjectURL(previewUrl);
       }
 
+      const objectUrl = window.URL.createObjectURL(blob);
       setPreviewUrl(objectUrl);
       setSelectedDocumento(documento);
       setPreviewDialogOpen(true);
     } catch (error: any) {
       const message =
         error?.response?.data?.message ||
-        error?.message ||
-        "No fue posible previsualizar el documento.";
+        "No se pudo cargar la vista previa del documento.";
       showSnackbar("error", message);
     } finally {
       setPreviewingId(null);
     }
   };
 
-  const resolveDocumentoFromChecklistItem = (
-    item: EmpleadoDocumentoChecklistItem
-  ): EmpleadoDocumento | null => {
-    if (!item.documentoId) return null;
-    return documentos.find((doc) => doc.id === item.documentoId) ?? null;
+  const clearFilters = () => {
+    setSearch("");
+    setTipoFilter("TODOS");
+    setStatusFilter("TODOS");
   };
 
   if (loading) {
     return (
-      <Box
-        sx={{
-          minHeight: "55vh",
-          display: "grid",
-          placeItems: "center",
-        }}
-      >
-        <Stack spacing={2} alignItems="center">
+      <Box sx={{ p: 4 }}>
+        <Stack alignItems="center" spacing={2}>
           <CircularProgress />
           <Typography color="text.secondary">
             Cargando expediente del empleado...
@@ -608,254 +828,209 @@ export default function ExpedienteEmpleadoPage() {
 
   if (!empleado) {
     return (
-      <AppPage
-        eyebrow="Recursos Humanos"
-        title="Expediente del empleado"
-        subtitle="Consulta y administración documental."
-      >
-        <SectionCard title="Expediente" subtitle="No disponible">
-          <EmptyState
-            icon={<DescriptionRoundedIcon sx={{ fontSize: 52 }} />}
-            title="No se encontró el empleado"
-            description="El expediente que intentas abrir no existe o no está disponible."
-            actionLabel="Regresar a empleados"
-            onAction={handleBack}
-          />
-        </SectionCard>
-      </AppPage>
+      <Box sx={{ p: 4 }}>
+        <Alert severity="error" sx={{ mb: 2 }}>
+          No fue posible cargar la información del empleado.
+        </Alert>
+        <Button
+          startIcon={<ArrowBackRoundedIcon />}
+          variant="outlined"
+          onClick={handleBack}
+        >
+          Volver a empleados
+        </Button>
+      </Box>
     );
   }
 
+  const previewKind = getPreviewKind(selectedDocumento?.mimeType);
+
   return (
-    <AppPage
-      eyebrow="Recursos Humanos"
-      title="Expediente del empleado"
-      subtitle="Gestión documental, vigencias y administración del expediente digital."
-      actions={
-        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-          <Button
-            variant="outlined"
-            startIcon={<ArrowBackRoundedIcon />}
-            onClick={handleBack}
+    <>
+      <Box sx={{ p: { xs: 2, md: 3 } }}>
+        <Stack spacing={2.5}>
+          <Card
+            elevation={0}
+            sx={{
+              borderRadius: "28px",
+              border: "1px solid",
+              borderColor: "divider",
+              boxShadow: "0 10px 24px rgba(15,23,42,0.05)",
+              overflow: "hidden",
+            }}
           >
-            Regresar
-          </Button>
+            <Box sx={{ height: 6, bgcolor: "primary.main" }} />
+            <CardContent
+              sx={{
+                p: { xs: 2.5, md: 3 },
+                background: (theme) =>
+                  `linear-gradient(180deg, ${alpha(
+                    theme.palette.primary.main,
+                    0.04
+                  )}, transparent 75%)`,
+              }}
+            >
+              <Stack
+                direction={{ xs: "column", lg: "row" }}
+                spacing={2}
+                justifyContent="space-between"
+                alignItems={{ xs: "flex-start", lg: "center" }}
+              >
+                <Stack spacing={1.5}>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <FolderOpenRoundedIcon color="primary" fontSize="small" />
+                    <Typography
+                      variant="overline"
+                      sx={{ color: "text.secondary", fontWeight: 800 }}
+                    >
+                      Expediente digital
+                    </Typography>
+                  </Stack>
 
-          <Button
-            variant="outlined"
-            startIcon={
-              refreshing ? <CircularProgress size={16} /> : <RefreshRoundedIcon />
+                  <Typography
+                    variant="h4"
+                    sx={{ fontWeight: 800, lineHeight: 1.1 }}
+                  >
+                    {empleadoNombre}
+                  </Typography>
+
+                  <Stack
+                    direction={{ xs: "column", sm: "row" }}
+                    spacing={1}
+                    useFlexGap
+                    flexWrap="wrap"
+                  >
+                    <Chip
+                      icon={<BadgeRoundedIcon />}
+                      label={`# ${empleadoMeta.numEmpleado ?? "SIN NÚMERO"}`}
+                      variant="outlined"
+                      sx={{ borderRadius: "999px" }}
+                    />
+                    <Chip
+                      icon={<BusinessRoundedIcon />}
+                      label={empleadoMeta.sucursalNombre || "Sin sucursal"}
+                      variant="outlined"
+                      sx={{ borderRadius: "999px" }}
+                    />
+                    <Chip
+                      icon={<ApartmentRoundedIcon />}
+                      label={empleadoMeta.departamentoNombre || "Sin departamento"}
+                      variant="outlined"
+                      sx={{ borderRadius: "999px" }}
+                    />
+                    <Chip
+                      icon={<WorkOutlineRoundedIcon />}
+                      label={empleadoMeta.puestoNombre || "Sin puesto"}
+                      variant="outlined"
+                      sx={{ borderRadius: "999px" }}
+                    />
+                  </Stack>
+                </Stack>
+
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  <Button
+                    variant="outlined"
+                    startIcon={<ArrowBackRoundedIcon />}
+                    onClick={handleBack}
+                  >
+                    Volver
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    startIcon={<RefreshRoundedIcon />}
+                    onClick={handleRefresh}
+                    disabled={refreshing}
+                  >
+                    {refreshing ? "Actualizando..." : "Actualizar"}
+                  </Button>
+                  <Button
+                    variant="contained"
+                    startIcon={<DriveFolderUploadRoundedIcon />}
+                    onClick={openUploadDialog}
+                  >
+                    Cargar documento
+                  </Button>
+                </Stack>
+              </Stack>
+
+              {refreshing ? (
+                <LinearProgress sx={{ mt: 2, borderRadius: 999 }} />
+              ) : null}
+            </CardContent>
+          </Card>
+
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: {
+                xs: "1fr",
+                sm: "repeat(2, minmax(0, 1fr))",
+                xl: "repeat(4, minmax(0, 1fr))",
+              },
+              gap: 2,
+            }}
+          >
+            <MetricTile
+              title="Documentos"
+              value={metrics.total}
+              subtitle="Archivos activos"
+              icon={<DescriptionRoundedIcon color="primary" />}
+            />
+            <MetricTile
+              title="Vigentes"
+              value={metrics.vigentes}
+              subtitle="Documentos al corriente"
+              icon={<CheckCircleRoundedIcon color="success" />}
+            />
+            <MetricTile
+              title="Por vencer"
+              value={metrics.porVencer}
+              subtitle="Vencen en 30 días"
+              icon={<HourglassBottomRoundedIcon color="warning" />}
+            />
+            <MetricTile
+              title="Vencidos"
+              value={metrics.vencidos}
+              subtitle="Requieren atención"
+              icon={<WarningAmberRoundedIcon color="error" />}
+            />
+          </Box>
+
+          <SectionPanel
+            title="Checklist documental"
+            subtitle="Avance de requisitos y control de vencimientos."
+            actions={
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                <Chip
+                  icon={<TaskAltRoundedIcon />}
+                  label={`Cumplimiento: ${checklist?.porcentajeCumplimiento?.toFixed(0) ?? "0"}%`}
+                  color="primary"
+                  variant="outlined"
+                />
+                <Chip
+                  label={`Faltantes: ${checklist?.totalFaltantes ?? 0}`}
+                  variant="outlined"
+                />
+                <Chip
+                  label={`Por vencer: ${checklist?.totalPorVencer ?? 0}`}
+                  color="warning"
+                  variant="outlined"
+                />
+                <Chip
+                  label={`Vencidos: ${checklist?.totalVencidos ?? 0}`}
+                  color="error"
+                  variant="outlined"
+                />
+              </Stack>
             }
-            onClick={handleRefresh}
-            disabled={refreshing}
           >
-            {refreshing ? "Actualizando..." : "Actualizar"}
-          </Button>
-
-          <Button
-            variant="contained"
-            startIcon={<DriveFolderUploadRoundedIcon />}
-            onClick={handleOpenUploadDialog}
-            disabled={!empleado.activo}
-          >
-            Subir documento
-          </Button>
-        </Stack>
-      }
-    >
-      <HeroBanner
-        eyebrow="Expediente digital"
-        title={empleadoNombre}
-        subtitle={`${empleado.numEmpleado}${empleado.email ? ` • ${empleado.email}` : ""}`}
-        badge="RH"
-        actions={
-          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-            <Chip
-              size="small"
-              label={empleado.activo ? "Activo" : "Inactivo"}
-              sx={{
-                color: empleado.activo ? "#166534" : "#991b1b",
-                backgroundColor: empleado.activo
-                  ? alpha("#bbf7d0", 0.95)
-                  : alpha("#fecaca", 0.95),
-                fontWeight: 800,
-              }}
-            />
-            <Chip
-              size="small"
-              label="Expediente"
-              variant="outlined"
-              sx={{
-                color: "#fff",
-                borderColor: alpha("#ffffff", 0.18),
-                backgroundColor: alpha("#ffffff", 0.08),
-                fontWeight: 800,
-              }}
-            />
-          </Stack>
-        }
-        aside={
-          <Stack spacing={1.25}>
-            <Typography variant="body2" sx={{ color: alpha("#ffffff", 0.8) }}>
-              Cumplimiento documental
-            </Typography>
-
-            <Stack direction="row" spacing={2.5}>
-              <Box>
-                <Typography variant="h4" sx={{ fontWeight: 900, lineHeight: 1 }}>
-                  {checklist ? `${formatPercent(checklist.porcentajeCumplimiento)}%` : "—"}
-                </Typography>
-                <Typography variant="caption" sx={{ color: alpha("#ffffff", 0.82) }}>
-                  cumplimiento
-                </Typography>
-              </Box>
-
-              <Box>
-                <Typography variant="h4" sx={{ fontWeight: 900, lineHeight: 1 }}>
-                  {checklist?.totalFaltantes ?? 0}
-                </Typography>
-                <Typography variant="caption" sx={{ color: alpha("#ffffff", 0.82) }}>
-                  faltantes
-                </Typography>
-              </Box>
-
-              <Box>
-                <Typography variant="h4" sx={{ fontWeight: 900, lineHeight: 1 }}>
-                  {checklist?.totalVencidos ?? 0}
-                </Typography>
-                <Typography variant="caption" sx={{ color: alpha("#ffffff", 0.82) }}>
-                  vencidos
-                </Typography>
-              </Box>
-            </Stack>
-
-            <Typography variant="body2" sx={{ color: alpha("#ffffff", 0.84) }}>
-              Control documental del empleado con acceso a carga, edición, vista previa, descarga y baja lógica.
-            </Typography>
-          </Stack>
-        }
-      />
-
-      {!empleado.activo && (
-        <Alert
-          severity="warning"
-          icon={<WarningAmberRoundedIcon />}
-          sx={{ borderRadius: 3 }}
-        >
-          El empleado está inactivo. Puedes consultar el expediente, pero no se recomienda seguir cargando documentación operativa hasta confirmar su estatus.
-        </Alert>
-      )}
-
-      <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: {
-            xs: "1fr",
-            sm: "repeat(2, 1fr)",
-            xl: "repeat(4, 1fr)",
-          },
-          gap: { xs: 2, md: 2.25 },
-        }}
-      >
-        <MetricCard
-          title="Documentos"
-          value={metrics.total}
-          subtitle="Registros activos del expediente"
-          icon={<FolderOpenRoundedIcon fontSize="small" />}
-          badge="RH"
-        />
-
-        <MetricCard
-          title="Cumplimiento"
-          value={Number(formatPercent(checklist?.porcentajeCumplimiento ?? 0))}
-          subtitle="Porcentaje del checklist"
-          icon={<TaskAltRoundedIcon fontSize="small" />}
-          badge="RH"
-        />
-
-        <MetricCard
-          title="Faltantes"
-          value={checklist?.totalFaltantes ?? 0}
-          subtitle="Documentos requeridos pendientes"
-          icon={<DescriptionRoundedIcon fontSize="small" />}
-          badge="RH"
-        />
-
-        <MetricCard
-          title="Vencidos"
-          value={checklist?.totalVencidos ?? 0}
-          subtitle="Requieren actualización"
-          icon={<WarningAmberRoundedIcon fontSize="small" />}
-          badge="RH"
-        />
-      </Box>
-
-      <SectionCard
-        title="Datos del empleado"
-        subtitle="Contexto general del expediente actual."
-        actions={
-          <Chip
-            size="small"
-            variant="outlined"
-            label={empleado.numEmpleado}
-            sx={{ fontWeight: 800 }}
-          />
-        }
-      >
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: {
-              xs: "1fr",
-              md: "repeat(12, 1fr)",
-            },
-            gap: 2,
-          }}
-        >
-          <InfoTile
-            icon={<ApartmentRoundedIcon fontSize="small" />}
-            label="Departamento"
-            value={empleado.departamentoNombre ?? "Sin departamento"}
-          />
-          <InfoTile
-            icon={<WorkOutlineRoundedIcon fontSize="small" />}
-            label="Puesto"
-            value={empleado.puestoNombre ?? "Sin puesto"}
-          />
-          <InfoTile
-            icon={<BusinessRoundedIcon fontSize="small" />}
-            label="Sucursal"
-            value={empleado.sucursalNombre ?? "Sin sucursal"}
-          />
-          <InfoTile
-            icon={<BadgeRoundedIcon fontSize="small" />}
-            label="Estado"
-            value={empleado.activo ? "Empleado activo" : "Empleado inactivo"}
-          />
-        </Box>
-      </SectionCard>
-
-      <SectionCard
-        title="Checklist del expediente"
-        subtitle="Control de documentos requeridos y estatus general de cumplimiento."
-        actions={
-          <Chip
-            size="small"
-            variant="outlined"
-            label={`${checklist?.totalCargados ?? 0}/${checklist?.totalRequeridos ?? 0} requeridos cubiertos`}
-            sx={{ fontWeight: 800 }}
-          />
-        }
-      >
-        {checklist ? (
-          <Stack spacing={2}>
             <Box
               sx={{
-                borderRadius: 3,
-                border: `1px solid ${alpha("#0f172a", 0.08)}`,
-                backgroundColor: alpha("#0f172a", 0.02),
-                px: 2,
-                py: 1.5,
+                p: 2,
+                borderRadius: "18px",
+                bgcolor: (theme) => alpha(theme.palette.primary.main, 0.03),
+                border: "1px solid",
+                borderColor: (theme) => alpha(theme.palette.primary.main, 0.08),
               }}
             >
               <Stack
@@ -865,495 +1040,398 @@ export default function ExpedienteEmpleadoPage() {
                 alignItems={{ xs: "flex-start", md: "center" }}
               >
                 <Box>
-                  <Typography variant="overline" sx={{ color: "#64748b", fontWeight: 800 }}>
-                    Cumplimiento documental
-                  </Typography>
-                  <Typography variant="h4" sx={{ fontWeight: 900, color: "#0f172a" }}>
-                    {formatPercent(checklist.porcentajeCumplimiento)}%
-                  </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    {checklist.totalCargados} de {checklist.totalRequeridos} documentos requeridos están cubiertos.
+                    Progreso del expediente
+                  </Typography>
+                  <Typography variant="h5" fontWeight={800}>
+                    {checklist?.porcentajeCumplimiento?.toFixed(0) ?? "0"}%
                   </Typography>
                 </Box>
 
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                   <Chip
-                    icon={<CheckCircleRoundedIcon />}
-                    label={`${checklist.totalCargados} cargados`}
+                    size="small"
+                    label={`Requeridos: ${checklist?.totalRequeridos ?? 0}`}
+                    variant="outlined"
+                  />
+                  <Chip
+                    size="small"
+                    label={`Cargados: ${checklist?.totalCargados ?? 0}`}
                     color="success"
                     variant="outlined"
-                    sx={{ fontWeight: 800 }}
                   />
                   <Chip
-                    icon={<DescriptionRoundedIcon />}
-                    label={`${checklist.totalFaltantes} faltantes`}
+                    size="small"
+                    label={`Faltantes: ${checklist?.totalFaltantes ?? 0}`}
                     variant="outlined"
-                    sx={{ fontWeight: 800 }}
-                  />
-                  <Chip
-                    icon={<HourglassBottomRoundedIcon />}
-                    label={`${checklist.totalPorVencer} por vencer`}
-                    color="warning"
-                    variant="outlined"
-                    sx={{ fontWeight: 800 }}
-                  />
-                  <Chip
-                    icon={<WarningAmberRoundedIcon />}
-                    label={`${checklist.totalVencidos} vencidos`}
-                    color="error"
-                    variant="outlined"
-                    sx={{ fontWeight: 800 }}
                   />
                 </Stack>
               </Stack>
 
-              <Box sx={{ mt: 2 }}>
-                <LinearProgress
-                  variant="determinate"
-                  value={Math.max(
-                    0,
-                    Math.min(100, Number(checklist.porcentajeCumplimiento))
-                  )}
-                  sx={{
-                    height: 10,
-                    borderRadius: 999,
-                    backgroundColor: alpha("#0f172a", 0.08),
-                  }}
-                />
-              </Box>
+              <LinearProgress
+                variant="determinate"
+                value={Math.max(
+                  0,
+                  Math.min(100, Number(checklist?.porcentajeCumplimiento ?? 0))
+                )}
+                sx={{
+                  mt: 1.5,
+                  height: 10,
+                  borderRadius: 999,
+                }}
+              />
             </Box>
 
-            <Box sx={{ overflowX: "auto" }}>
-              <Table sx={{ minWidth: 980 }}>
-                <TableHead>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 800 }}>Documento</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>Requerido</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>Estatus</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>Archivo</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>Fecha documento</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>Fecha vencimiento</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 800 }}>
-                      Acciones
-                    </TableCell>
-                  </TableRow>
-                </TableHead>
+            {checklistSortedItems.length === 0 ? (
+              <EmptyPanel
+                title="Sin checklist"
+                description="No hay elementos de checklist disponibles para este empleado."
+              />
+            ) : (
+              <TableContainer
+                sx={{
+                  overflowX: "auto",
+                  borderRadius: "18px",
+                  border: "1px solid",
+                  borderColor: "divider",
+                }}
+              >
+                <Table size="small">
+                  <TableHead>
+                    <TableRow
+                      sx={{
+                        "& th": {
+                          bgcolor: (theme) => alpha(theme.palette.primary.main, 0.05),
+                          fontWeight: 800,
+                          color: "text.secondary",
+                          borderBottom: "1px solid",
+                          borderColor: "divider",
+                          whiteSpace: "nowrap",
+                        },
+                      }}
+                    >
+                      <TableCell sx={{ minWidth: 220 }}>Documento</TableCell>
+                      <TableCell sx={{ minWidth: 110 }}>Requerido</TableCell>
+                      <TableCell sx={{ minWidth: 130 }}>Estatus</TableCell>
+                      <TableCell sx={{ minWidth: 260 }}>Archivo cargado</TableCell>
+                      <TableCell sx={{ minWidth: 130 }}>Fecha documento</TableCell>
+                      <TableCell sx={{ minWidth: 130 }}>Vencimiento</TableCell>
+                    </TableRow>
+                  </TableHead>
 
-                <TableBody>
-                  {checklistSortedItems.map((item) => {
-                    const documento = resolveDocumentoFromChecklistItem(item);
-
-                    return (
-                      <TableRow key={`${item.tipo}-${item.tipoNombre}`} hover>
+                  <TableBody>
+                    {checklistSortedItems.map((item) => (
+                      <TableRow key={item.tipo} hover>
                         <TableCell>
-                          <Stack spacing={0.4}>
-                            <Typography fontWeight={800}>
-                              {getTipoDocumentoEmpleadoLabel(item.tipo)}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {item.tipoNombre}
-                            </Typography>
-                          </Stack>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            {item.tipoLabel}
+                          </Typography>
                         </TableCell>
 
-                        <TableCell>
+                        <TableCell sx={{ whiteSpace: "nowrap" }}>
                           <Chip
                             size="small"
-                            label={item.requerido ? "Sí" : "Opcional"}
+                            label={item.requerido ? "Sí" : "No"}
                             variant="outlined"
-                            sx={{ fontWeight: 800 }}
+                            color={item.requerido ? "primary" : "default"}
                           />
                         </TableCell>
 
-                        <TableCell>
+                        <TableCell sx={{ whiteSpace: "nowrap" }}>
                           <Chip
                             size="small"
                             label={getChecklistStatusLabel(item.estatus)}
                             color={getChecklistStatusTone(item.estatus)}
-                            variant={
-                              getChecklistStatusTone(item.estatus) === "default"
-                                ? "outlined"
-                                : "filled"
-                            }
-                            sx={{ fontWeight: 800 }}
+                            variant="outlined"
                           />
                         </TableCell>
 
                         <TableCell>
-                          <Typography
-                            variant="body2"
-                            color={item.nombreArchivoOriginal ? "text.primary" : "text.secondary"}
-                          >
-                            {item.nombreArchivoOriginal ?? "Sin archivo"}
-                          </Typography>
+                          {item.nombreArchivoOriginal ? (
+                            <Stack spacing={0.25}>
+                              <Stack direction="row" spacing={1} alignItems="center">
+                                <AttachFileRoundedIcon fontSize="small" />
+                                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                  {item.nombreArchivoOriginal}
+                                </Typography>
+                              </Stack>
+                            </Stack>
+                          ) : (
+                            <Typography variant="body2" color="text.secondary">
+                              —
+                            </Typography>
+                          )}
                         </TableCell>
 
-                        <TableCell>{formatDate(item.fechaDocumento)}</TableCell>
-                        <TableCell>{formatDate(item.fechaVencimiento)}</TableCell>
+                        <TableCell sx={{ whiteSpace: "nowrap" }}>
+                          {formatDate(item.fechaDocumento)}
+                        </TableCell>
 
-                        <TableCell align="right">
+                        <TableCell sx={{ whiteSpace: "nowrap" }}>
+                          {formatDate(item.fechaVencimiento)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </SectionPanel>
+
+          <SectionPanel
+            title="Documentos cargados"
+            subtitle="Administra archivos, metadatos y vigencias."
+          >
+            <Stack
+              direction={{ xs: "column", lg: "row" }}
+              spacing={2}
+              alignItems={{ xs: "stretch", lg: "center" }}
+            >
+              <TextField
+                label="Buscar"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                fullWidth
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchRoundedIcon fontSize="small" />
+                    </InputAdornment>
+                  ),
+                }}
+              />
+
+              <TextField
+                select
+                label="Tipo"
+                value={tipoFilter}
+                onChange={(e) =>
+                  setTipoFilter(
+                    e.target.value === "TODOS"
+                      ? "TODOS"
+                      : Number(e.target.value)
+                  )
+                }
+                sx={{ minWidth: 220 }}
+              >
+                <MenuItem value="TODOS">Todos</MenuItem>
+                {TIPOS_DOCUMENTO_EMPLEADO.map((item) => (
+                  <MenuItem key={item.value} value={item.value}>
+                    {item.label}
+                  </MenuItem>
+                ))}
+              </TextField>
+
+              <TextField
+                select
+                label="Estatus"
+                value={statusFilter}
+                onChange={(e) =>
+                  setStatusFilter(e.target.value as DocumentoStatusFilter)
+                }
+                sx={{ minWidth: 220 }}
+              >
+                <MenuItem value="TODOS">Todos</MenuItem>
+                <MenuItem value="Vigente">Vigente</MenuItem>
+                <MenuItem value="Por vencer">Por vencer</MenuItem>
+                <MenuItem value="Vencido">Vencido</MenuItem>
+                <MenuItem value="Sin vencimiento">Sin vencimiento</MenuItem>
+              </TextField>
+
+              <Button
+                variant="outlined"
+                color="inherit"
+                startIcon={<FilterAltRoundedIcon />}
+                onClick={clearFilters}
+                disabled={activeFiltersCount === 0}
+                sx={{ minWidth: 150 }}
+              >
+                Limpiar filtros
+              </Button>
+            </Stack>
+
+            {filteredDocuments.length === 0 ? (
+              <EmptyPanel
+                title="Sin documentos"
+                description={
+                  documentos.length === 0
+                    ? "Todavía no hay documentos cargados para este empleado."
+                    : "No hay documentos que coincidan con los filtros actuales."
+                }
+                actionLabel={documentos.length === 0 ? "Cargar documento" : undefined}
+                onAction={documentos.length === 0 ? openUploadDialog : undefined}
+              />
+            ) : (
+              <TableContainer
+                sx={{
+                  overflowX: "auto",
+                  borderRadius: "18px",
+                  border: "1px solid",
+                  borderColor: "divider",
+                }}
+              >
+                <Table size="small">
+                  <TableHead>
+                    <TableRow
+                      sx={{
+                        "& th": {
+                          bgcolor: (theme) => alpha(theme.palette.primary.main, 0.05),
+                          fontWeight: 800,
+                          color: "text.secondary",
+                          borderBottom: "1px solid",
+                          borderColor: "divider",
+                          whiteSpace: "nowrap",
+                        },
+                      }}
+                    >
+                      <TableCell sx={{ minWidth: 400 }}>Documento</TableCell>
+                      <TableCell sx={{ minWidth: 140 }}>Fecha documento</TableCell>
+                      <TableCell sx={{ minWidth: 190 }}>Vigencia</TableCell>
+                      <TableCell align="right" sx={{ minWidth: 170 }}>
+                        Acciones
+                      </TableCell>
+                    </TableRow>
+                  </TableHead>
+
+                  <TableBody>
+                    {filteredDocuments.map((doc) => (
+                      <TableRow key={doc.id} hover>
+                        <TableCell sx={{ minWidth: 400 }}>
+                          <Stack spacing={0.5}>
+                            <Stack direction="row" spacing={1} alignItems="center">
+                              <AttachFileRoundedIcon fontSize="small" />
+                              <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                {doc.tipoLabel}
+                              </Typography>
+                            </Stack>
+
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                pl: 3.5,
+                                fontWeight: 500,
+                                wordBreak: "break-word",
+                              }}
+                            >
+                              {doc.nombreArchivoOriginal}
+                            </Typography>
+
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                              sx={{ pl: 3.5 }}
+                            >
+                              {formatBytes(doc.tamanoBytes)}
+                            </Typography>
+                          </Stack>
+                        </TableCell>
+
+                        <TableCell sx={{ whiteSpace: "nowrap" }}>
+                          {formatDate(doc.fechaDocumento)}
+                        </TableCell>
+
+                        <TableCell>
+                          <Stack spacing={0.5} alignItems="flex-start">
+                            <Chip
+                              size="small"
+                              label={doc.status.label}
+                              color={doc.status.tone}
+                              variant="outlined"
+                            />
+                            <Typography variant="caption" color="text.secondary">
+                              {doc.fechaVencimiento
+                                ? `Vence: ${formatDate(doc.fechaVencimiento)}`
+                                : "Sin vencimiento"}
+                            </Typography>
+                          </Stack>
+                        </TableCell>
+
+                        <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
                           <Stack
                             direction="row"
-                            spacing={0.5}
+                            spacing={0.25}
                             justifyContent="flex-end"
                           >
-                            {documento ? (
-                              <>
-                                {canPreviewDocumento(documento) && (
-                                  <Tooltip title="Vista previa">
-                                    <span>
-                                      <IconButton
-                                        onClick={() => void handlePreview(documento)}
-                                        disabled={previewingId === documento.id}
-                                      >
-                                        {previewingId === documento.id ? (
-                                          <CircularProgress size={18} />
-                                        ) : (
-                                          <VisibilityRoundedIcon fontSize="small" />
-                                        )}
-                                      </IconButton>
-                                    </span>
-                                  </Tooltip>
-                                )}
+                            <Tooltip title="Vista previa">
+                              <span>
+                                <IconButton
+                                  size="small"
+                                  onClick={() => void handlePreview(doc)}
+                                  disabled={previewingId === doc.id}
+                                >
+                                  <VisibilityRoundedIcon fontSize="small" />
+                                </IconButton>
+                              </span>
+                            </Tooltip>
 
-                                <Tooltip title="Descargar">
-                                  <span>
-                                    <IconButton
-                                      onClick={() => void handleDownload(documento)}
-                                      disabled={downloadingId === documento.id}
-                                    >
-                                      {downloadingId === documento.id ? (
-                                        <CircularProgress size={18} />
-                                      ) : (
-                                        <DownloadRoundedIcon fontSize="small" />
-                                      )}
-                                    </IconButton>
-                                  </span>
-                                </Tooltip>
+                            <Tooltip title="Descargar">
+                              <span>
+                                <IconButton
+                                  size="small"
+                                  onClick={() => void handleDownload(doc)}
+                                  disabled={downloadingId === doc.id}
+                                >
+                                  <DownloadRoundedIcon fontSize="small" />
+                                </IconButton>
+                              </span>
+                            </Tooltip>
 
-                                <Tooltip title="Editar metadata">
-                                  <span>
-                                    <IconButton
-                                      onClick={() => handleOpenEditDialog(documento)}
-                                    >
-                                      <EditRoundedIcon fontSize="small" />
-                                    </IconButton>
-                                  </span>
-                                </Tooltip>
-                              </>
-                            ) : empleado.activo ? (
-                              <Button
+                            <Tooltip title="Editar metadatos">
+                              <IconButton
                                 size="small"
-                                variant="outlined"
-                                startIcon={<DriveFolderUploadRoundedIcon />}
-                                onClick={() => openUploadDialogForTipo(item.tipo)}
+                                onClick={() => openEditDialog(doc)}
                               >
-                                Subir
-                              </Button>
-                            ) : (
-                              <Typography variant="caption" color="text.secondary">
-                                Sin acción
-                              </Typography>
-                            )}
+                                <EditRoundedIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+
+                            <Tooltip title="Reemplazar archivo">
+                              <IconButton
+                                size="small"
+                                onClick={() => openReplaceDialog(doc)}
+                              >
+                                <SwapHorizRoundedIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+
+                            <Tooltip title="Eliminar">
+                              <IconButton
+                                size="small"
+                                onClick={() => openDeleteDialog(doc)}
+                              >
+                                <DeleteOutlineRoundedIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
                           </Stack>
                         </TableCell>
                       </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </Box>
-          </Stack>
-        ) : (
-          <Box sx={{ py: 4, display: "flex", justifyContent: "center" }}>
-            <CircularProgress />
-          </Box>
-        )}
-      </SectionCard>
-
-      <SectionCard
-        title="Filtros"
-        subtitle="Busca por archivo, comentario, tipo o estatus documental."
-        actions={
-          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-            <Chip
-              size="small"
-              variant="outlined"
-              color={activeFiltersCount > 0 ? "primary" : undefined}
-              label={
-                activeFiltersCount > 0
-                  ? `${activeFiltersCount} filtro${activeFiltersCount > 1 ? "s" : ""}`
-                  : "Sin filtros"
-              }
-            />
-            <Button
-              size="small"
-              variant="outlined"
-              startIcon={<ClearRoundedIcon />}
-              onClick={clearFilters}
-              disabled={activeFiltersCount === 0}
-            >
-              Limpiar
-            </Button>
-          </Stack>
-        }
-      >
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: {
-              xs: "1fr",
-              md: "repeat(12, 1fr)",
-            },
-            gap: 2,
-          }}
-        >
-          <Box sx={{ gridColumn: { xs: "span 1", md: "span 6" } }}>
-            <TextField
-              label="Buscar"
-              placeholder="Archivo, comentario, tipo, mime..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchRoundedIcon fontSize="small" color="action" />
-                  </InputAdornment>
-                ),
-              }}
-            />
-          </Box>
-
-          <Box sx={{ gridColumn: { xs: "span 1", md: "span 3" } }}>
-            <TextField
-              select
-              label="Tipo"
-              value={tipoFilter}
-              onChange={(e) =>
-                setTipoFilter(
-                  e.target.value === "TODOS" ? "TODOS" : Number(e.target.value)
-                )
-              }
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <FilterAltRoundedIcon fontSize="small" color="action" />
-                  </InputAdornment>
-                ),
-              }}
-            >
-              <MenuItem value="TODOS">Todos</MenuItem>
-              {TIPOS_DOCUMENTO_EMPLEADO.map((item) => (
-                <MenuItem key={item.value} value={item.value}>
-                  {item.label}
-                </MenuItem>
-              ))}
-            </TextField>
-          </Box>
-
-          <Box sx={{ gridColumn: { xs: "span 1", md: "span 3" } }}>
-            <TextField
-              select
-              label="Estatus"
-              value={statusFilter}
-              onChange={(e) =>
-                setStatusFilter(e.target.value as DocumentoStatusFilter)
-              }
-            >
-              <MenuItem value="TODOS">Todos</MenuItem>
-              <MenuItem value="Vigente">Vigente</MenuItem>
-              <MenuItem value="Por vencer">Por vencer</MenuItem>
-              <MenuItem value="Vencido">Vencido</MenuItem>
-              <MenuItem value="Sin vencimiento">Sin vencimiento</MenuItem>
-            </TextField>
-          </Box>
-        </Box>
-      </SectionCard>
-
-      <SectionCard
-        title="Documentos del expediente"
-        subtitle="Administra documentos oficiales, metadata y vigencias del empleado."
-        actions={
-          <Chip
-            label={`${filteredDocuments.length} visible${filteredDocuments.length === 1 ? "" : "s"} de ${documentos.length}`}
-            size="small"
-            variant="outlined"
-          />
-        }
-      >
-        {filteredDocuments.length === 0 ? (
-          <EmptyState
-            icon={<DescriptionRoundedIcon sx={{ fontSize: 52 }} />}
-            title={
-              documentos.length === 0
-                ? "Aún no hay documentos cargados"
-                : "No hay coincidencias con los filtros"
-            }
-            description={
-              documentos.length === 0
-                ? "Sube el primer documento para empezar a construir el expediente digital del empleado."
-                : "Ajusta la búsqueda o limpia los filtros para ver más resultados."
-            }
-            actionLabel={
-              documentos.length === 0 && empleado.activo ? "Subir documento" : undefined
-            }
-            onAction={
-              documentos.length === 0 && empleado.activo
-                ? handleOpenUploadDialog
-                : undefined
-            }
-          />
-        ) : (
-          <Box sx={{ overflowX: "auto" }}>
-            <Table sx={{ minWidth: 1080 }}>
-              <TableHead>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 800 }}>Tipo</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Archivo</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Fecha documento</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Fecha vencimiento</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Estatus</TableCell>
-                  <TableCell sx={{ fontWeight: 800 }}>Comentario</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 800 }}>
-                    Acciones
-                  </TableCell>
-                </TableRow>
-              </TableHead>
-
-              <TableBody>
-                {filteredDocuments.map((documento) => (
-                  <TableRow
-                    key={documento.id}
-                    hover
-                    sx={{ "&:last-child td": { borderBottom: 0 } }}
-                  >
-                    <TableCell>
-                      <Stack spacing={0.5}>
-                        <Typography fontWeight={800}>
-                          {getTipoDocumentoEmpleadoLabel(documento.tipo)}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {documento.tipoNombre}
-                        </Typography>
-                      </Stack>
-                    </TableCell>
-
-                    <TableCell>
-                      <Stack spacing={0.5}>
-                        <Typography fontWeight={700}>
-                          {documento.nombreArchivoOriginal}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {documento.mimeType} • {formatBytes(documento.tamanoBytes)}
-                        </Typography>
-                      </Stack>
-                    </TableCell>
-
-                    <TableCell>{formatDate(documento.fechaDocumento)}</TableCell>
-                    <TableCell>{formatDate(documento.fechaVencimiento)}</TableCell>
-
-                    <TableCell>
-                      <Chip
-                        size="small"
-                        label={documento.status.label}
-                        color={documento.status.tone}
-                        variant={
-                          documento.status.tone === "default" ? "outlined" : "filled"
-                        }
-                        sx={{ fontWeight: 800 }}
-                      />
-                    </TableCell>
-
-                    <TableCell sx={{ maxWidth: 260 }}>
-                      <Typography
-                        variant="body2"
-                        color={documento.comentario ? "text.primary" : "text.secondary"}
-                      >
-                        {documento.comentario?.trim() || "Sin comentario"}
-                      </Typography>
-                    </TableCell>
-
-                    <TableCell align="right">
-                      <Stack
-                        direction="row"
-                        spacing={0.5}
-                        justifyContent="flex-end"
-                      >
-                        {canPreviewDocumento(documento) && (
-                          <Tooltip title="Vista previa">
-                            <span>
-                              <IconButton
-                                onClick={() => void handlePreview(documento)}
-                                disabled={previewingId === documento.id}
-                              >
-                                {previewingId === documento.id ? (
-                                  <CircularProgress size={18} />
-                                ) : (
-                                  <VisibilityRoundedIcon fontSize="small" />
-                                )}
-                              </IconButton>
-                            </span>
-                          </Tooltip>
-                        )}
-
-                        <Tooltip title="Descargar">
-                          <span>
-                            <IconButton
-                              onClick={() => void handleDownload(documento)}
-                              disabled={downloadingId === documento.id}
-                            >
-                              {downloadingId === documento.id ? (
-                                <CircularProgress size={18} />
-                              ) : (
-                                <DownloadRoundedIcon fontSize="small" />
-                              )}
-                            </IconButton>
-                          </span>
-                        </Tooltip>
-
-                        <Tooltip title="Editar metadata">
-                          <span>
-                            <IconButton onClick={() => handleOpenEditDialog(documento)}>
-                              <EditRoundedIcon fontSize="small" />
-                            </IconButton>
-                          </span>
-                        </Tooltip>
-
-                        <Tooltip title="Eliminar">
-                          <span>
-                            <IconButton
-                              onClick={() => handleOpenDeleteDialog(documento)}
-                              color="error"
-                            >
-                              <DeleteOutlineRoundedIcon fontSize="small" />
-                            </IconButton>
-                          </span>
-                        </Tooltip>
-                      </Stack>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Box>
-        )}
-      </SectionCard>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </SectionPanel>
+        </Stack>
+      </Box>
 
       <Dialog
         open={uploadDialogOpen}
-        onClose={handleCloseUploadDialog}
+        onClose={savingCreate ? undefined : () => setUploadDialogOpen(false)}
         fullWidth
         maxWidth="sm"
       >
-        <DialogTitle>Subir documento</DialogTitle>
+        <DialogTitle>Cargar documento</DialogTitle>
         <DialogContent dividers>
-          <Stack spacing={2}>
+          <Stack spacing={2} sx={{ pt: 1 }}>
             <TextField
               select
               label="Tipo de documento"
               value={createForm.tipo}
               onChange={(e) =>
-                handleCreateInputChange("tipo", Number(e.target.value))
+                setCreateForm((prev) => ({
+                  ...prev,
+                  tipo: Number(e.target.value),
+                }))
               }
               fullWidth
             >
@@ -1364,118 +1442,108 @@ export default function ExpedienteEmpleadoPage() {
               ))}
             </TextField>
 
-            <Button
-              variant="outlined"
-              component="label"
-              startIcon={<AttachFileRoundedIcon />}
-              sx={{ justifyContent: "flex-start" }}
-            >
-              {createForm.archivo
-                ? "Cambiar archivo"
-                : "Seleccionar archivo (PDF, JPG, JPEG, PNG)"}
-              <input
-                hidden
-                type="file"
-                accept=".pdf,.jpg,.jpeg,.png"
-                onChange={(e) => handleCreateFileChange(e.target.files?.[0] ?? null)}
-              />
-            </Button>
+            <TextField
+              label="Fecha del documento"
+              type="date"
+              value={createForm.fechaDocumento}
+              onChange={(e) =>
+                setCreateForm((prev) => ({
+                  ...prev,
+                  fechaDocumento: e.target.value,
+                }))
+              }
+              fullWidth
+              InputLabelProps={{ shrink: true }}
+            />
 
-            {createForm.archivo ? (
-              <Box
-                sx={{
-                  borderRadius: 3,
-                  border: `1px solid ${alpha("#0f172a", 0.08)}`,
-                  backgroundColor: alpha("#0f172a", 0.02),
-                  px: 2,
-                  py: 1.5,
-                }}
-              >
-                <Stack spacing={0.4}>
-                  <Typography fontWeight={800}>
-                    {createForm.archivo.name}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {formatBytes(createForm.archivo.size)} • {createForm.archivo.type || "Tipo no identificado"}
-                  </Typography>
-                </Stack>
-              </Box>
-            ) : null}
-
-            <Typography variant="caption" color="text.secondary">
-              Tamaño máximo permitido: 10 MB.
-            </Typography>
-
-            <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-              <TextField
-                label="Fecha del documento"
-                type="date"
-                value={createForm.fechaDocumento}
-                onChange={(e) =>
-                  handleCreateInputChange("fechaDocumento", e.target.value)
-                }
-                fullWidth
-                InputLabelProps={{ shrink: true }}
-              />
-
-              <TextField
-                label="Fecha de vencimiento"
-                type="date"
-                value={createForm.fechaVencimiento}
-                onChange={(e) =>
-                  handleCreateInputChange("fechaVencimiento", e.target.value)
-                }
-                fullWidth
-                InputLabelProps={{ shrink: true }}
-              />
-            </Stack>
+            <TextField
+              label="Fecha de vencimiento"
+              type="date"
+              value={createForm.fechaVencimiento}
+              onChange={(e) =>
+                setCreateForm((prev) => ({
+                  ...prev,
+                  fechaVencimiento: e.target.value,
+                }))
+              }
+              fullWidth
+              InputLabelProps={{ shrink: true }}
+            />
 
             <TextField
               label="Comentario"
               value={createForm.comentario}
               onChange={(e) =>
-                handleCreateInputChange("comentario", e.target.value)
+                setCreateForm((prev) => ({
+                  ...prev,
+                  comentario: e.target.value,
+                }))
               }
-              fullWidth
               multiline
               minRows={3}
-              inputProps={{ maxLength: 1000 }}
-              helperText={`${createForm.comentario.length}/1000`}
+              fullWidth
             />
+
+            <Button
+              component="label"
+              variant="outlined"
+              startIcon={<DriveFolderUploadRoundedIcon />}
+            >
+              {createForm.archivo ? createForm.archivo.name : "Seleccionar archivo"}
+              <input
+                hidden
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png,.webp"
+                onChange={(e) =>
+                  setCreateForm((prev) => ({
+                    ...prev,
+                    archivo: e.target.files?.[0] ?? null,
+                  }))
+                }
+              />
+            </Button>
+
+            <Alert severity="info">
+              Se permiten archivos PDF, JPG, JPEG, PNG o WEBP. Tamaño máximo: 10 MB.
+            </Alert>
           </Stack>
         </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2 }}>
-          <Button onClick={handleCloseUploadDialog} disabled={savingCreate}>
+        <DialogActions>
+          <Button
+            onClick={() => setUploadDialogOpen(false)}
+            disabled={savingCreate}
+            color="inherit"
+          >
             Cancelar
           </Button>
           <Button
-            variant="contained"
             onClick={() => void handleCreateSubmit()}
+            variant="contained"
             disabled={savingCreate}
-            startIcon={
-              savingCreate ? <CircularProgress size={16} /> : <DriveFolderUploadRoundedIcon />
-            }
           >
-            Guardar
+            {savingCreate ? "Guardando..." : "Guardar"}
           </Button>
         </DialogActions>
       </Dialog>
 
       <Dialog
         open={editDialogOpen}
-        onClose={handleCloseEditDialog}
+        onClose={savingEdit ? undefined : () => setEditDialogOpen(false)}
         fullWidth
         maxWidth="sm"
       >
-        <DialogTitle>Editar documento</DialogTitle>
+        <DialogTitle>Editar metadatos</DialogTitle>
         <DialogContent dividers>
-          <Stack spacing={2}>
+          <Stack spacing={2} sx={{ pt: 1 }}>
             <TextField
               select
               label="Tipo de documento"
               value={editForm.tipo}
               onChange={(e) =>
-                handleEditInputChange("tipo", Number(e.target.value))
+                setEditForm((prev) => ({
+                  ...prev,
+                  tipo: Number(e.target.value),
+                }))
               }
               fullWidth
             >
@@ -1486,155 +1554,250 @@ export default function ExpedienteEmpleadoPage() {
               ))}
             </TextField>
 
-            <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-              <TextField
-                label="Fecha del documento"
-                type="date"
-                value={editForm.fechaDocumento}
-                onChange={(e) =>
-                  handleEditInputChange("fechaDocumento", e.target.value)
-                }
-                fullWidth
-                InputLabelProps={{ shrink: true }}
-              />
+            <TextField
+              label="Fecha del documento"
+              type="date"
+              value={editForm.fechaDocumento}
+              onChange={(e) =>
+                setEditForm((prev) => ({
+                  ...prev,
+                  fechaDocumento: e.target.value,
+                }))
+              }
+              fullWidth
+              InputLabelProps={{ shrink: true }}
+            />
 
-              <TextField
-                label="Fecha de vencimiento"
-                type="date"
-                value={editForm.fechaVencimiento}
-                onChange={(e) =>
-                  handleEditInputChange("fechaVencimiento", e.target.value)
-                }
-                fullWidth
-                InputLabelProps={{ shrink: true }}
-              />
-            </Stack>
+            <TextField
+              label="Fecha de vencimiento"
+              type="date"
+              value={editForm.fechaVencimiento}
+              onChange={(e) =>
+                setEditForm((prev) => ({
+                  ...prev,
+                  fechaVencimiento: e.target.value,
+                }))
+              }
+              fullWidth
+              InputLabelProps={{ shrink: true }}
+            />
 
             <TextField
               label="Comentario"
               value={editForm.comentario}
               onChange={(e) =>
-                handleEditInputChange("comentario", e.target.value)
+                setEditForm((prev) => ({
+                  ...prev,
+                  comentario: e.target.value,
+                }))
               }
-              fullWidth
               multiline
               minRows={3}
-              inputProps={{ maxLength: 1000 }}
-              helperText={`${editForm.comentario.length}/1000`}
+              fullWidth
             />
+
+            <Alert severity="info">
+              Aquí solo actualizas metadatos. Para cambiar el archivo usa “Reemplazar archivo”.
+            </Alert>
           </Stack>
         </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2 }}>
-          <Button onClick={handleCloseEditDialog} disabled={savingEdit}>
+        <DialogActions>
+          <Button
+            onClick={() => setEditDialogOpen(false)}
+            disabled={savingEdit}
+            color="inherit"
+          >
             Cancelar
           </Button>
           <Button
-            variant="contained"
             onClick={() => void handleEditSubmit()}
+            variant="contained"
             disabled={savingEdit}
-            startIcon={savingEdit ? <CircularProgress size={16} /> : <EditRoundedIcon />}
           >
-            Guardar cambios
+            {savingEdit ? "Guardando..." : "Guardar cambios"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={replaceDialogOpen}
+        onClose={savingReplace ? undefined : () => setReplaceDialogOpen(false)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>Reemplazar archivo</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <TextField
+              label="Fecha del documento"
+              type="date"
+              value={replaceForm.fechaDocumento}
+              onChange={(e) =>
+                setReplaceForm((prev) => ({
+                  ...prev,
+                  fechaDocumento: e.target.value,
+                }))
+              }
+              fullWidth
+              InputLabelProps={{ shrink: true }}
+            />
+
+            <TextField
+              label="Fecha de vencimiento"
+              type="date"
+              value={replaceForm.fechaVencimiento}
+              onChange={(e) =>
+                setReplaceForm((prev) => ({
+                  ...prev,
+                  fechaVencimiento: e.target.value,
+                }))
+              }
+              fullWidth
+              InputLabelProps={{ shrink: true }}
+            />
+
+            <TextField
+              label="Comentario"
+              value={replaceForm.comentario}
+              onChange={(e) =>
+                setReplaceForm((prev) => ({
+                  ...prev,
+                  comentario: e.target.value,
+                }))
+              }
+              multiline
+              minRows={3}
+              fullWidth
+            />
+
+            <Button
+              component="label"
+              variant="outlined"
+              startIcon={<SwapHorizRoundedIcon />}
+            >
+              {replaceForm.archivo
+                ? replaceForm.archivo.name
+                : "Seleccionar nuevo archivo"}
+              <input
+                hidden
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png,.webp"
+                onChange={(e) =>
+                  setReplaceForm((prev) => ({
+                    ...prev,
+                    archivo: e.target.files?.[0] ?? null,
+                  }))
+                }
+              />
+            </Button>
+
+            <Alert severity="warning">
+              El archivo actual será sustituido por el nuevo.
+            </Alert>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => setReplaceDialogOpen(false)}
+            disabled={savingReplace}
+            color="inherit"
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={() => void handleReplaceSubmit()}
+            variant="contained"
+            disabled={savingReplace}
+          >
+            {savingReplace ? "Guardando..." : "Reemplazar"}
           </Button>
         </DialogActions>
       </Dialog>
 
       <Dialog
         open={deleteDialogOpen}
-        onClose={handleCloseDeleteDialog}
+        onClose={deleting ? undefined : () => setDeleteDialogOpen(false)}
         fullWidth
         maxWidth="xs"
       >
         <DialogTitle>Eliminar documento</DialogTitle>
         <DialogContent dividers>
-          <Stack spacing={1}>
-            <Typography>
-              Esta acción dará de baja el documento del expediente.
-            </Typography>
-            <Typography fontWeight={800}>
-              {selectedDocumento?.nombreArchivoOriginal ?? "Documento"}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              El archivo físico también se intentará eliminar del servidor.
-            </Typography>
-          </Stack>
+          <Typography>
+            ¿Seguro que deseas eliminar{" "}
+            <strong>{selectedDocumento?.nombreArchivoOriginal ?? "este documento"}</strong>?
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+            La baja es lógica en base de datos y además se intentará eliminar el archivo físico.
+          </Typography>
         </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2 }}>
-          <Button onClick={handleCloseDeleteDialog} disabled={deleting}>
+        <DialogActions>
+          <Button
+            onClick={() => setDeleteDialogOpen(false)}
+            disabled={deleting}
+            color="inherit"
+          >
             Cancelar
           </Button>
           <Button
+            onClick={() => void handleDeleteConfirm()}
             color="error"
             variant="contained"
-            onClick={() => void handleDeleteSubmit()}
             disabled={deleting}
-            startIcon={
-              deleting ? <CircularProgress size={16} /> : <DeleteOutlineRoundedIcon />
-            }
           >
-            Eliminar
+            {deleting ? "Eliminando..." : "Eliminar"}
           </Button>
         </DialogActions>
       </Dialog>
 
       <Dialog
         open={previewDialogOpen}
-        onClose={handleClosePreviewDialog}
+        onClose={handleClosePreview}
         fullWidth
         maxWidth="lg"
       >
         <DialogTitle>
-          Vista previa
-          {selectedDocumento ? ` • ${selectedDocumento.nombreArchivoOriginal}` : ""}
+          Vista previa {selectedDocumento ? `· ${selectedDocumento.nombreArchivoOriginal}` : ""}
         </DialogTitle>
-        <DialogContent dividers sx={{ p: 0 }}>
-          {selectedDocumento && previewUrl ? (
-            isPdfDocumento(selectedDocumento) ? (
-              <Box
-                component="iframe"
-                src={previewUrl}
-                title={selectedDocumento.nombreArchivoOriginal}
-                sx={{
-                  width: "100%",
-                  height: "75vh",
-                  border: 0,
-                }}
-              />
-            ) : isImageDocumento(selectedDocumento) ? (
-              <Box
-                sx={{
-                  display: "grid",
-                  placeItems: "center",
-                  minHeight: "70vh",
-                  backgroundColor: "#0f172a",
-                }}
-              >
-                <Box
-                  component="img"
-                  src={previewUrl}
-                  alt={selectedDocumento.nombreArchivoOriginal}
-                  sx={{
-                    maxWidth: "100%",
-                    maxHeight: "70vh",
-                    objectFit: "contain",
-                  }}
-                />
-              </Box>
-            ) : (
-              <Box sx={{ p: 4 }}>
-                <Alert severity="info">
-                  Este tipo de archivo no tiene vista previa integrada.
-                </Alert>
-              </Box>
-            )
-          ) : (
-            <Box sx={{ p: 4, display: "flex", justifyContent: "center" }}>
+        <DialogContent dividers sx={{ minHeight: 520 }}>
+          {!previewUrl ? (
+            <Stack alignItems="center" justifyContent="center" sx={{ minHeight: 420 }}>
               <CircularProgress />
-            </Box>
+            </Stack>
+          ) : previewKind === "image" ? (
+            <Box
+              component="img"
+              src={previewUrl}
+              alt={selectedDocumento?.nombreArchivoOriginal ?? "Vista previa"}
+              sx={{
+                width: "100%",
+                maxHeight: "75vh",
+                objectFit: "contain",
+                display: "block",
+                mx: "auto",
+              }}
+            />
+          ) : previewKind === "pdf" ? (
+            <Box
+              component="iframe"
+              src={previewUrl}
+              title="Vista previa PDF"
+              sx={{
+                width: "100%",
+                height: "75vh",
+                border: 0,
+              }}
+            />
+          ) : (
+            <EmptyPanel
+              title="Vista previa no disponible"
+              description="Este tipo de archivo no se puede previsualizar directamente. Puedes descargarlo para revisarlo."
+            />
           )}
         </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2 }}>
-          <Button onClick={handleClosePreviewDialog}>Cerrar</Button>
+        <DialogActions>
+          <Button onClick={handleClosePreview} color="inherit">
+            Cerrar
+          </Button>
           {selectedDocumento ? (
             <Button
               variant="contained"
@@ -1650,205 +1813,27 @@ export default function ExpedienteEmpleadoPage() {
       <Snackbar
         open={snackbar.open}
         autoHideDuration={4500}
-        onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
-        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+        onClose={() =>
+          setSnackbar((prev) => ({
+            ...prev,
+            open: false,
+          }))
+        }
       >
         <Alert
           severity={snackbar.severity}
           variant="filled"
-          onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+          onClose={() =>
+            setSnackbar((prev) => ({
+              ...prev,
+              open: false,
+            }))
+          }
           sx={{ width: "100%" }}
         >
           {snackbar.message}
         </Alert>
       </Snackbar>
-    </AppPage>
+    </>
   );
-}
-
-function InfoTile({
-  icon,
-  label,
-  value,
-}: {
-  icon: ReactNode;
-  label: string;
-  value: string;
-}) {
-  return (
-    <Box
-      sx={{
-        gridColumn: { xs: "span 1", md: "span 3" },
-        borderRadius: 3,
-        border: `1px solid ${alpha("#0f172a", 0.08)}`,
-        backgroundColor: alpha("#0f172a", 0.015),
-        px: 2,
-        py: 1.5,
-      }}
-    >
-      <Stack direction="row" spacing={1.25} alignItems="center">
-        <Box
-          sx={{
-            width: 34,
-            height: 34,
-            borderRadius: "12px",
-            display: "grid",
-            placeItems: "center",
-            color: "#1d4ed8",
-            backgroundColor: alpha("#1d4ed8", 0.08),
-            border: `1px solid ${alpha("#1d4ed8", 0.14)}`,
-          }}
-        >
-          {icon}
-        </Box>
-
-        <Box sx={{ minWidth: 0 }}>
-          <Typography
-            variant="caption"
-            sx={{
-              display: "block",
-              color: "#64748b",
-              lineHeight: 1.1,
-            }}
-          >
-            {label}
-          </Typography>
-
-          <Typography
-            variant="body2"
-            sx={{
-              fontWeight: 800,
-              color: "#0f172a",
-              lineHeight: 1.2,
-              mt: 0.25,
-            }}
-          >
-            {value}
-          </Typography>
-        </Box>
-      </Stack>
-    </Box>
-  );
-}
-
-function getDocumentoStatus(
-  fechaVencimiento?: string | null
-): DocumentoStatus {
-  if (!fechaVencimiento) {
-    return {
-      label: "Sin vencimiento",
-      tone: "default",
-    };
-  }
-
-  const vencimiento = parseDateOnly(fechaVencimiento);
-  if (!vencimiento) {
-    return {
-      label: "Sin vencimiento",
-      tone: "default",
-    };
-  }
-
-  const today = startOfDay(new Date());
-  const diffMs = vencimiento.getTime() - today.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-  if (diffDays < 0) {
-    return {
-      label: "Vencido",
-      tone: "error",
-    };
-  }
-
-  if (diffDays <= 30) {
-    return {
-      label: "Por vencer",
-      tone: "warning",
-    };
-  }
-
-  return {
-    label: "Vigente",
-    tone: "success",
-  };
-}
-
-function formatDate(value?: string | null): string {
-  if (!value) return "—";
-
-  const date = parseDateOnly(value);
-  if (!date) return "—";
-
-  return new Intl.DateTimeFormat("es-MX", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(date);
-}
-
-function formatBytes(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
-
-  const units = ["B", "KB", "MB", "GB"];
-  let value = bytes;
-  let unitIndex = 0;
-
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024;
-    unitIndex += 1;
-  }
-
-  return `${value.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
-}
-
-function formatPercent(value: number): string {
-  if (!Number.isFinite(value)) return "0";
-  return value.toFixed(value % 1 === 0 ? 0 : 2);
-}
-
-function getFileExtension(fileName: string): string {
-  const dotIndex = fileName.lastIndexOf(".");
-  if (dotIndex < 0) return "";
-  return fileName.slice(dotIndex).toLowerCase();
-}
-
-function normalizeOptionalDate(value: string): string | null {
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-
-function normalizeOptionalText(value: string): string | null {
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-
-function parseDateOnly(value: string): Date | null {
-  if (!value) return null;
-  const parsed = new Date(`${value}T00:00:00`);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
-function startOfDay(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-}
-
-function isPdfDocumento(documento: EmpleadoDocumento): boolean {
-  return documento.mimeType.toLowerCase().includes("pdf") ||
-    documento.nombreArchivoOriginal.toLowerCase().endsWith(".pdf");
-}
-
-function isImageDocumento(documento: EmpleadoDocumento): boolean {
-  const mime = documento.mimeType.toLowerCase();
-  const fileName = documento.nombreArchivoOriginal.toLowerCase();
-
-  return (
-    mime.startsWith("image/") ||
-    fileName.endsWith(".jpg") ||
-    fileName.endsWith(".jpeg") ||
-    fileName.endsWith(".png")
-  );
-}
-
-function canPreviewDocumento(documento: EmpleadoDocumento): boolean {
-  return isPdfDocumento(documento) || isImageDocumento(documento);
 }

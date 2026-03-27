@@ -13,27 +13,7 @@ export type EmpleadoDocumento = {
   comentario?: string | null;
   activo: boolean;
   createdAtUtc: string;
-  updatedAtUtc: string;
-};
-
-export type EmpleadoDocumentoCreateInput = {
-  tipo: number;
-  archivo: File;
-  fechaDocumento?: string | null;
-  fechaVencimiento?: string | null;
-  comentario?: string | null;
-};
-
-export type EmpleadoDocumentoUpdateInput = {
-  tipo: number;
-  fechaDocumento?: string | null;
-  fechaVencimiento?: string | null;
-  comentario?: string | null;
-};
-
-export type TipoDocumentoOption = {
-  value: number;
-  label: string;
+  updatedAtUtc?: string | null;
 };
 
 export type EmpleadoDocumentoChecklistItem = {
@@ -59,6 +39,38 @@ export type EmpleadoDocumentoChecklist = {
   items: EmpleadoDocumentoChecklistItem[];
 };
 
+export type EmpleadoDocumentoCreateInput = {
+  tipo: number;
+  archivo: File;
+  fechaDocumento?: string | null;
+  fechaVencimiento?: string | null;
+  comentario?: string | null;
+};
+
+export type EmpleadoDocumentoUpdateInput = {
+  tipo: number;
+  fechaDocumento?: string | null;
+  fechaVencimiento?: string | null;
+  comentario?: string | null;
+};
+
+export type EmpleadoDocumentoReplaceInput = {
+  archivo: File;
+  fechaDocumento?: string | null;
+  fechaVencimiento?: string | null;
+  comentario?: string | null;
+};
+
+// Alias para compatibilidad con imports viejos
+export type CreateEmpleadoDocumentoInput = EmpleadoDocumentoCreateInput;
+export type UpdateEmpleadoDocumentoInput = EmpleadoDocumentoUpdateInput;
+export type ReplaceEmpleadoDocumentoInput = EmpleadoDocumentoReplaceInput;
+
+export type TipoDocumentoOption = {
+  value: number;
+  label: string;
+};
+
 export type ChecklistStatusTone = "success" | "warning" | "error" | "default";
 
 export const TIPOS_DOCUMENTO_EMPLEADO: TipoDocumentoOption[] = [
@@ -70,8 +82,10 @@ export const TIPOS_DOCUMENTO_EMPLEADO: TipoDocumentoOption[] = [
   { value: 6, label: "Comprobante de domicilio" },
   { value: 7, label: "Contrato" },
   { value: 8, label: "Constancia fiscal" },
-  { value: 9, label: "Certificado médico" },
-  { value: 10, label: "Otro" },
+  { value: 9, label: "Comprobante de estudios" },
+  { value: 10, label: "Licencia de conducir" },
+  { value: 11, label: "Certificado médico" },
+  { value: 99, label: "Otro" },
 ];
 
 export function getTipoDocumentoEmpleadoLabel(tipo: number): string {
@@ -117,13 +131,53 @@ export function getChecklistStatusTone(
   }
 }
 
+function appendIfPresent(
+  formData: FormData,
+  key: string,
+  value?: string | null
+): void {
+  if (value !== undefined && value !== null && value !== "") {
+    formData.append(key, value);
+  }
+}
+
+function normalizeNullableString(value?: string | null): string | null {
+  if (value == null) return null;
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function getFileNameFromContentDisposition(
+  contentDisposition?: string
+): string | null {
+  if (!contentDisposition) return null;
+
+  const utf8Match = contentDisposition.match(
+    /filename\*\s*=\s*UTF-8''([^;]+)/i
+  );
+  if (utf8Match?.[1]) {
+    try {
+      return decodeURIComponent(utf8Match[1].replace(/["']/g, ""));
+    } catch {
+      return utf8Match[1].replace(/["']/g, "");
+    }
+  }
+
+  const plainMatch = contentDisposition.match(/filename\s*=\s*("?)([^";]+)\1/i);
+  if (plainMatch?.[2]) {
+    return plainMatch[2];
+  }
+
+  return null;
+}
+
 export async function getEmpleadoDocumentos(
   empleadoId: number
 ): Promise<EmpleadoDocumento[]> {
   const { data } = await api.get<EmpleadoDocumento[]>(
     `/api/Empleados/${empleadoId}/documentos`
   );
-
   return data;
 }
 
@@ -133,7 +187,6 @@ export async function getEmpleadoDocumentosChecklist(
   const { data } = await api.get<EmpleadoDocumentoChecklist>(
     `/api/Empleados/${empleadoId}/documentos/checklist`
   );
-
   return data;
 }
 
@@ -144,18 +197,13 @@ export async function createEmpleadoDocumento(
   const formData = new FormData();
   formData.append("tipo", String(input.tipo));
   formData.append("archivo", input.archivo);
-
-  if (input.fechaDocumento) {
-    formData.append("fechaDocumento", input.fechaDocumento);
-  }
-
-  if (input.fechaVencimiento) {
-    formData.append("fechaVencimiento", input.fechaVencimiento);
-  }
-
-  if (input.comentario && input.comentario.trim()) {
-    formData.append("comentario", input.comentario.trim());
-  }
+  appendIfPresent(formData, "fechaDocumento", input.fechaDocumento);
+  appendIfPresent(formData, "fechaVencimiento", input.fechaVencimiento);
+  appendIfPresent(
+    formData,
+    "comentario",
+    normalizeNullableString(input.comentario)
+  );
 
   const { data } = await api.post<EmpleadoDocumento>(
     `/api/Empleados/${empleadoId}/documentos`,
@@ -171,7 +219,7 @@ export async function createEmpleadoDocumento(
 }
 
 export async function updateEmpleadoDocumento(
-  id: number,
+  documentoId: number,
   input: EmpleadoDocumentoUpdateInput
 ): Promise<EmpleadoDocumento> {
   const payload = {
@@ -182,41 +230,79 @@ export async function updateEmpleadoDocumento(
   };
 
   const { data } = await api.put<EmpleadoDocumento>(
-    `/api/EmpleadoDocumentos/${id}`,
+    `/api/EmpleadoDocumentos/${documentoId}`,
     payload
   );
 
   return data;
 }
 
-export async function deleteEmpleadoDocumento(id: number): Promise<void> {
-  await api.delete(`/api/EmpleadoDocumentos/${id}`);
+export async function replaceEmpleadoDocumento(
+  documentoId: number,
+  input: EmpleadoDocumentoReplaceInput
+): Promise<EmpleadoDocumento> {
+  const formData = new FormData();
+  formData.append("archivo", input.archivo);
+  appendIfPresent(formData, "fechaDocumento", input.fechaDocumento);
+  appendIfPresent(formData, "fechaVencimiento", input.fechaVencimiento);
+  appendIfPresent(
+    formData,
+    "comentario",
+    normalizeNullableString(input.comentario)
+  );
+
+  const { data } = await api.post<EmpleadoDocumento>(
+    `/api/EmpleadoDocumentos/${documentoId}/reemplazar`,
+    formData,
+    {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    }
+  );
+
+  return data;
 }
 
-export async function getEmpleadoDocumentoBlob(id: number): Promise<Blob> {
-  const response = await api.get(`/api/EmpleadoDocumentos/${id}/download`, {
-    responseType: "blob",
-  });
+export async function deleteEmpleadoDocumento(
+  documentoId: number
+): Promise<void> {
+  await api.delete(`/api/EmpleadoDocumentos/${documentoId}`);
+}
+
+export async function getEmpleadoDocumentoBlob(
+  documentoId: number
+): Promise<Blob> {
+  const response = await api.get(
+    `/api/EmpleadoDocumentos/${documentoId}/download`,
+    {
+      responseType: "blob",
+    }
+  );
 
   return response.data as Blob;
 }
 
 export async function downloadEmpleadoDocumento(
-  id: number,
+  documentoId: number,
   fallbackFileName?: string
 ): Promise<void> {
-  const response = await api.get(`/api/EmpleadoDocumentos/${id}/download`, {
-    responseType: "blob",
-  });
+  const response = await api.get(
+    `/api/EmpleadoDocumentos/${documentoId}/download`,
+    {
+      responseType: "blob",
+    }
+  );
 
   const blob = response.data as Blob;
   const objectUrl = window.URL.createObjectURL(blob);
   const anchor = document.createElement("a");
+
   anchor.href = objectUrl;
   anchor.download =
     getFileNameFromContentDisposition(response.headers["content-disposition"]) ||
     fallbackFileName ||
-    `documento_${id}`;
+    `documento_${documentoId}`;
 
   document.body.appendChild(anchor);
   anchor.click();
@@ -224,31 +310,9 @@ export async function downloadEmpleadoDocumento(
   window.URL.revokeObjectURL(objectUrl);
 }
 
-function normalizeNullableString(value?: string | null): string | null {
-  if (value == null) return null;
+export function getEmpleadoDocumentoDownloadUrl(documentoId: number): string {
+  const baseUrl =
+    (api.defaults.baseURL ?? "").replace(/\/$/, "") || window.location.origin;
 
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-
-function getFileNameFromContentDisposition(
-  contentDisposition?: string
-): string | null {
-  if (!contentDisposition) return null;
-
-  const utf8Match = contentDisposition.match(/filename\*\s*=\s*UTF-8''([^;]+)/i);
-  if (utf8Match?.[1]) {
-    try {
-      return decodeURIComponent(utf8Match[1].replace(/["']/g, ""));
-    } catch {
-      return utf8Match[1].replace(/["']/g, "");
-    }
-  }
-
-  const plainMatch = contentDisposition.match(/filename\s*=\s*("?)([^";]+)\1/i);
-  if (plainMatch?.[2]) {
-    return plainMatch[2];
-  }
-
-  return null;
+  return `${baseUrl}/api/EmpleadoDocumentos/${documentoId}/download`;
 }
