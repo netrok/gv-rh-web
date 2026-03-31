@@ -27,6 +27,7 @@ import ApartmentRoundedIcon from "@mui/icons-material/ApartmentRounded";
 import WorkOutlineRoundedIcon from "@mui/icons-material/WorkOutlineRounded";
 import BadgeRoundedIcon from "@mui/icons-material/BadgeRounded";
 import EventNoteRoundedIcon from "@mui/icons-material/EventNoteRounded";
+import Groups2RoundedIcon from "@mui/icons-material/Groups2Rounded";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
 import ShieldRoundedIcon from "@mui/icons-material/ShieldRounded";
 import KeyboardDoubleArrowRightRoundedIcon from "@mui/icons-material/KeyboardDoubleArrowRightRounded";
@@ -97,6 +98,18 @@ const menuItems: MenuItemConfig[] = [
     icon: <EventNoteRoundedIcon fontSize="small" />,
     allow: ["ADMIN", "RRHH"],
   },
+  {
+    label: "Vacantes",
+    to: "/reclutamiento/vacantes",
+    icon: <WorkOutlineRoundedIcon fontSize="small" />,
+    allow: ["ADMIN", "RRHH"],
+  },
+  {
+    label: "Candidatos",
+    to: "/reclutamiento/candidatos",
+    icon: <Groups2RoundedIcon fontSize="small" />,
+    allow: ["ADMIN", "RRHH"],
+  },
 ];
 
 type AuthUserShape = {
@@ -133,6 +146,7 @@ function getCurrentSectionText(pathname: string) {
   if (isRouteSelected(pathname, "/departamentos")) return "Estructura interna";
   if (isRouteSelected(pathname, "/puestos")) return "Catálogo organizacional";
   if (isRouteSelected(pathname, "/sucursales")) return "Cobertura operativa";
+  if (isRouteSelected(pathname, "/reclutamiento")) return "Atracción de talento";
   return "Sistema interno";
 }
 
@@ -325,272 +339,268 @@ export default function AppShell() {
   const sidebarContent = (
     <>
       <Box sx={{ px: 2.5, py: 2.5 }}>
-        <Stack direction="row" alignItems="center" justifyContent="space-between">
-          <Box>
+        <Stack spacing={2}>
+          <Stack direction="row" alignItems="center" spacing={1.4}>
             <Box
               sx={{
-                width: 46,
-                height: 46,
-                borderRadius: "15px",
+                width: 42,
+                height: 42,
+                borderRadius: "14px",
                 display: "grid",
                 placeItems: "center",
-                backgroundColor: "rgba(255,255,255,0.08)",
+                background:
+                  "linear-gradient(135deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.08) 100%)",
                 border: "1px solid rgba(255,255,255,0.08)",
-                mb: 1.5,
-                boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
+                boxShadow: "0 10px 24px rgba(15, 23, 42, 0.22)",
               }}
             >
-              <ShieldRoundedIcon />
+              <ShieldRoundedIcon fontSize="small" />
             </Box>
 
-            <Typography variant="h6" fontWeight={900} lineHeight={1.05}>
-              GV RH
-            </Typography>
-
-            <Typography variant="body2" sx={{ color: "#94a3b8", mt: 0.5 }}>
-              Administración de personal
-            </Typography>
-          </Box>
-
-          <IconButton
-            onClick={() => setMobileOpen(false)}
-            sx={{
-              display: { xs: "inline-flex", lg: "none" },
-              color: "#e5e7eb",
-              alignSelf: "flex-start",
-            }}
-          >
-            <CloseRoundedIcon />
-          </IconButton>
-        </Stack>
-
-        {normalizedRoles.length > 0 ? (
-          <Stack
-            direction="row"
-            spacing={0.75}
-            flexWrap="wrap"
-            useFlexGap
-            sx={{ mt: 1.5 }}
-          >
-            {normalizedRoles.slice(0, 3).map((role) => (
-              <Chip
-                key={role}
-                size="small"
-                label={role}
-                variant="outlined"
-                sx={roleChipSx()}
-              />
-            ))}
-          </Stack>
-        ) : null}
-      </Box>
-
-      <Divider sx={{ borderColor: "rgba(255,255,255,0.08)" }} />
-
-      <Box sx={{ px: 1.5, py: 1.25 }}>
-        <Typography
-          variant="overline"
-          sx={{
-            px: 1,
-            color: "#94a3b8",
-            fontWeight: 800,
-            letterSpacing: "0.08em",
-          }}
-        >
-          Navegación principal
-        </Typography>
-      </Box>
-
-      <List sx={{ px: 1.25, py: 0.5 }}>
-        {visibleMenuItems.map((item) => {
-          const selected = isRouteSelected(location.pathname, item.to);
-
-          return (
-            <ListItemButton
-              key={item.to}
-              selected={selected}
-              onClick={() => handleNavigate(item.to)}
-              sx={sidebarItemSx(selected)}
-            >
-              <ListItemIcon>
-                <Box sx={sidebarIconWrapSx(selected)}>{item.icon}</Box>
-              </ListItemIcon>
-
-              <ListItemText
-                primary={item.label}
-                secondary={selected ? "Vista actual" : undefined}
-                primaryTypographyProps={{
-                  fontWeight: selected ? 800 : 700,
-                  fontSize: 14,
-                }}
-                secondaryTypographyProps={{
-                  fontSize: 11,
-                  color: "rgba(255,255,255,0.56)",
-                }}
-              />
-
-              {selected ? (
-                <KeyboardDoubleArrowRightRoundedIcon
-                  fontSize="small"
-                  sx={{ color: "#ffffff", opacity: 0.9 }}
-                />
-              ) : null}
-            </ListItemButton>
-          );
-        })}
-      </List>
-
-      <Box sx={{ flexGrow: 1 }} />
-    </>
-  );
-
-  return (
-    <Box sx={{ minHeight: "100vh", backgroundColor: "#f3f4f6" }}>
-      <AppBar
-        position="fixed"
-        elevation={0}
-        sx={{
-          height: appBarHeight,
-          width: { xs: "100%", lg: `calc(100% - ${drawerWidth}px)` },
-          ml: { xs: 0, lg: `${drawerWidth}px` },
-          justifyContent: "center",
-          backgroundColor: alpha("#ffffff", 0.94),
-          color: "#111827",
-          borderBottom: "1px solid #e5e7eb",
-          backdropFilter: "blur(10px)",
-        }}
-      >
-        <Toolbar
-          sx={{
-            minHeight: `${appBarHeight}px !important`,
-            px: { xs: 2, md: 3 },
-            display: "flex",
-            justifyContent: "space-between",
-            gap: 2,
-          }}
-        >
-          <Stack direction="row" spacing={1.5} alignItems="center" sx={{ minWidth: 0 }}>
-            <IconButton
-              onClick={() => setMobileOpen(true)}
-              sx={{
-                display: { xs: "inline-flex", lg: "none" },
-                color: "#334155",
-                border: `1px solid ${alpha("#0f172a", 0.08)}`,
-                backgroundColor: alpha("#0f172a", 0.02),
-              }}
-            >
-              <MenuRoundedIcon />
-            </IconButton>
-
             <Box sx={{ minWidth: 0 }}>
-              <Typography
-                variant="overline"
-                sx={{
-                  display: "block",
-                  color: "#64748b",
-                  fontWeight: 800,
-                  letterSpacing: "0.08em",
-                  lineHeight: 1.4,
-                  mb: 0.25,
-                }}
-              >
-                {currentSectionText}
+              <Typography sx={{ fontWeight: 900, letterSpacing: 0.2 }}>
+                GV RH
               </Typography>
-
               <Typography
-                variant="h6"
-                sx={{
-                  fontWeight: 900,
-                  color: "#0f172a",
-                  lineHeight: 1.1,
-                  letterSpacing: "-0.015em",
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                }}
+                variant="body2"
+                sx={{ color: "#94a3b8", fontSize: 12.5 }}
               >
-                {currentTitle}
+                Recursos Humanos
               </Typography>
             </Box>
           </Stack>
 
           <Box
-            component="button"
-            type="button"
-            onClick={handleOpenUserMenu}
-            sx={topbarUserButtonSx(isUserMenuOpen)}
+            sx={{
+              borderRadius: "20px",
+              p: 1.6,
+              background:
+                "linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.04) 100%)",
+              border: "1px solid rgba(255,255,255,0.08)",
+            }}
           >
-            <Avatar
-              sx={{
-                width: 36,
-                height: 36,
-                fontSize: 14,
-                fontWeight: 900,
-                bgcolor: "#0f172a",
-                boxShadow: "0 8px 20px rgba(15, 23, 42, 0.18)",
-              }}
-            >
-              {userInitial}
-            </Avatar>
+            <Stack spacing={1}>
+              <Stack direction="row" spacing={1.2} alignItems="center">
+                <Avatar
+                  sx={{
+                    width: 42,
+                    height: 42,
+                    fontWeight: 900,
+                    backgroundColor: alpha("#ffffff", 0.12),
+                    color: "#ffffff",
+                  }}
+                >
+                  {userInitial}
+                </Avatar>
 
-            <Stack
-              spacing={0}
-              sx={{
-                display: { xs: "none", sm: "flex" },
-                minWidth: 0,
-                textAlign: "left",
-              }}
-            >
-              <Typography
-                variant="body2"
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography
+                    sx={{
+                      fontWeight: 800,
+                      fontSize: 14.5,
+                      color: "#f8fafc",
+                    }}
+                    noWrap
+                  >
+                    {displayName}
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{ color: "#94a3b8", fontSize: 12.5 }}
+                    noWrap
+                  >
+                    {user?.email ?? "Sin correo"}
+                  </Typography>
+                </Box>
+              </Stack>
+
+              <Chip
+                variant="outlined"
+                size="small"
+                label={primaryRole}
+                sx={roleChipSx()}
+              />
+            </Stack>
+          </Box>
+        </Stack>
+      </Box>
+
+      <Divider sx={{ borderColor: "rgba(255,255,255,0.08)" }} />
+
+      <Box sx={{ px: 1.5, py: 1.5, overflowY: "auto", flex: 1 }}>
+        <Typography
+          sx={{
+            px: 1.2,
+            mb: 1.2,
+            color: "#94a3b8",
+            fontSize: 12,
+            fontWeight: 800,
+            letterSpacing: 0.5,
+            textTransform: "uppercase",
+          }}
+        >
+          Navegación
+        </Typography>
+
+        <List disablePadding>
+          {visibleMenuItems.map((item) => {
+            const selected = isRouteSelected(location.pathname, item.to);
+
+            return (
+              <ListItemButton
+                key={item.to}
+                selected={selected}
+                onClick={() => handleNavigate(item.to)}
+                sx={sidebarItemSx(selected)}
+              >
+                <ListItemIcon>
+                  <Box sx={sidebarIconWrapSx(selected)}>{item.icon}</Box>
+                </ListItemIcon>
+
+                <ListItemText
+                  primary={item.label}
+                  primaryTypographyProps={{
+                    fontWeight: selected ? 900 : 700,
+                    fontSize: 14,
+                  }}
+                />
+
+                <KeyboardDoubleArrowRightRoundedIcon
+                  fontSize="small"
+                  sx={{
+                    opacity: selected ? 1 : 0.35,
+                    color: selected ? "#ffffff" : "#94a3b8",
+                  }}
+                />
+              </ListItemButton>
+            );
+          })}
+        </List>
+      </Box>
+    </>
+  );
+
+  return (
+    <Box sx={{ minHeight: "100vh", backgroundColor: "#f8fafc" }}>
+      <AppBar
+        elevation={0}
+        color="inherit"
+        sx={{
+          height: appBarHeight,
+          justifyContent: "center",
+          backgroundColor: alpha("#ffffff", 0.92),
+          backdropFilter: "blur(12px)",
+          borderBottom: `1px solid ${alpha("#0f172a", 0.06)}`,
+          boxShadow: "0 10px 30px rgba(15, 23, 42, 0.04)",
+          ml: { lg: `${drawerWidth}px` },
+          width: { lg: `calc(100% - ${drawerWidth}px)` },
+        }}
+      >
+        <Toolbar sx={{ minHeight: `${appBarHeight}px !important`, px: { xs: 2, md: 3 } }}>
+          <Stack
+            direction="row"
+            alignItems="center"
+            justifyContent="space-between"
+            sx={{ width: "100%" }}
+            spacing={2}
+          >
+            <Stack direction="row" spacing={1.5} alignItems="center">
+              <IconButton
+                onClick={() => setMobileOpen((prev) => !prev)}
                 sx={{
-                  fontWeight: 800,
-                  color: "#0f172a",
-                  lineHeight: 1.1,
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  maxWidth: 150,
+                  display: { lg: "none" },
+                  border: `1px solid ${alpha("#0f172a", 0.08)}`,
+                  backgroundColor: "#ffffff",
                 }}
               >
-                {displayName}
-              </Typography>
+                {mobileOpen ? <CloseRoundedIcon /> : <MenuRoundedIcon />}
+              </IconButton>
 
-              <Typography
-                variant="caption"
-                sx={{
-                  display: { xs: "none", md: "block" },
-                  color: "#64748b",
-                  lineHeight: 1.1,
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  maxWidth: 170,
-                }}
-              >
-                {user?.email ?? "Sin correo"}
-              </Typography>
+              <Box>
+                <Typography
+                  sx={{
+                    fontSize: { xs: 19, md: 22 },
+                    fontWeight: 900,
+                    color: "#0f172a",
+                    lineHeight: 1.1,
+                  }}
+                >
+                  {currentTitle}
+                </Typography>
+                <Typography
+                  variant="body2"
+                  sx={{ color: "#64748b", mt: 0.2 }}
+                >
+                  {currentSectionText}
+                </Typography>
+              </Box>
             </Stack>
 
-            <Chip
-              size="small"
-              label={primaryRole}
-              variant="outlined"
-              sx={{
-                display: { xs: "none", lg: "inline-flex" },
-                ...topbarRoleChipSx(),
-              }}
-            />
+            <Stack direction="row" spacing={1.2} alignItems="center">
+              <Chip
+                label={primaryRole}
+                variant="outlined"
+                size="small"
+                sx={{ display: { xs: "none", sm: "inline-flex" }, ...topbarRoleChipSx() }}
+              />
 
-            <KeyboardArrowDownRoundedIcon
-              fontSize="small"
-              sx={{
-                color: "#64748b",
-                transform: isUserMenuOpen ? "rotate(180deg)" : "rotate(0deg)",
-                transition: "transform 180ms ease",
-              }}
-            />
-          </Box>
+              <Box
+                component="button"
+                type="button"
+                onClick={handleOpenUserMenu}
+                sx={topbarUserButtonSx(isUserMenuOpen)}
+              >
+                <Avatar
+                  sx={{
+                    width: 34,
+                    height: 34,
+                    fontSize: 14,
+                    fontWeight: 900,
+                    backgroundColor: alpha("#0f172a", 0.08),
+                    color: "#0f172a",
+                  }}
+                >
+                  {userInitial}
+                </Avatar>
+
+                <Box
+                  sx={{
+                    display: { xs: "none", sm: "block" },
+                    textAlign: "left",
+                    minWidth: 0,
+                  }}
+                >
+                  <Typography
+                    sx={{
+                      fontWeight: 800,
+                      fontSize: 13.5,
+                      color: "#0f172a",
+                      lineHeight: 1.1,
+                    }}
+                    noWrap
+                  >
+                    {displayName}
+                  </Typography>
+                  <Typography
+                    sx={{
+                      fontSize: 12,
+                      color: "#64748b",
+                      mt: 0.2,
+                      lineHeight: 1.1,
+                    }}
+                    noWrap
+                  >
+                    {user?.email ?? "Sin correo"}
+                  </Typography>
+                </Box>
+
+                <KeyboardArrowDownRoundedIcon
+                  fontSize="small"
+                  sx={{ color: "#64748b" }}
+                />
+              </Box>
+            </Stack>
+          </Stack>
         </Toolbar>
       </AppBar>
 
@@ -598,103 +608,60 @@ export default function AppShell() {
         anchorEl={userMenuAnchorEl}
         open={isUserMenuOpen}
         onClose={handleCloseUserMenu}
+        PaperProps={{ sx: userMenuPaperSx() }}
         anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
         transformOrigin={{ vertical: "top", horizontal: "right" }}
-        slotProps={{
-          paper: {
-            sx: userMenuPaperSx(),
-          },
-        }}
       >
-        <Box
-          sx={{
-            px: 2,
-            py: 2,
-            background:
-              "linear-gradient(135deg, rgba(15,23,42,1) 0%, rgba(30,64,175,0.94) 100%)",
-            color: "#ffffff",
-          }}
-        >
-          <Stack direction="row" spacing={1.5} alignItems="center">
-            <Avatar
-              sx={{
-                width: 46,
-                height: 46,
-                fontSize: 16,
-                fontWeight: 900,
-                bgcolor: alpha("#ffffff", 0.16),
-                color: "#ffffff",
-                border: `1px solid ${alpha("#ffffff", 0.18)}`,
-              }}
-            >
-              {userInitial}
-            </Avatar>
-
-            <Box sx={{ minWidth: 0 }}>
-              <Typography
-                variant="body2"
-                sx={{
-                  fontWeight: 900,
-                  lineHeight: 1.2,
-                }}
-              >
-                {displayName}
-              </Typography>
-
-              <Typography
-                variant="caption"
-                sx={{
-                  display: "block",
-                  mt: 0.25,
-                  color: alpha("#ffffff", 0.82),
-                  wordBreak: "break-word",
-                }}
-              >
-                {user?.email ?? "Sin correo"}
-              </Typography>
-            </Box>
-          </Stack>
-
-          <Stack
-            direction="row"
-            spacing={0.75}
-            flexWrap="wrap"
-            useFlexGap
-            sx={{ mt: 1.5 }}
+        <Box sx={{ p: 1 }}>
+          <Box
+            sx={{
+              px: 1.25,
+              pt: 1.15,
+              pb: 1.25,
+            }}
           >
-            {normalizedRoles.length > 0 ? (
-              normalizedRoles.slice(0, 3).map((role) => (
-                <Chip
-                  key={role}
-                  size="small"
-                  label={role}
-                  variant="outlined"
-                  sx={{
-                    color: "#ffffff",
-                    borderColor: alpha("#ffffff", 0.22),
-                    backgroundColor: alpha("#ffffff", 0.08),
-                    fontWeight: 800,
-                  }}
-                />
-              ))
-            ) : (
+            <Stack direction="row" spacing={1.2} alignItems="center">
+              <Avatar
+                sx={{
+                  width: 42,
+                  height: 42,
+                  fontWeight: 900,
+                  backgroundColor: alpha("#0f172a", 0.08),
+                  color: "#0f172a",
+                }}
+              >
+                {userInitial}
+              </Avatar>
+
+              <Box sx={{ minWidth: 0 }}>
+                <Typography
+                  sx={{ fontWeight: 900, fontSize: 14.5, color: "#0f172a" }}
+                  noWrap
+                >
+                  {displayName}
+                </Typography>
+                <Typography
+                  sx={{ fontSize: 12.5, color: "#64748b" }}
+                  noWrap
+                >
+                  {user?.email ?? "Sin correo"}
+                </Typography>
+              </Box>
+            </Stack>
+
+            <Stack direction="row" spacing={1} sx={{ mt: 1.2 }}>
               <Chip
                 size="small"
-                label="SIN ROL"
+                label={primaryRole}
                 variant="outlined"
-                sx={{
-                  color: "#ffffff",
-                  borderColor: alpha("#ffffff", 0.22),
-                  backgroundColor: alpha("#ffffff", 0.08),
-                  fontWeight: 800,
-                }}
+                sx={topbarRoleChipSx()}
               />
-            )}
-          </Stack>
-        </Box>
+            </Stack>
+          </Box>
 
-        <Box sx={{ py: 1 }}>
-          <MenuItem onClick={handleGoToChangePassword} sx={userMenuActionSx(false)}>
+          <Divider sx={{ borderColor: alpha("#0f172a", 0.06) }} />
+
+          <MenuItem onClick={handleGoToChangePassword} sx={userMenuActionSx()}>
             <ListItemIcon sx={{ minWidth: 34, color: "#334155" }}>
               <VpnKeyRoundedIcon fontSize="small" />
             </ListItemIcon>

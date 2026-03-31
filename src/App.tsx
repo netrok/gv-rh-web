@@ -17,6 +17,10 @@ import RequireAuth from "./features/auth/RequireAuth";
 import RoleGuard from "./features/auth/RoleGuard";
 import { useAuth } from "./features/auth/AuthContext";
 
+import VacantesPage from "./pages/VacantesPage";
+import CandidatosPage from "./pages/CandidatosPage";
+import VacanteDetallePage from "./pages/VacanteDetallePage";
+
 export default function App() {
   const { isAuthenticated, roles = [], mustChangePassword } = useAuth();
 
@@ -173,6 +177,45 @@ export default function App() {
               allow={["ADMIN", "RRHH"]}
             >
               <IncidenciasPage />
+            </RoleGuard>
+          }
+        />
+
+        <Route
+          path="reclutamiento/vacantes"
+          element={
+            <RoleGuard
+              isAuthenticated={isAuthenticated}
+              userRoles={roles}
+              allow={["ADMIN", "RRHH"]}
+            >
+              <VacantesPage />
+            </RoleGuard>
+          }
+        />
+
+        <Route
+          path="reclutamiento/vacantes/:id"
+          element={
+            <RoleGuard
+              isAuthenticated={isAuthenticated}
+              userRoles={roles}
+              allow={["ADMIN", "RRHH"]}
+            >
+              <VacanteDetallePage />
+            </RoleGuard>
+          }
+        />
+
+        <Route
+          path="reclutamiento/candidatos"
+          element={
+            <RoleGuard
+              isAuthenticated={isAuthenticated}
+              userRoles={roles}
+              allow={["ADMIN", "RRHH"]}
+            >
+              <CandidatosPage />
             </RoleGuard>
           }
         />
