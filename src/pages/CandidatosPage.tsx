@@ -4,6 +4,7 @@ import {
   Alert,
   Button,
   Chip,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -21,9 +22,10 @@ import {
 } from "@mui/material";
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import CloudUploadRoundedIcon from "@mui/icons-material/CloudUploadRounded";
-import DownloadRoundedIcon from "@mui/icons-material/DownloadRounded";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
+import DownloadRoundedIcon from "@mui/icons-material/DownloadRounded";
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
+
 import AppPage from "../components/ui/AppPage";
 import HeroBanner from "../components/ui/HeroBanner";
 import MetricCard from "../components/ui/MetricCard";
@@ -32,7 +34,9 @@ import {
   createCandidato,
   deleteCandidatoCv,
   downloadCandidatoCv,
+  getCandidatoById,
   getCandidatos,
+  type CandidatoDetail,
   type CandidatoListItem,
   type CreateCandidatoRequest,
   type UpdateCandidatoRequest,
@@ -70,14 +74,19 @@ const initialForm: CandidatoFormState = {
 
 function formatDateTime(value?: string | null) {
   if (!value) return "—";
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+
   return new Intl.DateTimeFormat("es-MX", {
     dateStyle: "medium",
     timeStyle: "short",
-  }).format(new Date(value));
+  }).format(parsed);
 }
 
 function formatMoney(value?: number | null) {
   if (value == null) return "—";
+
   return new Intl.NumberFormat("es-MX", {
     style: "currency",
     currency: "MXN",
@@ -85,7 +94,31 @@ function formatMoney(value?: number | null) {
   }).format(value);
 }
 
-function toPayload(form: CandidatoFormState): CreateCandidatoRequest | UpdateCandidatoRequest {
+function normalizeDateInput(value?: string | null) {
+  if (!value) return "";
+
+  const direct = String(value).slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(direct)) return direct;
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+
+  return parsed.toISOString().slice(0, 10);
+}
+
+function getErrorMessage(err: any, fallback: string) {
+  return (
+    err?.response?.data?.message ??
+    err?.response?.data?.title ??
+    (typeof err?.response?.data === "string" ? err.response.data : null) ??
+    err?.message ??
+    fallback
+  );
+}
+
+function toPayload(
+  form: CandidatoFormState
+): CreateCandidatoRequest | UpdateCandidatoRequest {
   return {
     nombres: form.nombres.trim(),
     apellidoPaterno: form.apellidoPaterno.trim(),
@@ -96,27 +129,27 @@ function toPayload(form: CandidatoFormState): CreateCandidatoRequest | UpdateCan
     ciudad: form.ciudad.trim() || null,
     fuenteReclutamiento: form.fuenteReclutamiento.trim() || null,
     resumenPerfil: form.resumenPerfil.trim() || null,
-    pretensionSalarial: form.pretensionSalarial ? Number(form.pretensionSalarial) : null,
+    pretensionSalarial: form.pretensionSalarial.trim()
+      ? Number(form.pretensionSalarial)
+      : null,
     activo: form.activo,
   };
 }
 
-function fromCandidatoToForm(item: CandidatoListItem): CandidatoFormState {
-  const [nombres = "", apellidoPaterno = "", apellidoMaterno = ""] =
-    item.nombreCompleto.split(" ");
-
+function fromCandidatoDetailToForm(detail: CandidatoDetail): CandidatoFormState {
   return {
-    nombres,
-    apellidoPaterno,
-    apellidoMaterno,
-    telefono: item.telefono ?? "",
-    email: item.email ?? "",
-    fechaNacimiento: "",
-    ciudad: "",
-    fuenteReclutamiento: item.fuenteReclutamiento ?? "",
-    resumenPerfil: "",
-    pretensionSalarial: item.pretensionSalarial?.toString() ?? "",
-    activo: item.activo,
+    nombres: detail.nombres ?? "",
+    apellidoPaterno: detail.apellidoPaterno ?? "",
+    apellidoMaterno: detail.apellidoMaterno ?? "",
+    telefono: detail.telefono ?? "",
+    email: detail.email ?? "",
+    fechaNacimiento: normalizeDateInput(detail.fechaNacimiento),
+    ciudad: detail.ciudad ?? "",
+    fuenteReclutamiento: detail.fuenteReclutamiento ?? "",
+    resumenPerfil: detail.resumenPerfil ?? "",
+    pretensionSalarial:
+      detail.pretensionSalarial == null ? "" : String(detail.pretensionSalarial),
+    activo: Boolean(detail.activo),
   };
 }
 
@@ -141,9 +174,12 @@ export default function CandidatosPage() {
 
   const [openForm, setOpenForm] = useState(false);
   const [editing, setEditing] = useState<CandidatoListItem | null>(null);
-  const [selectedForCv, setSelectedForCv] = useState<CandidatoListItem | null>(null);
+  const [selectedForCv, setSelectedForCv] = useState<CandidatoListItem | null>(
+    null
+  );
   const [form, setForm] = useState<CandidatoFormState>(initialForm);
   const [error, setError] = useState<string | null>(null);
+  const [loadingEditDetail, setLoadingEditDetail] = useState(false);
 
   const { data: candidatos = [], isLoading } = useQuery({
     queryKey: ["reclutamiento", "candidatos", { q, fuenteReclutamiento, soloActivos }],
@@ -175,7 +211,7 @@ export default function CandidatosPage() {
       setError(null);
     },
     onError: (err: any) => {
-      setError(err?.response?.data ?? "No se pudo crear el candidato.");
+      setError(getErrorMessage(err, "No se pudo crear el candidato."));
     },
   });
 
@@ -190,28 +226,38 @@ export default function CandidatosPage() {
       setError(null);
     },
     onError: (err: any) => {
-      setError(err?.response?.data ?? "No se pudo actualizar el candidato.");
+      setError(getErrorMessage(err, "No se pudo actualizar el candidato."));
     },
   });
 
   const uploadCvMutation = useMutation({
-    mutationFn: ({ id, file }: { id: number; file: File }) => uploadCandidatoCv(id, file),
+    mutationFn: ({ id, file }: { id: number; file: File }) =>
+      uploadCandidatoCv(id, file),
     onSuccess: () => {
       invalidate();
       setSelectedForCv(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
+    },
+    onError: (err: any) => {
+      setError(getErrorMessage(err, "No se pudo subir el CV."));
     },
   });
 
   const deleteCvMutation = useMutation({
     mutationFn: (id: number) => deleteCandidatoCv(id),
     onSuccess: () => invalidate(),
+    onError: (err: any) => {
+      setError(getErrorMessage(err, "No se pudo eliminar el CV."));
+    },
   });
 
   const downloadCvMutation = useMutation({
     mutationFn: async (item: CandidatoListItem) => {
       const blob = await downloadCandidatoCv(item.id);
       triggerBlobDownload(blob, `${item.nombreCompleto.replace(/\s+/g, "_")}_CV`);
+    },
+    onError: (err: any) => {
+      setError(getErrorMessage(err, "No se pudo descargar el CV."));
     },
   });
 
@@ -222,11 +268,30 @@ export default function CandidatosPage() {
     setOpenForm(true);
   }
 
-  function openEdit(item: CandidatoListItem) {
-    setEditing(item);
-    setForm(fromCandidatoToForm(item));
+  async function openEdit(item: CandidatoListItem) {
+    try {
+      setLoadingEditDetail(true);
+      setError(null);
+
+      const detail = await getCandidatoById(item.id);
+
+      setEditing(item);
+      setForm(fromCandidatoDetailToForm(detail));
+      setOpenForm(true);
+    } catch (err: any) {
+      setError(getErrorMessage(err, "No se pudo cargar el detalle del candidato."));
+    } finally {
+      setLoadingEditDetail(false);
+    }
+  }
+
+  function closeForm() {
+    if (busy) return;
+
+    setOpenForm(false);
+    setEditing(null);
+    setForm(initialForm);
     setError(null);
-    setOpenForm(true);
   }
 
   function submitForm() {
@@ -247,6 +312,7 @@ export default function CandidatosPage() {
   }
 
   const busy =
+    loadingEditDetail ||
     createMutation.isPending ||
     updateMutation.isPending ||
     uploadCvMutation.isPending ||
@@ -318,7 +384,10 @@ export default function CandidatosPage() {
         </Grid>
       </SectionCard>
 
-      <SectionCard title="Listado de candidatos" subtitle="Desde aquí puedes editar, subir CV y descargarlo.">
+      <SectionCard
+        title="Listado de candidatos"
+        subtitle="Desde aquí puedes editar, subir CV y descargarlo."
+      >
         {isLoading ? (
           <Typography>Loading...</Typography>
         ) : candidatos.length === 0 ? (
@@ -362,6 +431,7 @@ export default function CandidatosPage() {
                         size="small"
                         startIcon={<EditRoundedIcon />}
                         onClick={() => openEdit(item)}
+                        disabled={busy}
                       >
                         Editar
                       </Button>
@@ -373,6 +443,7 @@ export default function CandidatosPage() {
                           setSelectedForCv(item);
                           fileInputRef.current?.click();
                         }}
+                        disabled={busy}
                       >
                         {item.tieneCv ? "Reemplazar CV" : "Subir CV"}
                       </Button>
@@ -383,6 +454,7 @@ export default function CandidatosPage() {
                             size="small"
                             startIcon={<DownloadRoundedIcon />}
                             onClick={() => downloadCvMutation.mutate(item)}
+                            disabled={busy}
                           >
                             Descargar
                           </Button>
@@ -391,6 +463,7 @@ export default function CandidatosPage() {
                             color="error"
                             startIcon={<DeleteOutlineRoundedIcon />}
                             onClick={() => deleteCvMutation.mutate(item.id)}
+                            disabled={busy}
                           >
                             Eliminar CV
                           </Button>
@@ -417,134 +490,180 @@ export default function CandidatosPage() {
         />
       </SectionCard>
 
-      <Dialog open={openForm} onClose={() => !busy && setOpenForm(false)} fullWidth maxWidth="md">
+      <Dialog open={openForm} onClose={closeForm} fullWidth maxWidth="md">
         <DialogTitle>{editing ? "Editar candidato" : "Nuevo candidato"}</DialogTitle>
+
         <DialogContent dividers>
           <Stack spacing={2} sx={{ pt: 1 }}>
             {error ? <Alert severity="error">{error}</Alert> : null}
 
-            <Grid container spacing={2}>
-              <Grid size={{ xs: 12, md: 4 }}>
-                <TextField
-                  label="Nombres"
-                  value={form.nombres}
-                  onChange={(e) => setForm((prev) => ({ ...prev, nombres: e.target.value }))}
-                  fullWidth
-                />
-              </Grid>
-              <Grid size={{ xs: 12, md: 4 }}>
-                <TextField
-                  label="Apellido paterno"
-                  value={form.apellidoPaterno}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, apellidoPaterno: e.target.value }))
-                  }
-                  fullWidth
-                />
-              </Grid>
-              <Grid size={{ xs: 12, md: 4 }}>
-                <TextField
-                  label="Apellido materno"
-                  value={form.apellidoMaterno}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, apellidoMaterno: e.target.value }))
-                  }
-                  fullWidth
-                />
-              </Grid>
-            </Grid>
+            {loadingEditDetail ? (
+              <Stack direction="row" spacing={1.5} alignItems="center" sx={{ py: 2 }}>
+                <CircularProgress size={20} />
+                <Typography variant="body2">Cargando detalle del candidato...</Typography>
+              </Stack>
+            ) : (
+              <>
+                <Grid container spacing={2}>
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <TextField
+                      label="Nombres"
+                      value={form.nombres}
+                      onChange={(e) =>
+                        setForm((prev) => ({ ...prev, nombres: e.target.value }))
+                      }
+                      fullWidth
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <TextField
+                      label="Apellido paterno"
+                      value={form.apellidoPaterno}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          apellidoPaterno: e.target.value,
+                        }))
+                      }
+                      fullWidth
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <TextField
+                      label="Apellido materno"
+                      value={form.apellidoMaterno}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          apellidoMaterno: e.target.value,
+                        }))
+                      }
+                      fullWidth
+                    />
+                  </Grid>
+                </Grid>
 
-            <Grid container spacing={2}>
-              <Grid size={{ xs: 12, md: 4 }}>
+                <Grid container spacing={2}>
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <TextField
+                      label="Teléfono"
+                      value={form.telefono}
+                      onChange={(e) =>
+                        setForm((prev) => ({ ...prev, telefono: e.target.value }))
+                      }
+                      fullWidth
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <TextField
+                      label="Correo"
+                      value={form.email}
+                      onChange={(e) =>
+                        setForm((prev) => ({ ...prev, email: e.target.value }))
+                      }
+                      fullWidth
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <TextField
+                      label="Fecha nacimiento"
+                      type="date"
+                      value={form.fechaNacimiento}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          fechaNacimiento: e.target.value,
+                        }))
+                      }
+                      fullWidth
+                      slotProps={{ inputLabel: { shrink: true } }}
+                    />
+                  </Grid>
+                </Grid>
+
+                <Grid container spacing={2}>
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <TextField
+                      label="Ciudad"
+                      value={form.ciudad}
+                      onChange={(e) =>
+                        setForm((prev) => ({ ...prev, ciudad: e.target.value }))
+                      }
+                      fullWidth
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <TextField
+                      label="Fuente de reclutamiento"
+                      value={form.fuenteReclutamiento}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          fuenteReclutamiento: e.target.value,
+                        }))
+                      }
+                      fullWidth
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <TextField
+                      label="Pretensión salarial"
+                      type="number"
+                      value={form.pretensionSalarial}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          pretensionSalarial: e.target.value,
+                        }))
+                      }
+                      fullWidth
+                    />
+                  </Grid>
+                </Grid>
+
                 <TextField
-                  label="Teléfono"
-                  value={form.telefono}
-                  onChange={(e) => setForm((prev) => ({ ...prev, telefono: e.target.value }))}
-                  fullWidth
-                />
-              </Grid>
-              <Grid size={{ xs: 12, md: 4 }}>
-                <TextField
-                  label="Correo"
-                  value={form.email}
-                  onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
-                  fullWidth
-                />
-              </Grid>
-              <Grid size={{ xs: 12, md: 4 }}>
-                <TextField
-                  label="Fecha nacimiento"
-                  type="date"
-                  value={form.fechaNacimiento}
+                  label="Resumen de perfil"
+                  value={form.resumenPerfil}
                   onChange={(e) =>
-                    setForm((prev) => ({ ...prev, fechaNacimiento: e.target.value }))
+                    setForm((prev) => ({
+                      ...prev,
+                      resumenPerfil: e.target.value,
+                    }))
                   }
                   fullWidth
-                  InputLabelProps={{ shrink: true }}
+                  multiline
+                  minRows={3}
                 />
-              </Grid>
-            </Grid>
 
-            <Grid container spacing={2}>
-              <Grid size={{ xs: 12, md: 4 }}>
                 <TextField
-                  label="Ciudad"
-                  value={form.ciudad}
-                  onChange={(e) => setForm((prev) => ({ ...prev, ciudad: e.target.value }))}
-                  fullWidth
-                />
-              </Grid>
-              <Grid size={{ xs: 12, md: 4 }}>
-                <TextField
-                  label="Fuente de reclutamiento"
-                  value={form.fuenteReclutamiento}
+                  select
+                  label="Activo"
+                  value={form.activo ? "si" : "no"}
                   onChange={(e) =>
-                    setForm((prev) => ({ ...prev, fuenteReclutamiento: e.target.value }))
+                    setForm((prev) => ({
+                      ...prev,
+                      activo: e.target.value === "si",
+                    }))
                   }
                   fullWidth
-                />
-              </Grid>
-              <Grid size={{ xs: 12, md: 4 }}>
-                <TextField
-                  label="Pretensión salarial"
-                  type="number"
-                  value={form.pretensionSalarial}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, pretensionSalarial: e.target.value }))
-                  }
-                  fullWidth
-                />
-              </Grid>
-            </Grid>
-
-            <TextField
-              label="Resumen de perfil"
-              value={form.resumenPerfil}
-              onChange={(e) =>
-                setForm((prev) => ({ ...prev, resumenPerfil: e.target.value }))
-              }
-              fullWidth
-              multiline
-              minRows={3}
-            />
-
-            <TextField
-              select
-              label="Activo"
-              value={form.activo ? "si" : "no"}
-              onChange={(e) => setForm((prev) => ({ ...prev, activo: e.target.value === "si" }))}
-              fullWidth
-            >
-              <MenuItem value="si">Sí</MenuItem>
-              <MenuItem value="no">No</MenuItem>
-            </TextField>
+                >
+                  <MenuItem value="si">Sí</MenuItem>
+                  <MenuItem value="no">No</MenuItem>
+                </TextField>
+              </>
+            )}
           </Stack>
         </DialogContent>
+
         <DialogActions>
-          <Button onClick={() => setOpenForm(false)} disabled={busy}>
+          <Button onClick={closeForm} disabled={busy}>
             Cancelar
           </Button>
-          <Button onClick={submitForm} variant="contained" disabled={busy}>
+          <Button
+            onClick={submitForm}
+            variant="contained"
+            disabled={busy || loadingEditDetail}
+          >
             {editing ? "Guardar cambios" : "Crear candidato"}
           </Button>
         </DialogActions>

@@ -115,6 +115,31 @@ function normalizeOptional(value: string) {
   return trimmed === "" ? null : trimmed;
 }
 
+function normalizeDateInput(value?: string | null) {
+  if (!value) return "";
+
+  const raw = String(value).trim();
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return raw;
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}T/.test(raw)) {
+    return raw.slice(0, 10);
+  }
+
+  const match = raw.match(/^(\d{2})[/-](\d{2})[/-](\d{4})$/);
+  if (match) {
+    const [, dd, mm, yyyy] = match;
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return "";
+
+  return parsed.toISOString().slice(0, 10);
+}
+
 function formatDate(value?: string | null) {
   if (!value) return "-";
 
@@ -261,10 +286,10 @@ function EmpleadoDialog({
       nombres: initialValues?.nombres ?? "",
       apellidoPaterno: initialValues?.apellidoPaterno ?? "",
       apellidoMaterno: initialValues?.apellidoMaterno ?? "",
-      fechaNacimiento: initialValues?.fechaNacimiento ?? "",
+      fechaNacimiento: normalizeDateInput(initialValues?.fechaNacimiento),
       telefono: initialValues?.telefono ?? "",
       email: initialValues?.email ?? "",
-      fechaIngreso: initialValues?.fechaIngreso ?? "",
+      fechaIngreso: normalizeDateInput(initialValues?.fechaIngreso),
       activo: initialValues?.activo ?? true,
       departamentoId: initialValues?.departamentoId ?? 0,
       puestoId: initialValues?.puestoId ?? 0,
@@ -287,10 +312,10 @@ function EmpleadoDialog({
       nombres: initialValues?.nombres ?? "",
       apellidoPaterno: initialValues?.apellidoPaterno ?? "",
       apellidoMaterno: initialValues?.apellidoMaterno ?? "",
-      fechaNacimiento: initialValues?.fechaNacimiento ?? "",
+      fechaNacimiento: normalizeDateInput(initialValues?.fechaNacimiento),
       telefono: initialValues?.telefono ?? "",
       email: initialValues?.email ?? "",
-      fechaIngreso: initialValues?.fechaIngreso ?? "",
+      fechaIngreso: normalizeDateInput(initialValues?.fechaIngreso),
       activo: initialValues?.activo ?? true,
       departamentoId: initialValues?.departamentoId ?? 0,
       puestoId: initialValues?.puestoId ?? 0,
