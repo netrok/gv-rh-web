@@ -221,28 +221,79 @@ export type ConvertirPostulacionAEmpleadoRequest = {
   activo: boolean;
 };
 
+function unwrapCollection<T = any>(payload: any): T[] {
+  if (Array.isArray(payload)) return payload;
+
+  const candidates = [
+    payload?.items,
+    payload?.Items,
+    payload?.data,
+    payload?.Data,
+    payload?.results,
+    payload?.Results,
+    payload?.value,
+    payload?.Value,
+  ];
+
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) return candidate;
+  }
+
+  return [];
+}
+
+function toNumber(value: unknown): number {
+  if (typeof value === "number") return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+  return 0;
+}
+
+function toNullableNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(value);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
 function normalizeCatalogItems(data: any[]): CatalogoItem[] {
-  return (data ?? []).map((item) => ({
-    id: Number(item.id),
-    nombre: item.nombre ?? item.name ?? item.titulo ?? `#${item.id}`,
-    activo: item.activo,
-    departamentoId: item.departamentoId ?? null,
-  }));
+  return (data ?? [])
+    .map((item) => ({
+      id: toNumber(item?.id ?? item?.Id),
+      nombre: String(
+        item?.nombre ??
+          item?.Nombre ??
+          item?.name ??
+          item?.Name ??
+          item?.titulo ??
+          item?.Titulo ??
+          ""
+      ).trim(),
+      activo:
+        typeof (item?.activo ?? item?.Activo) === "boolean"
+          ? Boolean(item?.activo ?? item?.Activo)
+          : undefined,
+      departamentoId: toNullableNumber(
+        item?.departamentoId ?? item?.DepartamentoId
+      ),
+    }))
+    .filter((item) => item.id > 0 && item.nombre.length > 0);
 }
 
 export async function getDepartamentosCatalogo(): Promise<CatalogoItem[]> {
   const { data } = await api.get("/api/Departamentos");
-  return normalizeCatalogItems(data);
+  return normalizeCatalogItems(unwrapCollection(data));
 }
 
 export async function getPuestosCatalogo(): Promise<CatalogoItem[]> {
   const { data } = await api.get("/api/Puestos");
-  return normalizeCatalogItems(data);
+  return normalizeCatalogItems(unwrapCollection(data));
 }
 
 export async function getSucursalesCatalogo(): Promise<CatalogoItem[]> {
   const { data } = await api.get("/api/Sucursales");
-  return normalizeCatalogItems(data);
+  return normalizeCatalogItems(unwrapCollection(data));
 }
 
 export async function getVacantes(params?: {
@@ -253,8 +304,8 @@ export async function getVacantes(params?: {
   sucursalId?: number | "";
   soloActivas?: boolean;
 }): Promise<VacanteListItem[]> {
-  const { data } = await api.get<VacanteListItem[]>("/api/Vacantes", { params });
-  return data;
+  const { data } = await api.get("/api/Vacantes", { params });
+  return unwrapCollection<VacanteListItem>(data);
 }
 
 export async function getVacanteById(id: number): Promise<VacanteDetail> {
@@ -292,8 +343,8 @@ export async function getCandidatos(params?: {
   fuenteReclutamiento?: string;
   soloActivos?: boolean;
 }): Promise<CandidatoListItem[]> {
-  const { data } = await api.get<CandidatoListItem[]>("/api/Candidatos", { params });
-  return data;
+  const { data } = await api.get("/api/Candidatos", { params });
+  return unwrapCollection<CandidatoListItem>(data);
 }
 
 export async function getCandidatoById(id: number): Promise<CandidatoDetail> {
@@ -306,7 +357,10 @@ export async function createCandidato(payload: CreateCandidatoRequest) {
   return data;
 }
 
-export async function updateCandidato(id: number, payload: UpdateCandidatoRequest) {
+export async function updateCandidato(
+  id: number,
+  payload: UpdateCandidatoRequest
+) {
   await api.put(`/api/Candidatos/${id}`, payload);
 }
 
@@ -341,8 +395,8 @@ export async function getPostulaciones(params?: {
   esContratado?: boolean | "";
   soloActivas?: boolean;
 }): Promise<PostulacionListItem[]> {
-  const { data } = await api.get<PostulacionListItem[]>("/api/Postulaciones", { params });
-  return data;
+  const { data } = await api.get("/api/Postulaciones", { params });
+  return unwrapCollection<PostulacionListItem>(data);
 }
 
 export async function getPostulacionById(id: number): Promise<PostulacionDetail> {
@@ -350,9 +404,11 @@ export async function getPostulacionById(id: number): Promise<PostulacionDetail>
   return data;
 }
 
-export async function getSeguimientoPostulacion(id: number): Promise<PostulacionSeguimiento[]> {
-  const { data } = await api.get<PostulacionSeguimiento[]>(`/api/Postulaciones/${id}/seguimiento`);
-  return data;
+export async function getSeguimientoPostulacion(
+  id: number
+): Promise<PostulacionSeguimiento[]> {
+  const { data } = await api.get(`/api/Postulaciones/${id}/seguimiento`);
+  return unwrapCollection<PostulacionSeguimiento>(data);
 }
 
 export async function createPostulacion(payload: CreatePostulacionRequest) {
@@ -360,15 +416,24 @@ export async function createPostulacion(payload: CreatePostulacionRequest) {
   return data;
 }
 
-export async function moverPostulacionEtapa(id: number, payload: MoverPostulacionEtapaRequest) {
+export async function moverPostulacionEtapa(
+  id: number,
+  payload: MoverPostulacionEtapaRequest
+) {
   await api.post(`/api/Postulaciones/${id}/mover-etapa`, payload);
 }
 
-export async function descartarPostulacion(id: number, payload: DescartarPostulacionRequest) {
+export async function descartarPostulacion(
+  id: number,
+  payload: DescartarPostulacionRequest
+) {
   await api.post(`/api/Postulaciones/${id}/descartar`, payload);
 }
 
-export async function contratarPostulacion(id: number, payload: ContratarPostulacionRequest) {
+export async function contratarPostulacion(
+  id: number,
+  payload: ContratarPostulacionRequest
+) {
   await api.post(`/api/Postulaciones/${id}/contratar`, payload);
 }
 
@@ -376,7 +441,11 @@ export async function convertirPostulacionAEmpleado(
   id: number,
   payload: ConvertirPostulacionAEmpleadoRequest
 ) {
-  const { data } = await api.post(`/api/Postulaciones/${id}/convertir-a-empleado`, payload);
+  const { data } = await api.post(
+    `/api/Postulaciones/${id}/convertir-a-empleado`,
+    payload
+  );
+
   return data as { id: number; numEmpleado: string; postulacionId: number };
 }
 
