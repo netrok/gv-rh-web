@@ -266,7 +266,7 @@ function heroChipSx() {
   };
 }
 
-function softChipSx(theme: Theme, color: string) {
+function softChipSx(color: string) {
   return {
     borderRadius: "999px",
     bgcolor: alpha(color, 0.1),
@@ -395,7 +395,8 @@ function QuickActionCard({ item }: { item: QuickActionItem }) {
           theme.palette.background.paper,
           0.98
         )} 0%, ${alpha(theme.palette.background.paper, 0.95)} 100%)`,
-        transition: "transform .18s ease, box-shadow .18s ease, border-color .18s ease",
+        transition:
+          "transform .18s ease, box-shadow .18s ease, border-color .18s ease",
         "&:hover": {
           transform: "translateY(-1px)",
           boxShadow: `0 10px 18px ${alpha(theme.palette.primary.main, 0.1)}`,
@@ -561,19 +562,19 @@ export default function DashboardPage() {
       {
         title: "Vacantes",
         description: "Publicación y seguimiento de posiciones",
-        to: "/vacantes",
+        to: "/reclutamiento/vacantes",
         icon: <WorkOutlineRoundedIcon />,
       },
       {
         title: "Candidatos",
         description: "Pipeline y evaluación de reclutamiento",
-        to: "/candidatos",
+        to: "/reclutamiento/candidatos",
         icon: <PersonSearchRoundedIcon />,
       },
       {
         title: "Auditoría",
         description: "Trazabilidad y actividad reciente",
-        to: "/auditoria",
+        to: "/audit",
         icon: <FactCheckRoundedIcon />,
       },
     ],
@@ -588,8 +589,9 @@ export default function DashboardPage() {
       : 0;
 
   const auditItems = (stats?.recentAudit ?? []) as SafeAuditItem[];
-  const incidenciasRecientes: DashboardIncidenciaReciente[] =
-    dashboard?.incidenciasRecientes ?? [];
+  const incidenciasRecientes: DashboardIncidenciaReciente[] = (
+    dashboard?.incidenciasRecientes ?? []
+  ).slice(0, 5);
   const incidenciasPorTipo = dashboard?.incidenciasPorTipo ?? [];
   const incidenciasPorEstatus = dashboard?.incidenciasPorEstatus ?? [];
 
@@ -874,7 +876,7 @@ export default function DashboardPage() {
                 <Chip
                   icon={<InsightsRoundedIcon />}
                   label="Navegación operativa"
-                  sx={softChipSx(theme, theme.palette.primary.main)}
+                  sx={softChipSx(theme.palette.primary.main)}
                 />
               </Stack>
 
@@ -905,15 +907,26 @@ export default function DashboardPage() {
             display: "grid",
             gridTemplateColumns: {
               xs: "1fr",
-              xl: "1.05fr 1fr",
+              xl: "1fr 1fr",
             },
             gap: 1.2,
-            alignItems: "start",
+            alignItems: "stretch",
           }}
         >
-          <Card elevation={0} sx={sectionCardSx(theme)}>
-            <CardContent sx={{ p: 1.8 }}>
-              <Stack spacing={1.35}>
+          <Card
+            elevation={0}
+            sx={{
+              ...sectionCardSx(theme),
+              height: "100%",
+            }}
+          >
+            <CardContent
+              sx={{
+                p: 1.8,
+                height: "100%",
+              }}
+            >
+              <Stack spacing={1.35} sx={{ height: "100%" }}>
                 <Stack
                   direction={{ xs: "column", md: "row" }}
                   alignItems={{ xs: "flex-start", md: "center" }}
@@ -932,7 +945,7 @@ export default function DashboardPage() {
                   <Chip
                     icon={<CalendarMonthRoundedIcon />}
                     label={`${formatNumber(incidenciasMes)} registradas este mes`}
-                    sx={softChipSx(theme, theme.palette.warning.main)}
+                    sx={softChipSx(theme.palette.warning.main)}
                   />
                 </Stack>
 
@@ -1033,7 +1046,7 @@ export default function DashboardPage() {
 
                 <Divider />
 
-                <Stack spacing={0.9}>
+                <Stack spacing={0.9} sx={{ flex: 1 }}>
                   <Typography fontWeight={900}>Incidencias recientes</Typography>
 
                   {incidenciasRecientes.length === 0 ? (
@@ -1108,9 +1121,20 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          <Card elevation={0} sx={sectionCardSx(theme)}>
-            <CardContent sx={{ p: 1.8 }}>
-              <Stack spacing={1.35}>
+          <Card
+            elevation={0}
+            sx={{
+              ...sectionCardSx(theme),
+              height: "100%",
+            }}
+          >
+            <CardContent
+              sx={{
+                p: 1.8,
+                height: "100%",
+              }}
+            >
+              <Stack spacing={1.35} sx={{ height: "100%" }}>
                 <Stack
                   direction={{ xs: "column", md: "row" }}
                   alignItems={{ xs: "flex-start", md: "center" }}
@@ -1129,7 +1153,7 @@ export default function DashboardPage() {
                   <Chip
                     icon={<FactCheckRoundedIcon />}
                     label={`${formatNumber(auditItems.length)} eventos visibles`}
-                    sx={softChipSx(theme, theme.palette.info.main)}
+                    sx={softChipSx(theme.palette.info.main)}
                   />
                 </Stack>
 
@@ -1142,7 +1166,7 @@ export default function DashboardPage() {
                     message="Cuando existan eventos auditables, aquí verás el rastro del sistema."
                   />
                 ) : (
-                  <Stack spacing={0.9}>
+                  <Stack spacing={0.9} sx={{ flex: 1 }}>
                     {auditItems.map((item, index) => (
                       <Card
                         key={`${item.id ?? index}`}
