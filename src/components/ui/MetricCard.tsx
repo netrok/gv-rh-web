@@ -31,17 +31,17 @@ export default function MetricCard({
         height: "100%",
         position: "relative",
         overflow: "hidden",
-        borderRadius: "20px",
+        borderRadius: "12px",
         border: (theme) =>
           `1px solid ${alpha(theme.palette.common.black, 0.06)}`,
-        boxShadow: "0 10px 24px rgba(15, 23, 42, 0.05)",
+        boxShadow: "0 8px 18px rgba(15, 23, 42, 0.045)",
         backgroundColor: "#ffffff",
         backgroundImage: "none",
         transition:
           "transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease",
         "&:hover": {
-          transform: "translateY(-2px)",
-          boxShadow: "0 16px 32px rgba(15, 23, 42, 0.08)",
+          transform: "translateY(-1px)",
+          boxShadow: "0 12px 24px rgba(15, 23, 42, 0.065)",
           borderColor: (theme) => alpha(theme.palette.primary.main, 0.14),
         },
         "&::before": {
@@ -50,7 +50,7 @@ export default function MetricCard({
           top: 0,
           left: 0,
           right: 0,
-          height: 4,
+          height: 3,
           background: (theme) =>
             `linear-gradient(90deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
         },
@@ -59,10 +59,10 @@ export default function MetricCard({
       <Stack
         direction="row"
         justifyContent="space-between"
-        spacing={2}
+        spacing={1.75}
         sx={{
-          p: { xs: 2.25, md: 2.75 },
-          minHeight: 152,
+          p: { xs: 2, md: 2.25 },
+          minHeight: 136,
         }}
       >
         <Box sx={{ minWidth: 0, flex: 1 }}>
@@ -72,7 +72,7 @@ export default function MetricCard({
               color="text.secondary"
               sx={{
                 fontWeight: 700,
-                lineHeight: 1.35,
+                lineHeight: 1.3,
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
@@ -85,12 +85,12 @@ export default function MetricCard({
           <Typography
             variant="h4"
             sx={{
-              mt: 1.1,
+              mt: 0.9,
               fontWeight: 800,
               color: "text.primary",
               lineHeight: 1.05,
               letterSpacing: "-0.03em",
-              fontSize: { xs: "1.85rem", md: "2rem" },
+              fontSize: { xs: "1.65rem", md: "1.85rem" },
               wordBreak: "break-word",
             }}
           >
@@ -102,7 +102,7 @@ export default function MetricCard({
               variant="body2"
               color="text.secondary"
               sx={{
-                mt: 1.15,
+                mt: 0.95,
                 lineHeight: 1.45,
                 maxWidth: "95%",
                 overflow: "hidden",
@@ -116,7 +116,7 @@ export default function MetricCard({
         </Box>
 
         {(badge || icon) && (
-          <Stack alignItems="flex-end" spacing={1.1} sx={{ flexShrink: 0 }}>
+          <Stack alignItems="flex-end" spacing={0.9} sx={{ flexShrink: 0 }}>
             {badge ? (
               <Chip
                 size="small"
@@ -135,9 +135,9 @@ export default function MetricCard({
             {icon ? (
               <Box
                 sx={{
-                  width: 46,
-                  height: 46,
-                  borderRadius: "14px",
+                  width: 42,
+                  height: 42,
+                  borderRadius: "10px",
                   display: "grid",
                   placeItems: "center",
                   bgcolor: (theme) => alpha(theme.palette.primary.main, 0.06),

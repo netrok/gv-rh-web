@@ -54,7 +54,7 @@ const gvRhTheme = createTheme({
     divider: "#e6ebf2",
   },
   shape: {
-    borderRadius: 16,
+    borderRadius: 12,
   },
   typography: {
     fontFamily: [
@@ -137,7 +137,7 @@ const gvRhTheme = createTheme({
       styleOverrides: {
         root: {
           minHeight: 42,
-          borderRadius: 12,
+          borderRadius: 10,
           paddingInline: 16,
         },
         containedPrimary: {
@@ -151,9 +151,9 @@ const gvRhTheme = createTheme({
     MuiCard: {
       styleOverrides: {
         root: {
-          borderRadius: 20,
+          borderRadius: 12,
           border: "1px solid #e6ebf2",
-          boxShadow: "0 10px 30px rgba(15, 23, 42, 0.05)",
+          boxShadow: "0 10px 24px rgba(15, 23, 42, 0.05)",
           backgroundColor: "#ffffff",
           backgroundImage: "none",
         },
@@ -180,7 +180,7 @@ const gvRhTheme = createTheme({
     MuiDialog: {
       styleOverrides: {
         paper: {
-          borderRadius: 20,
+          borderRadius: 14,
           paddingTop: 4,
         },
       },
@@ -209,7 +209,7 @@ const gvRhTheme = createTheme({
     MuiOutlinedInput: {
       styleOverrides: {
         root: {
-          borderRadius: 12,
+          borderRadius: 10,
           backgroundColor: "#ffffff",
           "& fieldset": {
             borderColor: "#d7deea",
@@ -253,7 +253,7 @@ const gvRhTheme = createTheme({
     MuiAlert: {
       styleOverrides: {
         root: {
-          borderRadius: 14,
+          borderRadius: 12,
         },
       },
     },

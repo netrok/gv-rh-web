@@ -28,15 +28,15 @@ export default function SectionCard({
         <>
           <Box
             sx={{
-              px: { xs: 2, md: 2.75 },
-              py: { xs: 2, md: 2.5 },
+              px: { xs: 1.75, md: 2.25 },
+              py: { xs: 1.5, md: 1.75 },
             }}
           >
             <Stack
               direction={{ xs: "column", sm: "row" }}
               justifyContent="space-between"
               alignItems={{ xs: "flex-start", sm: "center" }}
-              spacing={{ xs: 1.5, sm: 2 }}
+              spacing={{ xs: 1.25, sm: 1.5 }}
             >
               <Box
                 sx={{
@@ -50,7 +50,7 @@ export default function SectionCard({
                     sx={{
                       fontWeight: 800,
                       color: "text.primary",
-                      lineHeight: 1.2,
+                      lineHeight: 1.15,
                       letterSpacing: "-0.01em",
                     }}
                   >
@@ -63,9 +63,9 @@ export default function SectionCard({
                     variant="body2"
                     color="text.secondary"
                     sx={{
-                      mt: title ? 0.6 : 0,
-                      lineHeight: 1.5,
-                      maxWidth: { xs: "100%", md: "90%" },
+                      mt: title ? 0.4 : 0,
+                      lineHeight: 1.45,
+                      maxWidth: { xs: "100%", md: "88%" },
                     }}
                   >
                     {subtitle}
@@ -79,10 +79,10 @@ export default function SectionCard({
                     flexShrink: 0,
                     display: "flex",
                     alignItems: "center",
-                    gap: 1,
+                    gap: 0.75,
                     width: { xs: "100%", sm: "auto" },
                     justifyContent: { xs: "flex-start", sm: "flex-end" },
-                    pt: { xs: 0.25, sm: 0 },
+                    pt: { xs: 0.15, sm: 0 },
                   }}
                 >
                   {actions}
@@ -97,8 +97,8 @@ export default function SectionCard({
 
       <Box
         sx={{
-          px: { xs: 2, md: 2.75 },
-          py: { xs: 2, md: 2.5 },
+          px: { xs: 1.75, md: 2.25 },
+          py: { xs: 1.5, md: 1.9 },
         }}
       >
         {children}
