@@ -27,6 +27,11 @@ import PauseCircleOutlineRoundedIcon from "@mui/icons-material/PauseCircleOutlin
 import PlayCircleOutlineRoundedIcon from "@mui/icons-material/PlayCircleOutlineRounded";
 import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
 import TaskAltRoundedIcon from "@mui/icons-material/TaskAltRounded";
+import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
+import ApartmentRoundedIcon from "@mui/icons-material/ApartmentRounded";
+import BadgeRoundedIcon from "@mui/icons-material/BadgeRounded";
+import BusinessRoundedIcon from "@mui/icons-material/BusinessRounded";
+import ErrorOutlineRoundedIcon from "@mui/icons-material/ErrorOutlineRounded";
 import { useNavigate } from "react-router-dom";
 import AppPage from "../components/ui/AppPage";
 import HeroBanner from "../components/ui/HeroBanner";
@@ -82,6 +87,7 @@ const initialForm: VacanteFormState = {
 
 function formatDateOnly(value?: string | null) {
   if (!value) return "—";
+
   return new Intl.DateTimeFormat("es-MX", {
     day: "2-digit",
     month: "short",
@@ -91,6 +97,7 @@ function formatDateOnly(value?: string | null) {
 
 function formatMoney(value?: number | null) {
   if (value == null) return "—";
+
   return new Intl.NumberFormat("es-MX", {
     style: "currency",
     currency: "MXN",
@@ -113,6 +120,18 @@ function estatusColor(estatus: EstatusVacante) {
     default:
       return "default";
   }
+}
+
+function readErrorMessage(error: unknown, fallback: string) {
+  const maybe = error as any;
+
+  const data = maybe?.response?.data;
+
+  if (typeof data === "string" && data.trim()) return data;
+  if (typeof data?.message === "string" && data.message.trim()) return data.message;
+  if (typeof maybe?.message === "string" && maybe.message.trim()) return maybe.message;
+
+  return fallback;
 }
 
 function toCreatePayload(form: VacanteFormState): CreateVacanteRequest {
@@ -179,22 +198,22 @@ export default function VacantesPage() {
   const [form, setForm] = useState<VacanteFormState>(initialForm);
   const [error, setError] = useState<string | null>(null);
 
-  const { data: departamentos = [] } = useQuery({
+  const departamentosQuery = useQuery({
     queryKey: ["catalogos", "departamentos"],
     queryFn: getDepartamentosCatalogo,
   });
 
-  const { data: puestos = [] } = useQuery({
+  const puestosQuery = useQuery({
     queryKey: ["catalogos", "puestos"],
     queryFn: getPuestosCatalogo,
   });
 
-  const { data: sucursales = [] } = useQuery({
+  const sucursalesQuery = useQuery({
     queryKey: ["catalogos", "sucursales"],
     queryFn: getSucursalesCatalogo,
   });
 
-  const { data: vacantes = [], isLoading } = useQuery({
+  const vacantesQuery = useQuery({
     queryKey: ["reclutamiento", "vacantes", { q, estatus, departamentoId, soloActivas }],
     queryFn: () =>
       getVacantes({
@@ -205,10 +224,17 @@ export default function VacantesPage() {
       }),
   });
 
+  const departamentos = departamentosQuery.data ?? [];
+  const puestos = puestosQuery.data ?? [];
+  const sucursales = sucursalesQuery.data ?? [];
+  const vacantes = vacantesQuery.data ?? [];
+
   const filteredPuestos = useMemo(() => {
     if (!form.departamentoId) return puestos;
+
     return puestos.filter(
-      (p) => p.departamentoId == null || String(p.departamentoId) === form.departamentoId
+      (p) =>
+        p.departamentoId == null || String(p.departamentoId) === String(form.departamentoId)
     );
   }, [puestos, form.departamentoId]);
 
@@ -220,6 +246,47 @@ export default function VacantesPage() {
       cerradas: vacantes.filter((x) => x.estatus === "CERRADA").length,
     };
   }, [vacantes]);
+
+  const catalogSummary = useMemo(() => {
+    return {
+      departamentos: departamentos.length,
+      puestos: puestos.length,
+      sucursales: sucursales.length,
+    };
+  }, [departamentos.length, puestos.length, sucursales.length]);
+
+  const catalogosLoading =
+    departamentosQuery.isLoading || puestosQuery.isLoading || sucursalesQuery.isLoading;
+
+  const catalogosError =
+    departamentosQuery.isError || puestosQuery.isError || sucursalesQuery.isError;
+
+  const catalogosDisponibles =
+    !catalogosLoading &&
+    !catalogosError &&
+    departamentos.length > 0 &&
+    puestos.length > 0 &&
+    sucursales.length > 0;
+
+  const catalogosErrorMessage = [
+    departamentosQuery.isError
+      ? readErrorMessage(
+          departamentosQuery.error,
+          "No se pudo cargar el catálogo de departamentos."
+        )
+      : null,
+    puestosQuery.isError
+      ? readErrorMessage(puestosQuery.error, "No se pudo cargar el catálogo de puestos.")
+      : null,
+    sucursalesQuery.isError
+      ? readErrorMessage(
+          sucursalesQuery.error,
+          "No se pudo cargar el catálogo de sucursales."
+        )
+      : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ["reclutamiento", "vacantes"] });
@@ -233,8 +300,8 @@ export default function VacantesPage() {
       setForm(initialForm);
       setError(null);
     },
-    onError: (err: any) => {
-      setError(err?.response?.data ?? "No se pudo crear la vacante.");
+    onError: (err: unknown) => {
+      setError(readErrorMessage(err, "No se pudo crear la vacante."));
     },
   });
 
@@ -248,8 +315,8 @@ export default function VacantesPage() {
       setForm(initialForm);
       setError(null);
     },
-    onError: (err: any) => {
-      setError(err?.response?.data ?? "No se pudo actualizar la vacante.");
+    onError: (err: unknown) => {
+      setError(readErrorMessage(err, "No se pudo actualizar la vacante."));
     },
   });
 
@@ -269,7 +336,20 @@ export default function VacantesPage() {
     onSuccess: () => invalidate(),
   });
 
+  function refreshCatalogos() {
+    void departamentosQuery.refetch();
+    void puestosQuery.refetch();
+    void sucursalesQuery.refetch();
+  }
+
   function openCreate() {
+    if (!catalogosDisponibles) {
+      setError(
+        "No puedes crear la vacante todavía porque los catálogos de departamentos, puestos o sucursales no están listos."
+      );
+      return;
+    }
+
     setEditing(null);
     setForm(initialForm);
     setError(null);
@@ -310,12 +390,20 @@ export default function VacantesPage() {
   const busy =
     createMutation.isPending || updateMutation.isPending || actionMutation.isPending;
 
+  const puestosFiltradosVacios =
+    !!form.departamentoId && filteredPuestos.length === 0 && !puestosQuery.isLoading;
+
   return (
     <AppPage
       title="Vacantes"
       subtitle="Controla posiciones abiertas, pausadas, cerradas y su pipeline de reclutamiento."
       actions={
-        <Button startIcon={<AddRoundedIcon />} variant="contained" onClick={openCreate}>
+        <Button
+          startIcon={<AddRoundedIcon />}
+          variant="contained"
+          onClick={openCreate}
+          disabled={!catalogosDisponibles}
+        >
           Nueva vacante
         </Button>
       }
@@ -324,6 +412,42 @@ export default function VacantesPage() {
         title="Reclutamiento"
         subtitle="Aquí nace el flujo formal del empleado: vacante, candidato, proceso y contratación."
       />
+
+      <Stack
+        direction={{ xs: "column", md: "row" }}
+        spacing={1.25}
+        sx={{ flexWrap: "wrap", mb: 0.5 }}
+      >
+        <Chip
+          icon={<ApartmentRoundedIcon />}
+          label={`Departamentos: ${catalogSummary.departamentos}`}
+          color={departamentosQuery.isError ? "error" : "default"}
+          variant={departamentosQuery.isError ? "filled" : "outlined"}
+        />
+        <Chip
+          icon={<BadgeRoundedIcon />}
+          label={`Puestos: ${catalogSummary.puestos}`}
+          color={puestosQuery.isError ? "error" : "default"}
+          variant={puestosQuery.isError ? "filled" : "outlined"}
+        />
+        <Chip
+          icon={<BusinessRoundedIcon />}
+          label={`Sucursales: ${catalogSummary.sucursales}`}
+          color={sucursalesQuery.isError ? "error" : "default"}
+          variant={sucursalesQuery.isError ? "filled" : "outlined"}
+        />
+        {catalogosLoading ? (
+          <Chip label="Cargando catálogos..." color="info" />
+        ) : catalogosDisponibles ? (
+          <Chip label="Catálogos listos" color="success" />
+        ) : (
+          <Chip
+            icon={<ErrorOutlineRoundedIcon />}
+            label="Catálogos incompletos"
+            color="warning"
+          />
+        )}
+      </Stack>
 
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, md: 3 }}>
@@ -343,72 +467,114 @@ export default function VacantesPage() {
       <SectionCard
         title="Filtros"
         subtitle="Busca por folio o título y afina por estatus y departamento."
+        actions={
+          <Button
+            size="small"
+            startIcon={<RefreshRoundedIcon />}
+            onClick={refreshCatalogos}
+            disabled={catalogosLoading}
+          >
+            Recargar catálogos
+          </Button>
+        }
       >
-        <Grid container spacing={2}>
-          <Grid size={{ xs: 12, md: 5 }}>
-            <TextField
-              label="Buscar"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              fullWidth
-              placeholder="Folio o título"
-            />
-          </Grid>
-          <Grid size={{ xs: 12, md: 3 }}>
-            <TextField
-              select
-              label="Estatus"
-              value={estatus}
-              onChange={(e) => setEstatus(e.target.value as EstatusVacante | "")}
-              fullWidth
-            >
-              <MenuItem value="">Todos</MenuItem>
-              {(["BORRADOR", "ABIERTA", "PAUSADA", "CERRADA", "CANCELADA"] as EstatusVacante[]).map(
-                (item) => (
+        <Stack spacing={2}>
+          {catalogosError ? (
+            <Alert severity="error">
+              {catalogosErrorMessage ||
+                "Falló la carga de uno o más catálogos. Si el build pasa pero los selects siguen vacíos, el golpe seguramente está en reclutamiento.api.ts y no en esta vista."}
+            </Alert>
+          ) : null}
+
+          {!catalogosError && !catalogosLoading && !catalogosDisponibles ? (
+            <Alert severity="warning">
+              Los catálogos respondieron, pero alguno viene vacío. Así no se puede crear una vacante seria; sería como querer reclutar soldados sin cuartel ni rango.
+            </Alert>
+          ) : null}
+
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12, md: 5 }}>
+              <TextField
+                label="Buscar"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                fullWidth
+                placeholder="Folio o título"
+              />
+            </Grid>
+
+            <Grid size={{ xs: 12, md: 3 }}>
+              <TextField
+                select
+                label="Estatus"
+                value={estatus}
+                onChange={(e) => setEstatus(e.target.value as EstatusVacante | "")}
+                fullWidth
+              >
+                <MenuItem value="">Todos</MenuItem>
+                {(
+                  ["BORRADOR", "ABIERTA", "PAUSADA", "CERRADA", "CANCELADA"] as EstatusVacante[]
+                ).map((item) => (
                   <MenuItem key={item} value={item}>
                     {estatusVacanteLabels[item]}
                   </MenuItem>
-                )
-              )}
-            </TextField>
+                ))}
+              </TextField>
+            </Grid>
+
+            <Grid size={{ xs: 12, md: 2 }}>
+              <TextField
+                select
+                label="Departamento"
+                value={departamentoId}
+                onChange={(e) => setDepartamentoId(e.target.value)}
+                fullWidth
+                disabled={departamentosQuery.isLoading || departamentosQuery.isError}
+                helperText={
+                  departamentosQuery.isLoading
+                    ? "Cargando departamentos..."
+                    : departamentosQuery.isError
+                    ? "No se pudo cargar."
+                    : departamentos.length === 0
+                    ? "Sin datos."
+                    : " "
+                }
+              >
+                <MenuItem value="">Todos</MenuItem>
+                {departamentos.map((item) => (
+                  <MenuItem key={item.id} value={String(item.id)}>
+                    {item.nombre}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+
+            <Grid size={{ xs: 12, md: 2 }}>
+              <TextField
+                select
+                label="Activas"
+                value={soloActivas ? "si" : "no"}
+                onChange={(e) => setSoloActivas(e.target.value === "si")}
+                fullWidth
+              >
+                <MenuItem value="si">Sí</MenuItem>
+                <MenuItem value="no">No</MenuItem>
+              </TextField>
+            </Grid>
           </Grid>
-          <Grid size={{ xs: 12, md: 2 }}>
-            <TextField
-              select
-              label="Departamento"
-              value={departamentoId}
-              onChange={(e) => setDepartamentoId(e.target.value)}
-              fullWidth
-            >
-              <MenuItem value="">Todos</MenuItem>
-              {departamentos.map((item) => (
-                <MenuItem key={item.id} value={String(item.id)}>
-                  {item.nombre}
-                </MenuItem>
-              ))}
-            </TextField>
-          </Grid>
-          <Grid size={{ xs: 12, md: 2 }}>
-            <TextField
-              select
-              label="Activas"
-              value={soloActivas ? "si" : "no"}
-              onChange={(e) => setSoloActivas(e.target.value === "si")}
-              fullWidth
-            >
-              <MenuItem value="si">Sí</MenuItem>
-              <MenuItem value="no">No</MenuItem>
-            </TextField>
-          </Grid>
-        </Grid>
+        </Stack>
       </SectionCard>
 
       <SectionCard
         title="Listado de vacantes"
         subtitle="Abre el detalle para ver postulaciones, etapas y acciones de contratación."
       >
-        {isLoading ? (
-          <Typography>Loading...</Typography>
+        {vacantesQuery.isLoading ? (
+          <Alert severity="info">Cargando vacantes...</Alert>
+        ) : vacantesQuery.isError ? (
+          <Alert severity="error">
+            {readErrorMessage(vacantesQuery.error, "No se pudieron cargar las vacantes.")}
+          </Alert>
         ) : vacantes.length === 0 ? (
           <Alert severity="info">No hay vacantes con los filtros actuales.</Alert>
         ) : (
@@ -437,10 +603,13 @@ export default function VacantesPage() {
                       </Typography>
                     </Stack>
                   </TableCell>
+
                   <TableCell>{item.sucursalNombre}</TableCell>
+
                   <TableCell>
                     {item.posicionesCubiertas}/{item.numeroPosiciones}
                   </TableCell>
+
                   <TableCell>
                     <Chip
                       size="small"
@@ -448,7 +617,9 @@ export default function VacantesPage() {
                       color={estatusColor(item.estatus)}
                     />
                   </TableCell>
+
                   <TableCell>{formatDateOnly(item.fechaApertura)}</TableCell>
+
                   <TableCell align="right">
                     <Stack direction="row" spacing={1} justifyContent="flex-end" flexWrap="wrap">
                       <Button
@@ -458,6 +629,7 @@ export default function VacantesPage() {
                       >
                         Ver
                       </Button>
+
                       <Button
                         size="small"
                         startIcon={<EditRoundedIcon />}
@@ -495,6 +667,7 @@ export default function VacantesPage() {
                           >
                             Cerrar
                           </Button>
+
                           <Button
                             size="small"
                             color="error"
@@ -518,9 +691,16 @@ export default function VacantesPage() {
 
       <Dialog open={openForm} onClose={() => !busy && setOpenForm(false)} fullWidth maxWidth="md">
         <DialogTitle>{editing ? "Editar vacante" : "Nueva vacante"}</DialogTitle>
+
         <DialogContent dividers>
           <Stack spacing={2} sx={{ pt: 1 }}>
             {error ? <Alert severity="error">{error}</Alert> : null}
+
+            {!catalogosDisponibles ? (
+              <Alert severity="warning">
+                Antes de guardar, primero deben cargar bien departamentos, puestos y sucursales.
+              </Alert>
+            ) : null}
 
             <TextField
               label="Título"
@@ -543,6 +723,16 @@ export default function VacantesPage() {
                     }))
                   }
                   fullWidth
+                  disabled={departamentosQuery.isLoading || departamentosQuery.isError}
+                  helperText={
+                    departamentosQuery.isLoading
+                      ? "Cargando departamentos..."
+                      : departamentosQuery.isError
+                      ? "No disponible."
+                      : departamentos.length === 0
+                      ? "Sin departamentos."
+                      : " "
+                  }
                 >
                   <MenuItem value="">Selecciona</MenuItem>
                   {departamentos.map((item) => (
@@ -560,6 +750,23 @@ export default function VacantesPage() {
                   value={form.puestoId}
                   onChange={(e) => setForm((prev) => ({ ...prev, puestoId: e.target.value }))}
                   fullWidth
+                  disabled={
+                    puestosQuery.isLoading ||
+                    puestosQuery.isError ||
+                    !form.departamentoId ||
+                    filteredPuestos.length === 0
+                  }
+                  helperText={
+                    puestosQuery.isLoading
+                      ? "Cargando puestos..."
+                      : puestosQuery.isError
+                      ? "No disponible."
+                      : !form.departamentoId
+                      ? "Selecciona primero un departamento."
+                      : puestosFiltradosVacios
+                      ? "Ese departamento no tiene puestos disponibles."
+                      : " "
+                  }
                 >
                   <MenuItem value="">Selecciona</MenuItem>
                   {filteredPuestos.map((item) => (
@@ -577,6 +784,16 @@ export default function VacantesPage() {
                   value={form.sucursalId}
                   onChange={(e) => setForm((prev) => ({ ...prev, sucursalId: e.target.value }))}
                   fullWidth
+                  disabled={sucursalesQuery.isLoading || sucursalesQuery.isError}
+                  helperText={
+                    sucursalesQuery.isLoading
+                      ? "Cargando sucursales..."
+                      : sucursalesQuery.isError
+                      ? "No disponible."
+                      : sucursales.length === 0
+                      ? "Sin sucursales."
+                      : " "
+                  }
                 >
                   <MenuItem value="">Selecciona</MenuItem>
                   {sucursales.map((item) => (
@@ -600,6 +817,7 @@ export default function VacantesPage() {
                   fullWidth
                 />
               </Grid>
+
               <Grid size={{ xs: 12, md: 3 }}>
                 <TextField
                   label="Fecha apertura"
@@ -610,6 +828,7 @@ export default function VacantesPage() {
                   InputLabelProps={{ shrink: true }}
                 />
               </Grid>
+
               <Grid size={{ xs: 12, md: 3 }}>
                 <TextField
                   label="Salario mínimo"
@@ -621,6 +840,7 @@ export default function VacantesPage() {
                   fullWidth
                 />
               </Grid>
+
               <Grid size={{ xs: 12, md: 3 }}>
                 <TextField
                   label="Salario máximo"
@@ -695,11 +915,12 @@ export default function VacantesPage() {
             )}
           </Stack>
         </DialogContent>
+
         <DialogActions>
           <Button onClick={() => setOpenForm(false)} disabled={busy}>
             Cancelar
           </Button>
-          <Button onClick={submitForm} variant="contained" disabled={busy}>
+          <Button onClick={submitForm} variant="contained" disabled={busy || !catalogosDisponibles}>
             {editing ? "Guardar cambios" : "Crear vacante"}
           </Button>
         </DialogActions>

@@ -14,10 +14,23 @@ type RetryableRequestConfig = InternalAxiosRequestConfig & {
   _retry?: boolean;
 };
 
-const API_BASE_URL =
+function trimTrailingSlash(value: string): string {
+  return value.replace(/\/+$/, "");
+}
+
+const browserHost =
+  typeof window !== "undefined" && window.location.hostname
+    ? window.location.hostname
+    : "localhost";
+
+const envApiBaseUrl =
   import.meta.env.VITE_API_BASE_URL?.trim() ||
   import.meta.env.VITE_API_URL?.trim() ||
-  "http://localhost:5041";
+  "";
+
+const API_BASE_URL = trimTrailingSlash(
+  envApiBaseUrl || `http://${browserHost}:5041`
+);
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
