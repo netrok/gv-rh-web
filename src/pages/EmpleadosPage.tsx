@@ -39,6 +39,8 @@ import PersonAddAlt1RoundedIcon from "@mui/icons-material/PersonAddAlt1Rounded";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import BlockRoundedIcon from "@mui/icons-material/BlockRounded";
 import FolderOpenRoundedIcon from "@mui/icons-material/FolderOpenRounded";
+import HistoryRoundedIcon from "@mui/icons-material/HistoryRounded";
+import ReplayRoundedIcon from "@mui/icons-material/ReplayRounded";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -47,10 +49,17 @@ import { useNavigate } from "react-router-dom";
 
 import {
   createEmpleado,
+  darBajaEmpleado,
+  getEmpleadoMovimientos,
   getEmpleados,
+  reingresarEmpleado,
   updateEmpleado,
+  type DarBajaEmpleadoInput,
   type Empleado,
+  type EmpleadoMovimientoLaboral,
+  type ReingresarEmpleadoInput,
   type SaveEmpleadoInput,
+  type TipoBajaEmpleado,
 } from "../api/empleados.api";
 import {
   getDepartamentos,
@@ -63,7 +72,6 @@ import EmptyState from "../components/ui/EmptyState";
 import HeroBanner from "../components/ui/HeroBanner";
 import MetricCard from "../components/ui/MetricCard";
 import SectionCard from "../components/ui/SectionCard";
-import ConfirmDialog from "../components/ui/ConfirmDialog";
 import { useAppSnackbar } from "../features/ui/AppSnackbarContext";
 import { useAuth } from "../features/auth/AuthContext";
 
@@ -90,6 +98,16 @@ const empleadoSchema = z.object({
 type EmpleadoFormInput = z.input<typeof empleadoSchema>;
 type EmpleadoFormValues = z.output<typeof empleadoSchema>;
 
+const TIPOS_BAJA: { value: TipoBajaEmpleado; label: string }[] = [
+  { value: "VOLUNTARIA", label: "Voluntaria" },
+  { value: "INVOLUNTARIA", label: "Involuntaria" },
+  { value: "TERMINO_CONTRATO", label: "Término de contrato" },
+  { value: "ABANDONO", label: "Abandono" },
+  { value: "JUBILACION", label: "Jubilación" },
+  { value: "DEFUNCION", label: "Defunción" },
+  { value: "OTRA", label: "Otra" },
+];
+
 function getErrorMessage(error: unknown) {
   if (axios.isAxiosError(error)) {
     const apiMessage =
@@ -101,9 +119,8 @@ function getErrorMessage(error: unknown) {
       return apiMessage;
     }
 
-    return `${error.response?.status ?? ""} ${
-      error.response?.statusText ?? error.message
-    }`.trim();
+    return `${error.response?.status ?? ""} ${error.response?.statusText ?? error.message
+      }`.trim();
   }
 
   if (error instanceof Error) return error.message;
@@ -143,13 +160,28 @@ function normalizeDateInput(value?: string | null) {
 function formatDate(value?: string | null) {
   if (!value) return "-";
 
-  const date = new Date(value);
+  const normalized =
+    /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00` : value;
+
+  const date = new Date(normalized);
   if (Number.isNaN(date.getTime())) {
     return value;
   }
 
   return new Intl.DateTimeFormat("es-MX", {
     dateStyle: "short",
+  }).format(date);
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return "-";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return new Intl.DateTimeFormat("es-MX", {
+    dateStyle: "short",
+    timeStyle: "short",
   }).format(date);
 }
 
@@ -195,22 +227,32 @@ function departmentChipSx() {
   } as const;
 }
 
-function empleadoStatusChipSx(activo: boolean) {
+function empleadoStatusChipSx(
+  estatus: Empleado["estatusLaboralActual"],
+  activo: boolean
+) {
+  const isActivo = estatus === "ACTIVO" && activo;
+
   return {
     fontWeight: 800,
     borderRadius: "999px",
-    color: activo ? "#166534" : "#991b1b",
-    borderColor: activo
+    color: isActivo ? "#166534" : "#991b1b",
+    borderColor: isActivo
       ? alpha("#16a34a", 0.22)
       : alpha("#dc2626", 0.22),
-    backgroundColor: activo
+    backgroundColor: isActivo
       ? alpha("#16a34a", 0.05)
       : alpha("#dc2626", 0.05),
   } as const;
 }
 
 function actionIconButtonSx(
-  variant: "view" | "edit" | "toggle-active" | "toggle-inactive"
+  variant:
+    | "view"
+    | "edit"
+    | "baja"
+    | "reingreso"
+    | "history"
 ) {
   const map = {
     view: {
@@ -225,17 +267,23 @@ function actionIconButtonSx(
       bg: alpha("#1d4ed8", 0.05),
       hover: alpha("#1d4ed8", 0.1),
     },
-    "toggle-active": {
+    baja: {
       color: "#b45309",
       border: alpha("#b45309", 0.18),
       bg: alpha("#b45309", 0.05),
       hover: alpha("#b45309", 0.1),
     },
-    "toggle-inactive": {
+    reingreso: {
       color: "#15803d",
       border: alpha("#15803d", 0.18),
       bg: alpha("#15803d", 0.05),
       hover: alpha("#15803d", 0.1),
+    },
+    history: {
+      color: "#4338ca",
+      border: alpha("#4338ca", 0.18),
+      bg: alpha("#4338ca", 0.05),
+      hover: alpha("#4338ca", 0.1),
     },
   }[variant];
 
@@ -252,6 +300,41 @@ function actionIconButtonSx(
   } as const;
 }
 
+function getEmpleadoNombre(empleado: Pick<
+  Empleado,
+  "nombres" | "apellidoPaterno" | "apellidoMaterno"
+>) {
+  return [empleado.nombres, empleado.apellidoPaterno, empleado.apellidoMaterno ?? ""]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function getMovimientoLabel(tipo: EmpleadoMovimientoLaboral["tipoMovimiento"]) {
+  switch (tipo) {
+    case "ALTA":
+      return "Alta";
+    case "BAJA":
+      return "Baja";
+    case "REINGRESO":
+      return "Reingreso";
+    case "CAMBIO_PUESTO":
+      return "Cambio de puesto";
+    case "CAMBIO_DEPARTAMENTO":
+      return "Cambio de departamento";
+    case "CAMBIO_SUCURSAL":
+      return "Cambio de sucursal";
+    case "CAMBIO_SALARIO":
+      return "Cambio de salario";
+    default:
+      return tipo;
+  }
+}
+
+function getTipoBajaLabel(tipo?: TipoBajaEmpleado | null) {
+  const found = TIPOS_BAJA.find((item) => item.value === tipo);
+  return found?.label ?? tipo ?? "-";
+}
+
 function EmpleadoDialog({
   open,
   onClose,
@@ -266,7 +349,7 @@ function EmpleadoDialog({
   onClose: () => void;
   onSubmit: (values: SaveEmpleadoInput) => Promise<void>;
   saving: boolean;
-  initialValues: Empleado | null;
+  initialValues?: Empleado | null;
   departamentos: Departamento[];
   puestos: Puesto[];
   sucursales: SucursalDto[];
@@ -274,40 +357,32 @@ function EmpleadoDialog({
   const isEdit = !!initialValues;
 
   const {
+    register,
     handleSubmit,
     reset,
     watch,
     setValue,
-    register,
     formState: { errors },
-  } = useForm<EmpleadoFormInput, unknown, EmpleadoFormValues>({
+  } = useForm<EmpleadoFormInput, undefined, EmpleadoFormValues>({
     resolver: zodResolver(empleadoSchema),
     defaultValues: {
-      nombres: initialValues?.nombres ?? "",
-      apellidoPaterno: initialValues?.apellidoPaterno ?? "",
-      apellidoMaterno: initialValues?.apellidoMaterno ?? "",
-      fechaNacimiento: normalizeDateInput(initialValues?.fechaNacimiento),
-      telefono: initialValues?.telefono ?? "",
-      email: initialValues?.email ?? "",
-      fechaIngreso: normalizeDateInput(initialValues?.fechaIngreso),
-      activo: initialValues?.activo ?? true,
-      departamentoId: initialValues?.departamentoId ?? 0,
-      puestoId: initialValues?.puestoId ?? 0,
-      sucursalId: initialValues?.sucursalId ?? 0,
+      nombres: "",
+      apellidoPaterno: "",
+      apellidoMaterno: "",
+      fechaNacimiento: "",
+      telefono: "",
+      email: "",
+      fechaIngreso: new Date().toISOString().slice(0, 10),
+      activo: true,
+      departamentoId: 0,
+      puestoId: 0,
+      sucursalId: 0,
     },
   });
 
-  const activo = watch("activo");
-  const departamentoId = Number(watch("departamentoId") ?? 0);
-  const puestoId = Number(watch("puestoId") ?? 0);
-  const sucursalId = Number(watch("sucursalId") ?? 0);
-
-  const puestosDisponibles = useMemo(() => {
-    const depId = Number(departamentoId || 0);
-    return puestos.filter((p) => getPuestoDepartamentoId(p) === depId);
-  }, [puestos, departamentoId]);
-
   useEffect(() => {
+    if (!open) return;
+
     reset({
       nombres: initialValues?.nombres ?? "",
       apellidoPaterno: initialValues?.apellidoPaterno ?? "",
@@ -315,19 +390,32 @@ function EmpleadoDialog({
       fechaNacimiento: normalizeDateInput(initialValues?.fechaNacimiento),
       telefono: initialValues?.telefono ?? "",
       email: initialValues?.email ?? "",
-      fechaIngreso: normalizeDateInput(initialValues?.fechaIngreso),
+      fechaIngreso:
+        normalizeDateInput(initialValues?.fechaIngreso) ||
+        new Date().toISOString().slice(0, 10),
       activo: initialValues?.activo ?? true,
-      departamentoId: initialValues?.departamentoId ?? 0,
-      puestoId: initialValues?.puestoId ?? 0,
-      sucursalId: initialValues?.sucursalId ?? 0,
+      departamentoId: Number(initialValues?.departamentoId ?? 0),
+      puestoId: Number(initialValues?.puestoId ?? 0),
+      sucursalId: Number(initialValues?.sucursalId ?? 0),
     });
-  }, [initialValues, reset, open]);
+  }, [initialValues, open, reset]);
+
+  const departamentoId = Number(watch("departamentoId") ?? 0);
+  const puestoId = Number(watch("puestoId") ?? 0);
+  const sucursalId = Number(watch("sucursalId") ?? 0);
+  const activo = !!watch("activo");
+
+  const puestosDisponibles = useMemo(() => {
+    if (departamentoId <= 0) return [];
+    return puestos.filter(
+      (puesto) => getPuestoDepartamentoId(puesto) === departamentoId
+    );
+  }, [departamentoId, puestos]);
 
   useEffect(() => {
-    if (
-      puestoId > 0 &&
-      !puestosDisponibles.some((p) => Number(p.id) === puestoId)
-    ) {
+    if (puestoId <= 0) return;
+    const exists = puestosDisponibles.some((puesto) => puesto.id === puestoId);
+    if (!exists) {
       setValue("puestoId", 0, {
         shouldDirty: true,
         shouldValidate: true,
@@ -336,29 +424,19 @@ function EmpleadoDialog({
   }, [puestoId, puestosDisponibles, setValue]);
 
   const submitForm = async (values: EmpleadoFormValues) => {
-    const puestoSeleccionado = puestos.find(
-      (p) => Number(p.id) === Number(values.puestoId)
-    );
-
-    if (
-      !puestoSeleccionado ||
-      getPuestoDepartamentoId(puestoSeleccionado) !== Number(values.departamentoId)
-    ) {
-      throw new Error("El puesto seleccionado no pertenece al departamento.");
-    }
-
     await onSubmit({
       nombres: values.nombres.trim(),
       apellidoPaterno: values.apellidoPaterno.trim(),
-      apellidoMaterno: normalizeOptional(values.apellidoMaterno),
-      fechaNacimiento: normalizeOptional(values.fechaNacimiento),
-      telefono: normalizeOptional(values.telefono),
-      email: normalizeOptional(values.email),
+      apellidoMaterno: normalizeOptional(values.apellidoMaterno ?? ""),
+      fechaNacimiento: normalizeOptional(values.fechaNacimiento ?? ""),
+      telefono: normalizeOptional(values.telefono ?? ""),
+      email: normalizeOptional(values.email ?? ""),
       fechaIngreso: values.fechaIngreso,
       activo: values.activo,
       departamentoId: Number(values.departamentoId),
       puestoId: Number(values.puestoId),
-      sucursalId: Number(values.sucursalId) > 0 ? Number(values.sucursalId) : null,
+      sucursalId:
+        Number(values.sucursalId) > 0 ? Number(values.sucursalId) : null,
     });
   };
 
@@ -387,6 +465,7 @@ function EmpleadoDialog({
             {...register("nombres")}
             error={!!errors.nombres}
             helperText={errors.nombres?.message}
+            fullWidth
           />
 
           <TextField
@@ -394,6 +473,7 @@ function EmpleadoDialog({
             {...register("apellidoPaterno")}
             error={!!errors.apellidoPaterno}
             helperText={errors.apellidoPaterno?.message}
+            fullWidth
           />
 
           <TextField
@@ -401,6 +481,7 @@ function EmpleadoDialog({
             {...register("apellidoMaterno")}
             error={!!errors.apellidoMaterno}
             helperText={errors.apellidoMaterno?.message}
+            fullWidth
           />
 
           <TextField
@@ -408,6 +489,7 @@ function EmpleadoDialog({
             {...register("telefono")}
             error={!!errors.telefono}
             helperText={errors.telefono?.message}
+            fullWidth
           />
 
           <TextField
@@ -415,6 +497,7 @@ function EmpleadoDialog({
             {...register("email")}
             error={!!errors.email}
             helperText={errors.email?.message}
+            fullWidth
           />
 
           <TextField
@@ -422,6 +505,7 @@ function EmpleadoDialog({
             type="date"
             {...register("fechaNacimiento")}
             InputLabelProps={{ shrink: true }}
+            fullWidth
           />
 
           <TextField
@@ -431,6 +515,7 @@ function EmpleadoDialog({
             error={!!errors.fechaIngreso}
             helperText={errors.fechaIngreso?.message}
             InputLabelProps={{ shrink: true }}
+            fullWidth
           />
 
           <TextField
@@ -445,6 +530,7 @@ function EmpleadoDialog({
             }}
             error={!!errors.sucursalId}
             helperText={errors.sucursalId?.message}
+            fullWidth
           >
             <MenuItem value={0}>Sin sucursal</MenuItem>
             {sucursales.map((sucursal) => (
@@ -471,6 +557,7 @@ function EmpleadoDialog({
             }}
             error={!!errors.departamentoId}
             helperText={errors.departamentoId?.message}
+            fullWidth
           >
             <MenuItem value={0}>Selecciona un departamento</MenuItem>
             {departamentos.map((dep) => (
@@ -496,10 +583,11 @@ function EmpleadoDialog({
               (departamentoId <= 0
                 ? "Primero selecciona un departamento"
                 : puestosDisponibles.length === 0
-                ? "No hay puestos para este departamento"
-                : "")
+                  ? "No hay puestos para este departamento"
+                  : "")
             }
             disabled={departamentoId <= 0 || puestosDisponibles.length === 0}
+            fullWidth
           >
             <MenuItem value={0}>
               {departamentoId > 0
@@ -543,6 +631,434 @@ function EmpleadoDialog({
   );
 }
 
+function BajaEmpleadoDialog({
+  open,
+  empleado,
+  saving,
+  onClose,
+  onSubmit,
+}: {
+  open: boolean;
+  empleado: Empleado | null;
+  saving: boolean;
+  onClose: () => void;
+  onSubmit: (payload: DarBajaEmpleadoInput) => Promise<void>;
+}) {
+  const [fechaBaja, setFechaBaja] = useState(new Date().toISOString().slice(0, 10));
+  const [tipoBaja, setTipoBaja] = useState<TipoBajaEmpleado>("VOLUNTARIA");
+  const [motivo, setMotivo] = useState("");
+  const [comentario, setComentario] = useState("");
+  const [recontratable, setRecontratable] = useState(true);
+  const [desactivarUsuario, setDesactivarUsuario] = useState(true);
+
+  useEffect(() => {
+    if (!open) return;
+    setFechaBaja(new Date().toISOString().slice(0, 10));
+    setTipoBaja("VOLUNTARIA");
+    setMotivo("");
+    setComentario("");
+    setRecontratable(true);
+    setDesactivarUsuario(true);
+  }, [open, empleado]);
+
+  const submit = async () => {
+    await onSubmit({
+      fechaBaja,
+      tipoBaja,
+      motivo: normalizeOptional(motivo),
+      comentario: normalizeOptional(comentario),
+      recontratable,
+      desactivarUsuario,
+    });
+  };
+
+  return (
+    <Dialog open={open} onClose={saving ? undefined : onClose} fullWidth maxWidth="sm">
+      <DialogTitle>Dar de baja a empleado</DialogTitle>
+      <DialogContent dividers>
+        <Stack spacing={2} sx={{ pt: 1 }}>
+          <Alert severity="warning">
+            Esta acción registrará una baja formal y actualizará el estatus laboral del empleado.
+          </Alert>
+
+          <Box>
+            <Typography fontWeight={800}>
+              {empleado ? getEmpleadoNombre(empleado) : "-"}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {empleado?.numEmpleado ?? "-"}
+            </Typography>
+          </Box>
+
+          <TextField
+            label="Fecha de baja"
+            type="date"
+            value={fechaBaja}
+            onChange={(e) => setFechaBaja(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            fullWidth
+          />
+
+          <TextField
+            select
+            label="Tipo de baja"
+            value={tipoBaja}
+            onChange={(e) => setTipoBaja(e.target.value as TipoBajaEmpleado)}
+            fullWidth
+          >
+            {TIPOS_BAJA.map((item) => (
+              <MenuItem key={item.value} value={item.value}>
+                {item.label}
+              </MenuItem>
+            ))}
+          </TextField>
+
+          <TextField
+            label="Motivo"
+            value={motivo}
+            onChange={(e) => setMotivo(e.target.value)}
+            fullWidth
+          />
+
+          <TextField
+            label="Comentario"
+            value={comentario}
+            onChange={(e) => setComentario(e.target.value)}
+            fullWidth
+            multiline
+            minRows={3}
+          />
+
+          <FormControlLabel
+            control={
+              <Switch
+                checked={recontratable}
+                onChange={(_, checked) => setRecontratable(checked)}
+              />
+            }
+            label={recontratable ? "Recontratable" : "No recontratable"}
+          />
+
+          <FormControlLabel
+            control={
+              <Switch
+                checked={desactivarUsuario}
+                onChange={(_, checked) => setDesactivarUsuario(checked)}
+              />
+            }
+            label={
+              desactivarUsuario
+                ? "Desactivar acceso de usuario"
+                : "Mantener acceso de usuario"
+            }
+          />
+        </Stack>
+      </DialogContent>
+
+      <DialogActions>
+        <Button onClick={onClose} disabled={saving} color="inherit">
+          Cancelar
+        </Button>
+        <Button
+          onClick={submit}
+          variant="contained"
+          color="warning"
+          disabled={saving}
+          startIcon={<PersonOffRoundedIcon />}
+        >
+          {saving ? "Procesando..." : "Confirmar baja"}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+function ReingresoEmpleadoDialog({
+  open,
+  empleado,
+  saving,
+  onClose,
+  onSubmit,
+  departamentos,
+  puestos,
+  sucursales,
+}: {
+  open: boolean;
+  empleado: Empleado | null;
+  saving: boolean;
+  onClose: () => void;
+  onSubmit: (payload: ReingresarEmpleadoInput) => Promise<void>;
+  departamentos: Departamento[];
+  puestos: Puesto[];
+  sucursales: SucursalDto[];
+}) {
+  const [fechaReingreso, setFechaReingreso] = useState(
+    new Date().toISOString().slice(0, 10)
+  );
+  const [departamentoId, setDepartamentoId] = useState(0);
+  const [puestoId, setPuestoId] = useState(0);
+  const [sucursalId, setSucursalId] = useState(0);
+  const [comentario, setComentario] = useState("");
+  const [reactivarUsuario, setReactivarUsuario] = useState(true);
+
+  useEffect(() => {
+    if (!open) return;
+
+    setFechaReingreso(new Date().toISOString().slice(0, 10));
+    setDepartamentoId(Number(empleado?.departamentoId ?? 0));
+    setPuestoId(Number(empleado?.puestoId ?? 0));
+    setSucursalId(Number(empleado?.sucursalId ?? 0));
+    setComentario("");
+    setReactivarUsuario(true);
+  }, [open, empleado]);
+
+  const puestosDisponibles = useMemo(() => {
+    if (departamentoId <= 0) return [];
+    return puestos.filter(
+      (puesto) => getPuestoDepartamentoId(puesto) === departamentoId
+    );
+  }, [departamentoId, puestos]);
+
+  useEffect(() => {
+    if (puestoId <= 0) return;
+    const exists = puestosDisponibles.some((puesto) => puesto.id === puestoId);
+    if (!exists) setPuestoId(0);
+  }, [puestoId, puestosDisponibles]);
+
+  const submit = async () => {
+    await onSubmit({
+      fechaReingreso,
+      departamentoId: departamentoId > 0 ? departamentoId : null,
+      puestoId: puestoId > 0 ? puestoId : null,
+      sucursalId: sucursalId > 0 ? sucursalId : null,
+      comentario: normalizeOptional(comentario),
+      reactivarUsuario,
+    });
+  };
+
+  return (
+    <Dialog open={open} onClose={saving ? undefined : onClose} fullWidth maxWidth="sm">
+      <DialogTitle>Reingresar empleado</DialogTitle>
+      <DialogContent dividers>
+        <Stack spacing={2} sx={{ pt: 1 }}>
+          <Alert severity="success">
+            El reingreso reactiva el estado laboral y conserva el historial del empleado.
+          </Alert>
+
+          <Box>
+            <Typography fontWeight={800}>
+              {empleado ? getEmpleadoNombre(empleado) : "-"}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {empleado?.numEmpleado ?? "-"}
+            </Typography>
+          </Box>
+
+          <TextField
+            label="Fecha de reingreso"
+            type="date"
+            value={fechaReingreso}
+            onChange={(e) => setFechaReingreso(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            fullWidth
+          />
+
+          <TextField
+            select
+            label="Sucursal"
+            value={sucursalId}
+            onChange={(e) => setSucursalId(Number(e.target.value))}
+            fullWidth
+          >
+            <MenuItem value={0}>Sin sucursal</MenuItem>
+            {sucursales.map((sucursal) => (
+              <MenuItem key={sucursal.id} value={sucursal.id}>
+                {sucursal.clave} - {sucursal.nombre}
+              </MenuItem>
+            ))}
+          </TextField>
+
+          <TextField
+            select
+            label="Departamento"
+            value={departamentoId}
+            onChange={(e) => {
+              const value = Number(e.target.value);
+              setDepartamentoId(value);
+              setPuestoId(0);
+            }}
+            fullWidth
+          >
+            <MenuItem value={0}>Selecciona un departamento</MenuItem>
+            {departamentos.map((dep) => (
+              <MenuItem key={dep.id} value={dep.id}>
+                {dep.clave} - {dep.nombre}
+              </MenuItem>
+            ))}
+          </TextField>
+
+          <TextField
+            select
+            label="Puesto"
+            value={puestoId}
+            onChange={(e) => setPuestoId(Number(e.target.value))}
+            disabled={departamentoId <= 0 || puestosDisponibles.length === 0}
+            helperText={
+              departamentoId <= 0
+                ? "Primero selecciona un departamento"
+                : puestosDisponibles.length === 0
+                  ? "No hay puestos para este departamento"
+                  : ""
+            }
+            fullWidth
+          >
+            <MenuItem value={0}>
+              {departamentoId > 0
+                ? "Selecciona un puesto"
+                : "Primero elige un departamento"}
+            </MenuItem>
+            {puestosDisponibles.map((puesto) => (
+              <MenuItem key={puesto.id} value={puesto.id}>
+                {puesto.clave} - {puesto.nombre}
+              </MenuItem>
+            ))}
+          </TextField>
+
+          <TextField
+            label="Comentario"
+            value={comentario}
+            onChange={(e) => setComentario(e.target.value)}
+            fullWidth
+            multiline
+            minRows={3}
+          />
+
+          <FormControlLabel
+            control={
+              <Switch
+                checked={reactivarUsuario}
+                onChange={(_, checked) => setReactivarUsuario(checked)}
+              />
+            }
+            label={
+              reactivarUsuario
+                ? "Reactivar acceso de usuario"
+                : "Mantener usuario sin acceso"
+            }
+          />
+        </Stack>
+      </DialogContent>
+
+      <DialogActions>
+        <Button onClick={onClose} disabled={saving} color="inherit">
+          Cancelar
+        </Button>
+        <Button
+          onClick={submit}
+          variant="contained"
+          color="success"
+          disabled={saving}
+          startIcon={<ReplayRoundedIcon />}
+        >
+          {saving ? "Procesando..." : "Confirmar reingreso"}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+function MovimientosDialog({
+  open,
+  empleado,
+  onClose,
+}: {
+  open: boolean;
+  empleado: Empleado | null;
+  onClose: () => void;
+}) {
+  const movimientosQuery = useQuery<EmpleadoMovimientoLaboral[], Error>({
+    queryKey: ["empleados", "movimientos", empleado?.id],
+    queryFn: () => getEmpleadoMovimientos(Number(empleado?.id)),
+    enabled: open && !!empleado?.id,
+  });
+
+  return (
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
+      <DialogTitle>Historial laboral</DialogTitle>
+      <DialogContent dividers>
+        <Stack spacing={2}>
+          <Box>
+            <Typography fontWeight={800}>
+              {empleado ? getEmpleadoNombre(empleado) : "-"}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {empleado?.numEmpleado ?? "-"}
+            </Typography>
+          </Box>
+
+          {movimientosQuery.isLoading ? (
+            <Box sx={{ py: 5, display: "flex", justifyContent: "center" }}>
+              <CircularProgress />
+            </Box>
+          ) : movimientosQuery.isError ? (
+            <Alert severity="error">
+              No se pudo cargar el historial. {getErrorMessage(movimientosQuery.error)}
+            </Alert>
+          ) : (movimientosQuery.data ?? []).length === 0 ? (
+            <Alert severity="info">
+              Este empleado aún no tiene movimientos laborales registrados.
+            </Alert>
+          ) : (
+            <Box sx={{ overflowX: "auto" }}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Movimiento</TableCell>
+                    <TableCell>Fecha</TableCell>
+                    <TableCell>Tipo baja</TableCell>
+                    <TableCell>Motivo</TableCell>
+                    <TableCell>Comentario</TableCell>
+                    <TableCell>Responsable</TableCell>
+                    <TableCell>Registro</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {(movimientosQuery.data ?? []).map((item) => (
+                    <TableRow key={item.id} hover>
+                      <TableCell>
+                        <Chip
+                          size="small"
+                          label={getMovimientoLabel(item.tipoMovimiento)}
+                          color={
+                            item.tipoMovimiento === "BAJA"
+                              ? "warning"
+                              : item.tipoMovimiento === "REINGRESO"
+                                ? "success"
+                                : "default"
+                          }
+                        />
+                      </TableCell>
+                      <TableCell>{formatDate(item.fechaMovimiento)}</TableCell>
+                      <TableCell>{getTipoBajaLabel(item.tipoBaja)}</TableCell>
+                      <TableCell>{item.motivo || "-"}</TableCell>
+                      <TableCell>{item.comentario || "-"}</TableCell>
+                      <TableCell>{item.usuarioResponsableId ?? "-"}</TableCell>
+                      <TableCell>{formatDateTime(item.createdAtUtc)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Box>
+          )}
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Cerrar</Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 export default function EmpleadosPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -555,7 +1071,9 @@ export default function EmpleadosPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Empleado | null>(null);
-  const [confirmTarget, setConfirmTarget] = useState<Empleado | null>(null);
+  const [bajaTarget, setBajaTarget] = useState<Empleado | null>(null);
+  const [reingresoTarget, setReingresoTarget] = useState<Empleado | null>(null);
+  const [movimientosTarget, setMovimientosTarget] = useState<Empleado | null>(null);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
@@ -620,42 +1138,50 @@ export default function EmpleadosPage() {
     },
   });
 
-  const toggleMutation = useMutation({
-    mutationFn: async (row: Empleado) => {
-      if (!row.departamentoId || !row.puestoId) {
-        throw new Error("El empleado no tiene departamento o puesto asignado.");
-      }
-
-      return updateEmpleado(row.id, {
-        nombres: row.nombres,
-        apellidoPaterno: row.apellidoPaterno,
-        apellidoMaterno: row.apellidoMaterno ?? null,
-        fechaNacimiento: row.fechaNacimiento ?? null,
-        telefono: row.telefono ?? null,
-        email: row.email ?? null,
-        fechaIngreso: row.fechaIngreso,
-        activo: !row.activo,
-        departamentoId: Number(row.departamentoId),
-        puestoId: Number(row.puestoId),
-        sucursalId: row.sucursalId ?? null,
-      });
-    },
-    onSuccess: (_, row) => {
+  const bajaMutation = useMutation({
+    mutationFn: async ({
+      empleado,
+      payload,
+    }: {
+      empleado: Empleado;
+      payload: DarBajaEmpleadoInput;
+    }) => darBajaEmpleado(empleado.id, payload),
+    onSuccess: (_, vars) => {
       void queryClient.invalidateQueries({ queryKey: ["empleados"] });
-      showSnackbar(
-        row.activo ? "Empleado desactivado." : "Empleado reactivado.",
-        "success"
-      );
-      setConfirmTarget(null);
+      void queryClient.invalidateQueries({
+        queryKey: ["empleados", "movimientos", vars.empleado.id],
+      });
+      setBajaTarget(null);
+      showSnackbar("Baja registrada correctamente.", "success");
     },
     onError: (error) => {
       showSnackbar(getErrorMessage(error), "error");
-      setConfirmTarget(null);
+    },
+  });
+
+  const reingresoMutation = useMutation({
+    mutationFn: async ({
+      empleado,
+      payload,
+    }: {
+      empleado: Empleado;
+      payload: ReingresarEmpleadoInput;
+    }) => reingresarEmpleado(empleado.id, payload),
+    onSuccess: (_, vars) => {
+      void queryClient.invalidateQueries({ queryKey: ["empleados"] });
+      void queryClient.invalidateQueries({
+        queryKey: ["empleados", "movimientos", vars.empleado.id],
+      });
+      setReingresoTarget(null);
+      showSnackbar("Reingreso registrado correctamente.", "success");
+    },
+    onError: (error) => {
+      showSnackbar(getErrorMessage(error), "error");
     },
   });
 
   const filteredRows = useMemo<Empleado[]>(() => {
-    const rows: Empleado[] = empleadosQuery.data ?? [];
+    const rows = empleadosQuery.data ?? [];
     const term = search.trim().toLowerCase();
 
     return rows.filter((row: Empleado) => {
@@ -669,39 +1195,35 @@ export default function EmpleadosPage() {
         ? sucursalesMap.get(Number(row.sucursalId))
         : undefined;
 
-      const matchesDepartamento = departamentoFilter
-        ? Number(row.departamentoId) === Number(departamentoFilter)
-        : true;
+      const matchesDepartamento =
+        !departamentoFilter ||
+        String(row.departamentoId ?? "") === String(departamentoFilter);
 
-      const matchesSucursal = sucursalFilter
-        ? Number(row.sucursalId) === Number(sucursalFilter)
-        : true;
+      const matchesSucursal =
+        !sucursalFilter ||
+        String(row.sucursalId ?? "") === String(sucursalFilter);
 
       const matchesStatus =
-        statusFilter === ""
-          ? true
-          : statusFilter === "ACTIVO"
-          ? row.activo
-          : !row.activo;
+        !statusFilter ||
+        row.estatusLaboralActual === statusFilter ||
+        (statusFilter === "INACTIVO" && !row.activo);
 
-      const fullName = [
-        row.nombres,
-        row.apellidoPaterno,
-        row.apellidoMaterno ?? "",
-      ]
-        .join(" ")
-        .toLowerCase();
-
-      const matchesSearch = !term
-        ? true
-        : row.numEmpleado.toLowerCase().includes(term) ||
-          fullName.includes(term) ||
-          (row.email ?? "").toLowerCase().includes(term) ||
-          (departamento?.nombre ?? "").toLowerCase().includes(term) ||
-          (puesto?.nombre ?? "").toLowerCase().includes(term) ||
-          (sucursal?.nombre ?? "").toLowerCase().includes(term) ||
-          (sucursal?.clave ?? "").toLowerCase().includes(term) ||
-          (row.activo ? "activo" : "inactivo").includes(term);
+      const matchesSearch =
+        !term ||
+        String(row.id).includes(term) ||
+        (row.numEmpleado ?? "").toLowerCase().includes(term) ||
+        (row.nombres ?? "").toLowerCase().includes(term) ||
+        (row.apellidoPaterno ?? "").toLowerCase().includes(term) ||
+        (row.apellidoMaterno ?? "").toLowerCase().includes(term) ||
+        (row.email ?? "").toLowerCase().includes(term) ||
+        (departamento?.nombre ?? "").toLowerCase().includes(term) ||
+        (departamento?.clave ?? "").toLowerCase().includes(term) ||
+        (puesto?.nombre ?? "").toLowerCase().includes(term) ||
+        (puesto?.clave ?? "").toLowerCase().includes(term) ||
+        (sucursal?.nombre ?? "").toLowerCase().includes(term) ||
+        (sucursal?.clave ?? "").toLowerCase().includes(term) ||
+        (row.estatusLaboralActual ?? "").toLowerCase().includes(term) ||
+        (row.activo ? "activo" : "inactivo").includes(term);
 
       return (
         matchesDepartamento &&
@@ -731,12 +1253,20 @@ export default function EmpleadosPage() {
   }, [search, departamentoFilter, sucursalFilter, statusFilter, filteredRows.length]);
 
   const activeCount = useMemo(
-    () => filteredRows.filter((row: Empleado) => row.activo).length,
+    () =>
+      filteredRows.filter(
+        (row: Empleado) =>
+          row.activo && row.estatusLaboralActual === "ACTIVO"
+      ).length,
     [filteredRows]
   );
 
-  const inactiveCount = useMemo(
-    () => filteredRows.filter((row: Empleado) => !row.activo).length,
+  const bajaCount = useMemo(
+    () =>
+      filteredRows.filter(
+        (row: Empleado) =>
+          row.estatusLaboralActual === "BAJA" || !row.activo
+      ).length,
     [filteredRows]
   );
 
@@ -769,6 +1299,18 @@ export default function EmpleadosPage() {
 
   const openExpediente = (row: Empleado) => {
     navigate(`/empleados/${row.id}/expediente`);
+  };
+
+  const openBajaDialog = (row: Empleado) => {
+    setBajaTarget(row);
+  };
+
+  const openReingresoDialog = (row: Empleado) => {
+    setReingresoTarget(row);
+  };
+
+  const openMovimientosDialog = (row: Empleado) => {
+    setMovimientosTarget(row);
   };
 
   const canOpenDialog =
@@ -817,7 +1359,12 @@ export default function EmpleadosPage() {
             variant="outlined"
             startIcon={isRefreshing ? <CircularProgress size={18} /> : <RefreshIcon />}
             onClick={handleRefresh}
-            disabled={loadingAny || saveMutation.isPending || toggleMutation.isPending}
+            disabled={
+              loadingAny ||
+              saveMutation.isPending ||
+              bajaMutation.isPending ||
+              reingresoMutation.isPending
+            }
           >
             {isRefreshing ? "Actualizando..." : "Actualizar"}
           </Button>
@@ -911,65 +1458,62 @@ export default function EmpleadosPage() {
               {canOpenDialog
                 ? "Catálogos base disponibles para alta y edición."
                 : canManageEmpleados
-                ? "Faltan catálogos base para permitir nuevas altas."
-                : "Consulta disponible según tu rol actual."}
+                  ? "Faltan catálogos base para permitir nuevas altas."
+                  : "Consulta disponible según tu rol actual."}
             </Typography>
           </Stack>
         }
       />
 
-      {canManageEmpleados &&
-        !canOpenDialog &&
-        !departamentosQuery.isLoading &&
-        !puestosQuery.isLoading &&
-        !sucursalesQuery.isLoading && (
-          <Alert severity="warning">
-            Necesitas departamentos y puestos registrados para crear empleados.
-          </Alert>
-        )}
-
       <Box
         sx={{
           display: "grid",
+          gap: 2,
           gridTemplateColumns: {
             xs: "1fr",
-            sm: "repeat(2, 1fr)",
-            xl: "repeat(4, 1fr)",
+            md: "repeat(12, 1fr)",
           },
-          gap: { xs: 2, md: 2.25 },
         }}
       >
-        <MetricCard
-          title="Total"
-          value={filteredRows.length}
-          subtitle="Empleados visibles"
-          icon={<Groups2OutlinedIcon fontSize="small" />}
-          badge="RH"
-        />
+        <Box sx={{ gridColumn: { xs: "span 1", md: "span 3" } }}>
+          <MetricCard
+            title="Activos"
+            value={activeCount}
+            subtitle="Estatus laboral ACTIVO"
+            icon={<CheckCircleRoundedIcon fontSize="small" />}
+            badge="RH"
+          />
+        </Box>
 
-        <MetricCard
-          title="Activos"
-          value={activeCount}
-          subtitle="Personal vigente"
-          icon={<PersonAddAlt1RoundedIcon fontSize="small" />}
-          badge="RH"
-        />
+        <Box sx={{ gridColumn: { xs: "span 1", md: "span 3" } }}>
+          <MetricCard
+            title="Bajas"
+            value={bajaCount}
+            subtitle="Con estatus laboral BAJA"
+            icon={<BlockRoundedIcon fontSize="small" />}
+            badge="RH"
+          />
+        </Box>
 
-        <MetricCard
-          title="Inactivos"
-          value={inactiveCount}
-          subtitle="Bajas o suspendidos"
-          icon={<PersonOffRoundedIcon fontSize="small" />}
-          badge="RH"
-        />
+        <Box sx={{ gridColumn: { xs: "span 1", md: "span 3" } }}>
+          <MetricCard
+            title="Sucursales"
+            value={assignedBranchCount}
+            subtitle="Con personal asignado"
+            icon={<StoreRoundedIcon fontSize="small" />}
+            badge="RH"
+          />
+        </Box>
 
-        <MetricCard
-          title="Sucursales"
-          value={assignedBranchCount}
-          subtitle="Con personal asignado"
-          icon={<StoreRoundedIcon fontSize="small" />}
-          badge="RH"
-        />
+        <Box sx={{ gridColumn: { xs: "span 1", md: "span 3" } }}>
+          <MetricCard
+            title="Visibles"
+            value={filteredRows.length}
+            subtitle="Empleados visibles"
+            icon={<Groups2OutlinedIcon fontSize="small" />}
+            badge="RH"
+          />
+        </Box>
       </Box>
 
       <SectionCard
@@ -983,9 +1527,8 @@ export default function EmpleadosPage() {
               color={activeFiltersCount > 0 ? "primary" : undefined}
               label={
                 activeFiltersCount > 0
-                  ? `${activeFiltersCount} filtro${
-                      activeFiltersCount > 1 ? "s" : ""
-                    } activo${activeFiltersCount > 1 ? "s" : ""}`
+                  ? `${activeFiltersCount} filtro${activeFiltersCount > 1 ? "s" : ""
+                  } activo${activeFiltersCount > 1 ? "s" : ""}`
                   : "Sin filtros"
               }
             />
@@ -1012,6 +1555,7 @@ export default function EmpleadosPage() {
         >
           <Box sx={{ gridColumn: { xs: "span 1", md: "span 5" } }}>
             <TextField
+              fullWidth
               label="Buscar"
               placeholder="No. empleado, nombre, correo, puesto, sucursal..."
               value={search}
@@ -1029,6 +1573,7 @@ export default function EmpleadosPage() {
           <Box sx={{ gridColumn: { xs: "span 1", md: "span 3" } }}>
             <TextField
               select
+              fullWidth
               label="Departamento"
               value={departamentoFilter}
               onChange={(e) => setDepartamentoFilter(e.target.value)}
@@ -1045,6 +1590,7 @@ export default function EmpleadosPage() {
           <Box sx={{ gridColumn: { xs: "span 1", md: "span 2" } }}>
             <TextField
               select
+              fullWidth
               label="Sucursal"
               value={sucursalFilter}
               onChange={(e) => setSucursalFilter(e.target.value)}
@@ -1061,12 +1607,14 @@ export default function EmpleadosPage() {
           <Box sx={{ gridColumn: { xs: "span 1", md: "span 2" } }}>
             <TextField
               select
+              fullWidth
               label="Estatus"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
             >
               <MenuItem value="">Todos</MenuItem>
               <MenuItem value="ACTIVO">Activos</MenuItem>
+              <MenuItem value="BAJA">Bajas</MenuItem>
               <MenuItem value="INACTIVO">Inactivos</MenuItem>
             </TextField>
           </Box>
@@ -1152,12 +1700,15 @@ export default function EmpleadosPage() {
                       ? sucursalesMap.get(Number(row.sucursalId))
                       : undefined;
 
+                    const isActivo =
+                      row.activo && row.estatusLaboralActual === "ACTIVO";
+
                     return (
                       <TableRow
                         key={row.id}
                         hover
                         sx={{
-                          backgroundColor: row.activo
+                          backgroundColor: isActivo
                             ? "transparent"
                             : "rgba(0,0,0,0.02)",
                         }}
@@ -1171,9 +1722,7 @@ export default function EmpleadosPage() {
                         <TableCell>
                           <Stack spacing={0.25}>
                             <Typography fontWeight={700}>
-                              {[row.nombres, row.apellidoPaterno, row.apellidoMaterno ?? ""]
-                                .filter(Boolean)
-                                .join(" ")}
+                              {getEmpleadoNombre(row)}
                             </Typography>
                             <Typography variant="caption" color="text.secondary">
                               {row.email || "Sin correo"}
@@ -1228,12 +1777,32 @@ export default function EmpleadosPage() {
                         <TableCell>{formatDate(row.fechaIngreso)}</TableCell>
 
                         <TableCell>
-                          <Chip
-                            size="small"
-                            variant="outlined"
-                            label={row.activo ? "Activo" : "Inactivo"}
-                            sx={empleadoStatusChipSx(row.activo)}
-                          />
+                          <Stack spacing={0.4}>
+                            <Chip
+                              size="small"
+                              variant="outlined"
+                              label={
+                                row.estatusLaboralActual === "ACTIVO"
+                                  ? "Activo"
+                                  : "Baja"
+                              }
+                              sx={empleadoStatusChipSx(
+                                row.estatusLaboralActual,
+                                row.activo
+                              )}
+                            />
+
+                            {row.estatusLaboralActual === "BAJA" &&
+                              row.fechaBajaActual ? (
+                              <Typography variant="caption" color="text.secondary">
+                                Baja: {formatDate(row.fechaBajaActual)}
+                              </Typography>
+                            ) : row.fechaReingresoActual ? (
+                              <Typography variant="caption" color="text.secondary">
+                                Reingreso: {formatDate(row.fechaReingresoActual)}
+                              </Typography>
+                            ) : null}
+                          </Stack>
                         </TableCell>
 
                         <TableCell align="right">
@@ -1241,48 +1810,75 @@ export default function EmpleadosPage() {
                             direction="row"
                             spacing={0.75}
                             justifyContent="flex-end"
+                            flexWrap="wrap"
+                            useFlexGap
                           >
-                            {canManageEmpleados && (
-                              <Tooltip title="Expediente">
+                            <Tooltip title="Expediente">
+                              <span>
                                 <IconButton
+                                  size="small"
                                   onClick={() => openExpediente(row)}
                                   sx={actionIconButtonSx("view")}
-                                  disabled={saveMutation.isPending || toggleMutation.isPending}
                                 >
                                   <FolderOpenRoundedIcon fontSize="small" />
                                 </IconButton>
-                              </Tooltip>
-                            )}
+                              </span>
+                            </Tooltip>
+
+                            <Tooltip title="Historial laboral">
+                              <span>
+                                <IconButton
+                                  size="small"
+                                  onClick={() => openMovimientosDialog(row)}
+                                  sx={actionIconButtonSx("history")}
+                                >
+                                  <HistoryRoundedIcon fontSize="small" />
+                                </IconButton>
+                              </span>
+                            </Tooltip>
 
                             {canManageEmpleados && (
                               <Tooltip title="Editar">
-                                <IconButton
-                                  onClick={() => openEditDialog(row)}
-                                  sx={actionIconButtonSx("edit")}
-                                  disabled={saveMutation.isPending || toggleMutation.isPending}
-                                >
-                                  <EditIcon fontSize="small" />
-                                </IconButton>
+                                <span>
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => openEditDialog(row)}
+                                    sx={actionIconButtonSx("edit")}
+                                  >
+                                    <EditIcon fontSize="small" />
+                                  </IconButton>
+                                </span>
                               </Tooltip>
                             )}
 
-                            {canManageEmpleados && (
-                              <Tooltip title={row.activo ? "Desactivar" : "Reactivar"}>
-                                <IconButton
-                                  onClick={() => setConfirmTarget(row)}
-                                  sx={actionIconButtonSx(
-                                    row.activo ? "toggle-active" : "toggle-inactive"
-                                  )}
-                                  disabled={saveMutation.isPending || toggleMutation.isPending}
-                                >
-                                  {row.activo ? (
-                                    <BlockRoundedIcon fontSize="small" />
-                                  ) : (
-                                    <CheckCircleRoundedIcon fontSize="small" />
-                                  )}
-                                </IconButton>
+                            {canManageEmpleados && isActivo && (
+                              <Tooltip title="Dar baja">
+                                <span>
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => openBajaDialog(row)}
+                                    sx={actionIconButtonSx("baja")}
+                                  >
+                                    <PersonOffRoundedIcon fontSize="small" />
+                                  </IconButton>
+                                </span>
                               </Tooltip>
                             )}
+
+                            {canManageEmpleados &&
+                              row.estatusLaboralActual === "BAJA" && (
+                                <Tooltip title="Reingresar">
+                                  <span>
+                                    <IconButton
+                                      size="small"
+                                      onClick={() => openReingresoDialog(row)}
+                                      sx={actionIconButtonSx("reingreso")}
+                                    >
+                                      <PersonAddAlt1RoundedIcon fontSize="small" />
+                                    </IconButton>
+                                  </span>
+                                </Tooltip>
+                              )}
                           </Stack>
                         </TableCell>
                       </TableRow>
@@ -1331,37 +1927,47 @@ export default function EmpleadosPage() {
         }}
       />
 
-      <ConfirmDialog
-        open={!!confirmTarget}
-        onClose={() => setConfirmTarget(null)}
-        onConfirm={() => {
-          if (confirmTarget) {
-            toggleMutation.mutate(confirmTarget);
-          }
+      <BajaEmpleadoDialog
+        open={!!bajaTarget}
+        empleado={bajaTarget}
+        saving={bajaMutation.isPending}
+        onClose={() => {
+          if (bajaMutation.isPending) return;
+          setBajaTarget(null);
         }}
-        loading={toggleMutation.isPending}
-        title={confirmTarget?.activo ? "Desactivar empleado" : "Reactivar empleado"}
-        message={
-          confirmTarget
-            ? confirmTarget.activo
-              ? `Se desactivará el empleado "${[
-                  confirmTarget.nombres,
-                  confirmTarget.apellidoPaterno,
-                  confirmTarget.apellidoMaterno ?? "",
-                ]
-                  .filter(Boolean)
-                  .join(" ")}".`
-              : `Se reactivará el empleado "${[
-                  confirmTarget.nombres,
-                  confirmTarget.apellidoPaterno,
-                  confirmTarget.apellidoMaterno ?? "",
-                ]
-                  .filter(Boolean)
-                  .join(" ")}".`
-            : ""
-        }
-        confirmText={confirmTarget?.activo ? "Desactivar" : "Reactivar"}
-        confirmColor={confirmTarget?.activo ? "warning" : "success"}
+        onSubmit={async (payload) => {
+          if (!bajaTarget) return;
+          await bajaMutation.mutateAsync({
+            empleado: bajaTarget,
+            payload,
+          });
+        }}
+      />
+
+      <ReingresoEmpleadoDialog
+        open={!!reingresoTarget}
+        empleado={reingresoTarget}
+        saving={reingresoMutation.isPending}
+        onClose={() => {
+          if (reingresoMutation.isPending) return;
+          setReingresoTarget(null);
+        }}
+        onSubmit={async (payload) => {
+          if (!reingresoTarget) return;
+          await reingresoMutation.mutateAsync({
+            empleado: reingresoTarget,
+            payload,
+          });
+        }}
+        departamentos={departamentos}
+        puestos={puestos}
+        sucursales={sucursales}
+      />
+
+      <MovimientosDialog
+        open={!!movimientosTarget}
+        empleado={movimientosTarget}
+        onClose={() => setMovimientosTarget(null)}
       />
     </AppPage>
   );

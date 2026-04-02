@@ -1,5 +1,16 @@
 import { api } from "./axios";
 
+export type EstatusLaboralEmpleado = "ACTIVO" | "BAJA";
+
+export type TipoBajaEmpleado =
+  | "VOLUNTARIA"
+  | "INVOLUNTARIA"
+  | "TERMINO_CONTRATO"
+  | "ABANDONO"
+  | "JUBILACION"
+  | "DEFUNCION"
+  | "OTRA";
+
 export type Empleado = {
   id: number;
   numEmpleado: string;
@@ -11,6 +22,12 @@ export type Empleado = {
   email?: string | null;
   fechaIngreso: string;
   activo: boolean;
+
+  estatusLaboralActual: EstatusLaboralEmpleado;
+  fechaBajaActual?: string | null;
+  tipoBajaActual?: TipoBajaEmpleado | null;
+  fechaReingresoActual?: string | null;
+  recontratable?: boolean | null;
 
   departamentoId?: number | null;
   departamentoNombre?: string | null;
@@ -54,6 +71,44 @@ export type EmpleadoListResponse = {
   total: number;
   totalPages: number;
   items: Empleado[];
+};
+
+export type EmpleadoMovimientoLaboral = {
+  id: number;
+  empleadoId: number;
+  tipoMovimiento:
+    | "ALTA"
+    | "BAJA"
+    | "REINGRESO"
+    | "CAMBIO_PUESTO"
+    | "CAMBIO_DEPARTAMENTO"
+    | "CAMBIO_SUCURSAL"
+    | "CAMBIO_SALARIO";
+  fechaMovimiento: string;
+  tipoBaja?: TipoBajaEmpleado | null;
+  motivo?: string | null;
+  comentario?: string | null;
+  recontratable?: boolean | null;
+  usuarioResponsableId?: number | null;
+  createdAtUtc: string;
+};
+
+export type DarBajaEmpleadoInput = {
+  fechaBaja: string;
+  tipoBaja: TipoBajaEmpleado;
+  motivo?: string | null;
+  comentario?: string | null;
+  recontratable?: boolean | null;
+  desactivarUsuario?: boolean;
+};
+
+export type ReingresarEmpleadoInput = {
+  fechaReingreso: string;
+  departamentoId?: number | null;
+  puestoId?: number | null;
+  sucursalId?: number | null;
+  comentario?: string | null;
+  reactivarUsuario?: boolean;
 };
 
 type EmpleadoListEnvelope =
@@ -125,10 +180,9 @@ function normalizeSaveEmpleadoInput(input: SaveEmpleadoInput): SaveEmpleadoInput
   };
 }
 
-export function getEmpleadoNombreCompleto(empleado: Pick<
-  Empleado,
-  "nombres" | "apellidoPaterno" | "apellidoMaterno"
->): string {
+export function getEmpleadoNombreCompleto(
+  empleado: Pick<Empleado, "nombres" | "apellidoPaterno" | "apellidoMaterno">
+): string {
   return [
     empleado.nombres,
     empleado.apellidoPaterno,
@@ -182,4 +236,29 @@ export async function updateEmpleado(
   const payload = normalizeSaveEmpleadoInput(input);
   const { data } = await api.put<Empleado>(`/api/Empleados/${id}`, payload);
   return data;
+}
+
+export async function darBajaEmpleado(
+  id: number,
+  payload: DarBajaEmpleadoInput
+) {
+  const { data } = await api.post(`/api/Empleados/${id}/baja`, payload);
+  return data;
+}
+
+export async function reingresarEmpleado(
+  id: number,
+  payload: ReingresarEmpleadoInput
+) {
+  const { data } = await api.post(`/api/Empleados/${id}/reingreso`, payload);
+  return data;
+}
+
+export async function getEmpleadoMovimientos(
+  id: number
+): Promise<EmpleadoMovimientoLaboral[]> {
+  const { data } = await api.get<EmpleadoMovimientoLaboral[]>(
+    `/api/Empleados/${id}/movimientos`
+  );
+  return Array.isArray(data) ? data : [];
 }
