@@ -221,6 +221,16 @@ export type ConvertirPostulacionAEmpleadoRequest = {
   activo: boolean;
 };
 
+export type ReclutamientoReporteFiltros = {
+  vacanteId?: number;
+  estatusVacante?: EstatusVacante | "";
+  candidatoId?: number;
+  etapa?: EtapaPostulacion | "";
+  sucursalId?: number;
+  fechaDesde?: string;
+  fechaHasta?: string;
+};
+
 const collectionKeys = [
   "items",
   "Items",
@@ -259,6 +269,7 @@ function toNumber(value: unknown): number {
   if (typeof value === "string") {
     const trimmed = value.trim();
     if (!trimmed) return 0;
+
     const parsed = Number(trimmed);
     return Number.isNaN(parsed) ? 0 : parsed;
   }
@@ -268,7 +279,6 @@ function toNumber(value: unknown): number {
 
 function toNullableNumber(value: unknown): number | null {
   if (value === null || value === undefined || value === "") return null;
-
   if (typeof value === "string" && value.trim() === "") return null;
 
   const parsed = Number(value);
@@ -277,7 +287,6 @@ function toNullableNumber(value: unknown): number | null {
 
 function toBoolean(value: unknown, fallback = false): boolean {
   if (typeof value === "boolean") return value;
-
   if (typeof value === "number") return value !== 0;
 
   if (typeof value === "string") {
@@ -343,7 +352,6 @@ function unwrapCollection<T = any>(payload: any): T[] {
   function walk(node: any): T[] {
     if (!node) return [];
     if (Array.isArray(node)) return node;
-
     if (typeof node !== "object") return [];
     if (visited.has(node)) return [];
 
@@ -576,16 +584,14 @@ function normalizeCandidatoDetail(item: any): CandidatoDetail {
 }
 
 function normalizePostulacionSeguimiento(item: any): PostulacionSeguimiento {
+  const etapaAnterior = firstDefined(item?.etapaAnterior, item?.EtapaAnterior);
+
   return {
     id: toNumber(firstDefined(item?.id, item?.Id)),
     etapaAnterior:
-      firstDefined(item?.etapaAnterior, item?.EtapaAnterior) === undefined ||
-      firstDefined(item?.etapaAnterior, item?.EtapaAnterior) === null ||
-      firstDefined(item?.etapaAnterior, item?.EtapaAnterior) === ""
+      etapaAnterior === undefined || etapaAnterior === null || etapaAnterior === ""
         ? null
-        : normalizeEtapaPostulacion(
-            firstDefined(item?.etapaAnterior, item?.EtapaAnterior)
-          ),
+        : normalizeEtapaPostulacion(etapaAnterior),
     etapaNueva: normalizeEtapaPostulacion(
       firstDefined(item?.etapaNueva, item?.EtapaNueva)
     ),
@@ -627,7 +633,9 @@ function normalizePostulacionListItem(item: any): PostulacionListItem {
     esContratado: toBoolean(
       firstDefined(item?.esContratado, item?.EsContratado)
     ),
-    empleadoId: toNullableNumber(firstDefined(item?.empleadoId, item?.EmpleadoId)),
+    empleadoId: toNullableNumber(
+      firstDefined(item?.empleadoId, item?.EmpleadoId)
+    ),
     activo: toBoolean(firstDefined(item?.activo, item?.Activo), true),
   };
 }
@@ -674,7 +682,9 @@ function normalizePostulacionDetail(item: any): PostulacionDetail {
     esContratado: toBoolean(
       firstDefined(item?.esContratado, item?.EsContratado)
     ),
-    empleadoId: toNullableNumber(firstDefined(item?.empleadoId, item?.EmpleadoId)),
+    empleadoId: toNullableNumber(
+      firstDefined(item?.empleadoId, item?.EmpleadoId)
+    ),
     fechaContratacionUtc: toNullableString(
       firstDefined(item?.fechaContratacionUtc, item?.FechaContratacionUtc)
     ),
@@ -687,6 +697,73 @@ function normalizePostulacionDetail(item: any): PostulacionDetail {
     ),
     seguimiento: seguimientoRaw.map(normalizePostulacionSeguimiento),
   };
+}
+
+function buildQueryParams(filtros: ReclutamientoReporteFiltros) {
+  const params = new URLSearchParams();
+
+  if (filtros.vacanteId != null) {
+    params.set("vacanteId", String(filtros.vacanteId));
+  }
+
+  if (filtros.estatusVacante) {
+    params.set("estatusVacante", filtros.estatusVacante);
+  }
+
+  if (filtros.candidatoId != null) {
+    params.set("candidatoId", String(filtros.candidatoId));
+  }
+
+  if (filtros.etapa) {
+    params.set("etapa", filtros.etapa);
+  }
+
+  if (filtros.sucursalId != null) {
+    params.set("sucursalId", String(filtros.sucursalId));
+  }
+
+  if (filtros.fechaDesde) {
+    params.set("fechaDesde", filtros.fechaDesde);
+  }
+
+  if (filtros.fechaHasta) {
+    params.set("fechaHasta", filtros.fechaHasta);
+  }
+
+  return params;
+}
+
+function resolveFileName(
+  contentDisposition?: string | null,
+  fallback = "reclutamiento.xlsx"
+) {
+  if (!contentDisposition) return fallback;
+
+  const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8Match?.[1]) {
+    return decodeURIComponent(utf8Match[1]);
+  }
+
+  const asciiMatch = contentDisposition.match(/filename="?([^"]+)"?/i);
+  if (asciiMatch?.[1]) {
+    return asciiMatch[1];
+  }
+
+  return fallback;
+}
+
+function downloadBlob(blob: Blob, fileName: string) {
+  const url = window.URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+
+  anchor.href = url;
+  anchor.download = fileName;
+
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+
+  window.URL.revokeObjectURL(url);
 }
 
 export async function getDepartamentosCatalogo(): Promise<CatalogoItem[]> {
@@ -789,6 +866,7 @@ export async function downloadCandidatoCv(id: number): Promise<Blob> {
   const { data } = await api.get(`/api/Candidatos/${id}/cv`, {
     responseType: "blob",
   });
+
   return data;
 }
 
@@ -865,6 +943,50 @@ export async function convertirPostulacionAEmpleado(
       firstDefined(entity?.postulacionId, entity?.PostulacionId)
     ),
   };
+}
+
+export async function exportarReclutamientoExcel(
+  filtros: ReclutamientoReporteFiltros
+): Promise<void> {
+  const queryParams = buildQueryParams(filtros);
+
+  const response = await api.get("/api/Reclutamiento/export/xlsx", {
+    params: Object.fromEntries(queryParams.entries()),
+    responseType: "blob",
+  });
+
+  const fileName = resolveFileName(
+    response.headers["content-disposition"],
+    `reclutamiento_${new Date().toISOString().slice(0, 10)}.xlsx`
+  );
+
+  const blob = new Blob([response.data], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+
+  downloadBlob(blob, fileName);
+}
+
+export async function exportarReclutamientoPdf(
+  filtros: ReclutamientoReporteFiltros
+): Promise<void> {
+  const queryParams = buildQueryParams(filtros);
+
+  const response = await api.get("/api/Reclutamiento/export/pdf", {
+    params: Object.fromEntries(queryParams.entries()),
+    responseType: "blob",
+  });
+
+  const fileName = resolveFileName(
+    response.headers["content-disposition"],
+    `reclutamiento_${new Date().toISOString().slice(0, 10)}.pdf`
+  );
+
+  const blob = new Blob([response.data], {
+    type: "application/pdf",
+  });
+
+  downloadBlob(blob, fileName);
 }
 
 export const etapaOrder: EtapaPostulacion[] = [

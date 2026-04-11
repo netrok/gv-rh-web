@@ -21,6 +21,8 @@ import {
   Typography,
 } from "@mui/material";
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
+import DownloadRoundedIcon from "@mui/icons-material/DownloadRounded";
+import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded";
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import LaunchRoundedIcon from "@mui/icons-material/LaunchRounded";
 import PauseCircleOutlineRoundedIcon from "@mui/icons-material/PauseCircleOutlineRounded";
@@ -43,6 +45,8 @@ import {
   cerrarVacante,
   createVacante,
   estatusVacanteLabels,
+  exportarReclutamientoExcel,
+  exportarReclutamientoPdf,
   getDepartamentosCatalogo,
   getPuestosCatalogo,
   getSucursalesCatalogo,
@@ -124,7 +128,6 @@ function estatusColor(estatus: EstatusVacante) {
 
 function readErrorMessage(error: unknown, fallback: string) {
   const maybe = error as any;
-
   const data = maybe?.response?.data;
 
   if (typeof data === "string" && data.trim()) return data;
@@ -191,12 +194,16 @@ export default function VacantesPage() {
   const [q, setQ] = useState("");
   const [estatus, setEstatus] = useState<EstatusVacante | "">("");
   const [departamentoId, setDepartamentoId] = useState("");
+  const [sucursalFiltroId, setSucursalFiltroId] = useState("");
   const [soloActivas, setSoloActivas] = useState(true);
 
   const [openForm, setOpenForm] = useState(false);
   const [editing, setEditing] = useState<VacanteListItem | null>(null);
   const [form, setForm] = useState<VacanteFormState>(initialForm);
   const [error, setError] = useState<string | null>(null);
+  const [pageError, setPageError] = useState<string | null>(null);
+  const [exportandoExcel, setExportandoExcel] = useState(false);
+  const [exportandoPdf, setExportandoPdf] = useState(false);
 
   const departamentosQuery = useQuery({
     queryKey: ["catalogos", "departamentos"],
@@ -214,12 +221,17 @@ export default function VacantesPage() {
   });
 
   const vacantesQuery = useQuery({
-    queryKey: ["reclutamiento", "vacantes", { q, estatus, departamentoId, soloActivas }],
+    queryKey: [
+      "reclutamiento",
+      "vacantes",
+      { q, estatus, departamentoId, sucursalFiltroId, soloActivas },
+    ],
     queryFn: () =>
       getVacantes({
         q: q || undefined,
         estatus: estatus || undefined,
         departamentoId: departamentoId ? Number(departamentoId) : undefined,
+        sucursalId: sucursalFiltroId ? Number(sucursalFiltroId) : undefined,
         soloActivas,
       }),
   });
@@ -294,7 +306,7 @@ export default function VacantesPage() {
   const createMutation = useMutation({
     mutationFn: createVacante,
     onSuccess: () => {
-      invalidate();
+      void invalidate();
       setOpenForm(false);
       setEditing(null);
       setForm(initialForm);
@@ -309,7 +321,7 @@ export default function VacantesPage() {
     mutationFn: ({ id, payload }: { id: number; payload: UpdateVacanteRequest }) =>
       updateVacante(id, payload),
     onSuccess: () => {
-      invalidate();
+      void invalidate();
       setOpenForm(false);
       setEditing(null);
       setForm(initialForm);
@@ -333,7 +345,12 @@ export default function VacantesPage() {
       if (action === "cerrar") return cerrarVacante(id);
       return cancelarVacante(id);
     },
-    onSuccess: () => invalidate(),
+    onSuccess: () => {
+      void invalidate();
+    },
+    onError: (err: unknown) => {
+      setPageError(readErrorMessage(err, "No se pudo ejecutar la acción sobre la vacante."));
+    },
   });
 
   function refreshCatalogos() {
@@ -353,6 +370,7 @@ export default function VacantesPage() {
     setEditing(null);
     setForm(initialForm);
     setError(null);
+    setPageError(null);
     setOpenForm(true);
   }
 
@@ -387,6 +405,42 @@ export default function VacantesPage() {
     createMutation.mutate(toCreatePayload(form));
   }
 
+  async function handleExportarExcel() {
+    try {
+      setExportandoExcel(true);
+      setPageError(null);
+
+      await exportarReclutamientoExcel({
+        estatusVacante: estatus || undefined,
+        sucursalId: sucursalFiltroId ? Number(sucursalFiltroId) : undefined,
+      });
+    } catch (err) {
+      setPageError(
+        readErrorMessage(err, "No se pudo exportar el reporte de reclutamiento.")
+      );
+    } finally {
+      setExportandoExcel(false);
+    }
+  }
+
+  async function handleExportarPdf() {
+    try {
+      setExportandoPdf(true);
+      setPageError(null);
+
+      await exportarReclutamientoPdf({
+        estatusVacante: estatus || undefined,
+        sucursalId: sucursalFiltroId ? Number(sucursalFiltroId) : undefined,
+      });
+    } catch (err) {
+      setPageError(
+        readErrorMessage(err, "No se pudo exportar el PDF de reclutamiento.")
+      );
+    } finally {
+      setExportandoPdf(false);
+    }
+  }
+
   const busy =
     createMutation.isPending || updateMutation.isPending || actionMutation.isPending;
 
@@ -398,14 +452,34 @@ export default function VacantesPage() {
       title="Vacantes"
       subtitle="Controla posiciones abiertas, pausadas, cerradas y su pipeline de reclutamiento."
       actions={
-        <Button
-          startIcon={<AddRoundedIcon />}
-          variant="contained"
-          onClick={openCreate}
-          disabled={!catalogosDisponibles}
-        >
-          Nueva vacante
-        </Button>
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25}>
+          <Button
+            startIcon={<DownloadRoundedIcon />}
+            variant="outlined"
+            onClick={handleExportarExcel}
+            disabled={exportandoExcel}
+          >
+            {exportandoExcel ? "Exportando Excel..." : "Exportar Excel"}
+          </Button>
+
+          <Button
+            startIcon={<PictureAsPdfRoundedIcon />}
+            variant="outlined"
+            onClick={handleExportarPdf}
+            disabled={exportandoPdf}
+          >
+            {exportandoPdf ? "Exportando PDF..." : "Exportar PDF"}
+          </Button>
+
+          <Button
+            startIcon={<AddRoundedIcon />}
+            variant="contained"
+            onClick={openCreate}
+            disabled={!catalogosDisponibles}
+          >
+            Nueva vacante
+          </Button>
+        </Stack>
       }
     >
       <HeroBanner
@@ -466,7 +540,7 @@ export default function VacantesPage() {
 
       <SectionCard
         title="Filtros"
-        subtitle="Busca por folio o título y afina por estatus y departamento."
+        subtitle="Busca por folio o título y afina por estatus, departamento y sucursal."
         actions={
           <Button
             size="small"
@@ -479,6 +553,8 @@ export default function VacantesPage() {
         }
       >
         <Stack spacing={2}>
+          {pageError ? <Alert severity="error">{pageError}</Alert> : null}
+
           {catalogosError ? (
             <Alert severity="error">
               {catalogosErrorMessage ||
@@ -493,7 +569,7 @@ export default function VacantesPage() {
           ) : null}
 
           <Grid container spacing={2}>
-            <Grid size={{ xs: 12, md: 5 }}>
+            <Grid size={{ xs: 12, md: 4 }}>
               <TextField
                 label="Buscar"
                 value={q}
@@ -503,7 +579,7 @@ export default function VacantesPage() {
               />
             </Grid>
 
-            <Grid size={{ xs: 12, md: 3 }}>
+            <Grid size={{ xs: 12, md: 2 }}>
               <TextField
                 select
                 label="Estatus"
@@ -542,6 +618,33 @@ export default function VacantesPage() {
               >
                 <MenuItem value="">Todos</MenuItem>
                 {departamentos.map((item) => (
+                  <MenuItem key={item.id} value={String(item.id)}>
+                    {item.nombre}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+
+            <Grid size={{ xs: 12, md: 2 }}>
+              <TextField
+                select
+                label="Sucursal"
+                value={sucursalFiltroId}
+                onChange={(e) => setSucursalFiltroId(e.target.value)}
+                fullWidth
+                disabled={sucursalesQuery.isLoading || sucursalesQuery.isError}
+                helperText={
+                  sucursalesQuery.isLoading
+                    ? "Cargando sucursales..."
+                    : sucursalesQuery.isError
+                    ? "No se pudo cargar."
+                    : sucursales.length === 0
+                    ? "Sin datos."
+                    : " "
+                }
+              >
+                <MenuItem value="">Todas</MenuItem>
+                {sucursales.map((item) => (
                   <MenuItem key={item.id} value={String(item.id)}>
                     {item.nombre}
                   </MenuItem>
