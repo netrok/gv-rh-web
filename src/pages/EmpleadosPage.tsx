@@ -41,6 +41,8 @@ import BlockRoundedIcon from "@mui/icons-material/BlockRounded";
 import FolderOpenRoundedIcon from "@mui/icons-material/FolderOpenRounded";
 import HistoryRoundedIcon from "@mui/icons-material/HistoryRounded";
 import ReplayRoundedIcon from "@mui/icons-material/ReplayRounded";
+import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded";
+import TableViewRoundedIcon from "@mui/icons-material/TableViewRounded";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -50,6 +52,8 @@ import { useNavigate } from "react-router-dom";
 import {
   createEmpleado,
   darBajaEmpleado,
+  exportEmpleadosPdf,
+  exportEmpleadosXlsx,
   getEmpleadoMovimientos,
   getEmpleados,
   reingresarEmpleado,
@@ -119,8 +123,7 @@ function getErrorMessage(error: unknown) {
       return apiMessage;
     }
 
-    return `${error.response?.status ?? ""} ${error.response?.statusText ?? error.message
-      }`.trim();
+    return `${error.response?.status ?? ""} ${error.response?.statusText ?? error.message}`.trim();
   }
 
   if (error instanceof Error) return error.message;
@@ -247,12 +250,7 @@ function empleadoStatusChipSx(
 }
 
 function actionIconButtonSx(
-  variant:
-    | "view"
-    | "edit"
-    | "baja"
-    | "reingreso"
-    | "history"
+  variant: "view" | "edit" | "baja" | "reingreso" | "history"
 ) {
   const map = {
     view: {
@@ -300,10 +298,9 @@ function actionIconButtonSx(
   } as const;
 }
 
-function getEmpleadoNombre(empleado: Pick<
-  Empleado,
-  "nombres" | "apellidoPaterno" | "apellidoMaterno"
->) {
+function getEmpleadoNombre(
+  empleado: Pick<Empleado, "nombres" | "apellidoPaterno" | "apellidoMaterno">
+) {
   return [empleado.nombres, empleado.apellidoPaterno, empleado.apellidoMaterno ?? ""]
     .filter(Boolean)
     .join(" ");
@@ -1076,6 +1073,8 @@ export default function EmpleadosPage() {
   const [movimientosTarget, setMovimientosTarget] = useState<Empleado | null>(null);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [exportingXlsx, setExportingXlsx] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   const normalizedRoles = useMemo(() => normalizeRoles(roles), [roles]);
   const canManageEmpleados = hasSomeRole(roles, ["ADMIN", "RRHH"]);
@@ -1348,6 +1347,74 @@ export default function EmpleadosPage() {
     setStatusFilter("");
   };
 
+  async function handleExportXlsx() {
+    try {
+      setExportingXlsx(true);
+
+      await exportEmpleadosXlsx({
+        sucursalId: sucursalFilter ? Number(sucursalFilter) : null,
+        departamentoId: departamentoFilter ? Number(departamentoFilter) : null,
+        puestoId: null,
+        activo:
+          statusFilter === "ACTIVO"
+            ? true
+            : statusFilter === "INACTIVO"
+              ? false
+              : null,
+        estatusLaboral:
+          statusFilter === "ACTIVO" || statusFilter === "BAJA"
+            ? statusFilter
+            : null,
+        fechaIngresoDesde: null,
+        fechaIngresoHasta: null,
+        search: search.trim() || null,
+      });
+
+      showSnackbar("Reporte Excel generado correctamente.", "success");
+    } catch (error) {
+      showSnackbar(
+        getErrorMessage(error) || "No se pudo exportar el reporte en Excel.",
+        "error"
+      );
+    } finally {
+      setExportingXlsx(false);
+    }
+  }
+
+  async function handleExportPdf() {
+    try {
+      setExportingPdf(true);
+
+      await exportEmpleadosPdf({
+        sucursalId: sucursalFilter ? Number(sucursalFilter) : null,
+        departamentoId: departamentoFilter ? Number(departamentoFilter) : null,
+        puestoId: null,
+        activo:
+          statusFilter === "ACTIVO"
+            ? true
+            : statusFilter === "INACTIVO"
+              ? false
+              : null,
+        estatusLaboral:
+          statusFilter === "ACTIVO" || statusFilter === "BAJA"
+            ? statusFilter
+            : null,
+        fechaIngresoDesde: null,
+        fechaIngresoHasta: null,
+        search: search.trim() || null,
+      });
+
+      showSnackbar("Reporte PDF generado correctamente.", "success");
+    } catch (error) {
+      showSnackbar(
+        getErrorMessage(error) || "No se pudo exportar el reporte en PDF.",
+        "error"
+      );
+    } finally {
+      setExportingPdf(false);
+    }
+  }
+
   return (
     <AppPage
       eyebrow="Recursos Humanos"
@@ -1363,10 +1430,30 @@ export default function EmpleadosPage() {
               loadingAny ||
               saveMutation.isPending ||
               bajaMutation.isPending ||
-              reingresoMutation.isPending
+              reingresoMutation.isPending ||
+              exportingXlsx ||
+              exportingPdf
             }
           >
             {isRefreshing ? "Actualizando..." : "Actualizar"}
+          </Button>
+
+          <Button
+            variant="outlined"
+            startIcon={exportingXlsx ? <CircularProgress size={18} /> : <TableViewRoundedIcon />}
+            onClick={handleExportXlsx}
+            disabled={loadingAny || exportingXlsx || exportingPdf}
+          >
+            {exportingXlsx ? "Exportando Excel..." : "Exportar Excel"}
+          </Button>
+
+          <Button
+            variant="outlined"
+            startIcon={exportingPdf ? <CircularProgress size={18} /> : <PictureAsPdfRoundedIcon />}
+            onClick={handleExportPdf}
+            disabled={loadingAny || exportingXlsx || exportingPdf}
+          >
+            {exportingPdf ? "Exportando PDF..." : "Exportar PDF"}
           </Button>
 
           {canManageEmpleados && (
@@ -1374,7 +1461,7 @@ export default function EmpleadosPage() {
               variant="contained"
               startIcon={<AddIcon />}
               onClick={openCreateDialog}
-              disabled={!canOpenDialog}
+              disabled={!canOpenDialog || exportingXlsx || exportingPdf}
             >
               Nuevo empleado
             </Button>
@@ -1527,8 +1614,7 @@ export default function EmpleadosPage() {
               color={activeFiltersCount > 0 ? "primary" : undefined}
               label={
                 activeFiltersCount > 0
-                  ? `${activeFiltersCount} filtro${activeFiltersCount > 1 ? "s" : ""
-                  } activo${activeFiltersCount > 1 ? "s" : ""}`
+                  ? `${activeFiltersCount} filtro${activeFiltersCount > 1 ? "s" : ""} activo${activeFiltersCount > 1 ? "s" : ""}`
                   : "Sin filtros"
               }
             />

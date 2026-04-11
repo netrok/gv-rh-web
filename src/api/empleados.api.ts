@@ -111,6 +111,17 @@ export type ReingresarEmpleadoInput = {
   reactivarUsuario?: boolean;
 };
 
+export type EmpleadosReporteParams = {
+  sucursalId?: number | null;
+  departamentoId?: number | null;
+  puestoId?: number | null;
+  activo?: boolean | null;
+  estatusLaboral?: string | null;
+  fechaIngresoDesde?: string | null;
+  fechaIngresoHasta?: string | null;
+  search?: string | null;
+};
+
 type EmpleadoListEnvelope =
   | Empleado[]
   | {
@@ -178,6 +189,74 @@ function normalizeSaveEmpleadoInput(input: SaveEmpleadoInput): SaveEmpleadoInput
     puestoId: input.puestoId,
     sucursalId: input.sucursalId ?? null,
   };
+}
+
+function buildReporteParams(params: EmpleadosReporteParams) {
+  const searchParams = new URLSearchParams();
+
+  if (params.sucursalId != null) {
+    searchParams.set("sucursalId", String(params.sucursalId));
+  }
+
+  if (params.departamentoId != null) {
+    searchParams.set("departamentoId", String(params.departamentoId));
+  }
+
+  if (params.puestoId != null) {
+    searchParams.set("puestoId", String(params.puestoId));
+  }
+
+  if (params.activo != null) {
+    searchParams.set("activo", String(params.activo));
+  }
+
+  if (params.estatusLaboral) {
+    searchParams.set("estatusLaboral", params.estatusLaboral);
+  }
+
+  if (params.fechaIngresoDesde) {
+    searchParams.set("fechaIngresoDesde", params.fechaIngresoDesde);
+  }
+
+  if (params.fechaIngresoHasta) {
+    searchParams.set("fechaIngresoHasta", params.fechaIngresoHasta);
+  }
+
+  if (params.search) {
+    searchParams.set("search", params.search);
+  }
+
+  return searchParams;
+}
+
+function downloadBlob(blob: Blob, fileName: string) {
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+}
+
+function getFileNameFromDisposition(
+  disposition?: string | null,
+  fallback = "reporte"
+) {
+  if (!disposition) return fallback;
+
+  const utfMatch = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utfMatch?.[1]) {
+    return decodeURIComponent(utfMatch[1]);
+  }
+
+  const asciiMatch = disposition.match(/filename="?([^"]+)"?/i);
+  if (asciiMatch?.[1]) {
+    return asciiMatch[1];
+  }
+
+  return fallback;
 }
 
 export function getEmpleadoNombreCompleto(
@@ -260,5 +339,44 @@ export async function getEmpleadoMovimientos(
   const { data } = await api.get<EmpleadoMovimientoLaboral[]>(
     `/api/Empleados/${id}/movimientos`
   );
+
   return Array.isArray(data) ? data : [];
+}
+
+export async function exportEmpleadosXlsx(params: EmpleadosReporteParams) {
+  const query = buildReporteParams(params);
+
+  const url = query.toString()
+    ? `/api/Empleados/export/xlsx?${query.toString()}`
+    : "/api/Empleados/export/xlsx";
+
+  const response = await api.get(url, {
+    responseType: "blob",
+  });
+
+  const fileName = getFileNameFromDisposition(
+    response.headers["content-disposition"],
+    "empleados.xlsx"
+  );
+
+  downloadBlob(response.data, fileName);
+}
+
+export async function exportEmpleadosPdf(params: EmpleadosReporteParams) {
+  const query = buildReporteParams(params);
+
+  const url = query.toString()
+    ? `/api/Empleados/export/pdf?${query.toString()}`
+    : "/api/Empleados/export/pdf";
+
+  const response = await api.get(url, {
+    responseType: "blob",
+  });
+
+  const fileName = getFileNameFromDisposition(
+    response.headers["content-disposition"],
+    "empleados.pdf"
+  );
+
+  downloadBlob(response.data, fileName);
 }
