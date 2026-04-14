@@ -12,6 +12,10 @@ type HeroBannerProps = {
   actions?: ReactNode;
 };
 
+function hasText(value?: string): boolean {
+  return Boolean(value?.trim());
+}
+
 export default function HeroBanner({
   eyebrow,
   title,
@@ -21,7 +25,10 @@ export default function HeroBanner({
   aside,
   actions,
 }: HeroBannerProps) {
-  const hasFooterActions = Boolean(badge || actions);
+  const showEyebrow = hasText(eyebrow);
+  const showSubtitle = hasText(subtitle);
+  const showBadge = hasText(badge);
+  const showFooterActions = showBadge || Boolean(actions);
 
   return (
     <Card
@@ -54,9 +61,9 @@ export default function HeroBanner({
                   borderRadius: "12px",
                   display: "grid",
                   placeItems: "center",
-                  bgcolor: alpha("#ffffff", 0.10),
+                  bgcolor: alpha("#ffffff", 0.1),
                   color: "#ffffff",
-                  border: `1px solid ${alpha("#ffffff", 0.10)}`,
+                  border: `1px solid ${alpha("#ffffff", 0.1)}`,
                   flexShrink: 0,
                 }}
               >
@@ -65,7 +72,7 @@ export default function HeroBanner({
             ) : null}
 
             <Box sx={{ minWidth: 0, flex: 1 }}>
-              {eyebrow ? (
+              {showEyebrow ? (
                 <Typography
                   variant="overline"
                   sx={{
@@ -84,18 +91,19 @@ export default function HeroBanner({
               <Typography
                 variant="h3"
                 sx={{
-                  mt: eyebrow ? 0.75 : 0,
+                  mt: showEyebrow ? 0.75 : 0,
                   fontWeight: 900,
                   fontSize: { xs: "1.6rem", md: "2.1rem" },
                   lineHeight: 1.08,
                   letterSpacing: "-0.03em",
                   maxWidth: 760,
+                  textWrap: "balance",
                 }}
               >
                 {title}
               </Typography>
 
-              {subtitle ? (
+              {showSubtitle ? (
                 <Typography
                   variant="body1"
                   sx={{
@@ -103,13 +111,14 @@ export default function HeroBanner({
                     color: alpha("#ffffff", 0.84),
                     maxWidth: 720,
                     fontSize: { xs: "0.96rem", md: "1rem" },
+                    lineHeight: 1.55,
                   }}
                 >
                   {subtitle}
                 </Typography>
               ) : null}
 
-              {hasFooterActions ? (
+              {showFooterActions ? (
                 <Stack
                   direction="row"
                   spacing={1.25}
@@ -118,7 +127,7 @@ export default function HeroBanner({
                   useFlexGap
                   sx={{ mt: 1.75 }}
                 >
-                  {badge ? (
+                  {showBadge ? (
                     <Chip
                       label={badge}
                       size="small"
@@ -147,7 +156,7 @@ export default function HeroBanner({
               p: { xs: 2, md: 2.25 },
               borderRadius: "14px",
               bgcolor: alpha("#ffffff", 0.08),
-              border: `1px solid ${alpha("#ffffff", 0.10)}`,
+              border: `1px solid ${alpha("#ffffff", 0.1)}`,
             }}
           >
             {aside}

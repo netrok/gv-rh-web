@@ -51,6 +51,7 @@ import {
   type DashboardStats,
 } from "../api/dashboard.api";
 import type { AuditItem } from "../api/audit.api";
+import AppPage from "../components/ui/AppPage";
 
 type KpiTone =
   | "primary"
@@ -597,7 +598,7 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <Box sx={{ px: { xs: 2, md: 3 }, py: 2 }}>
+      <AppPage>
         <Card
           elevation={0}
           sx={{
@@ -612,7 +613,7 @@ export default function DashboardPage() {
           <CardContent sx={{ p: { xs: 2.25, md: 2.75 } }}>
             <Stack spacing={1.5}>
               <Chip
-                label="Dashboard ejecutivo"
+                label="Vista ejecutiva"
                 size="small"
                 sx={{
                   alignSelf: "flex-start",
@@ -634,12 +635,12 @@ export default function DashboardPage() {
             </Stack>
           </CardContent>
         </Card>
-      </Box>
+      </AppPage>
     );
   }
 
   return (
-    <Box sx={{ px: { xs: 2, md: 3 }, py: 2 }}>
+    <AppPage>
       <Stack spacing={1.75}>
         <Card
           elevation={0}
@@ -663,7 +664,7 @@ export default function DashboardPage() {
               >
                 <Box sx={{ maxWidth: 820 }}>
                   <Chip
-                    label="Dashboard ejecutivo"
+                    label="Vista ejecutiva"
                     size="small"
                     sx={{
                       mb: 1,
@@ -1261,6 +1262,6 @@ export default function DashboardPage() {
           </Card>
         </Box>
       </Stack>
-    </Box>
+    </AppPage>
   );
 }

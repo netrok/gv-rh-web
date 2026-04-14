@@ -34,6 +34,7 @@ import ApartmentRoundedIcon from "@mui/icons-material/ApartmentRounded";
 import BadgeRoundedIcon from "@mui/icons-material/BadgeRounded";
 import BusinessRoundedIcon from "@mui/icons-material/BusinessRounded";
 import ErrorOutlineRoundedIcon from "@mui/icons-material/ErrorOutlineRounded";
+import WorkOutlineRoundedIcon from "@mui/icons-material/WorkOutlineRounded";
 import { useNavigate } from "react-router-dom";
 import AppPage from "../components/ui/AppPage";
 import HeroBanner from "../components/ui/HeroBanner";
@@ -449,8 +450,6 @@ export default function VacantesPage() {
 
   return (
     <AppPage
-      title="Vacantes"
-      subtitle="Controla posiciones abiertas, pausadas, cerradas y su pipeline de reclutamiento."
       actions={
         <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25}>
           <Button
@@ -483,8 +482,10 @@ export default function VacantesPage() {
       }
     >
       <HeroBanner
-        title="Reclutamiento"
-        subtitle="Aquí nace el flujo formal del empleado: vacante, candidato, proceso y contratación."
+        eyebrow="Planeación y cobertura"
+        icon={<WorkOutlineRoundedIcon />}
+        title="Operación de vacantes"
+        subtitle="Administra posiciones abiertas, pausadas, cerradas y su avance operativo sin mezclar esta pantalla con todo el módulo de reclutamiento."
       />
 
       <Stack

@@ -25,6 +25,7 @@ import CloudUploadRoundedIcon from "@mui/icons-material/CloudUploadRounded";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import DownloadRoundedIcon from "@mui/icons-material/DownloadRounded";
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
+import PersonSearchRoundedIcon from "@mui/icons-material/PersonSearchRounded";
 
 import AppPage from "../components/ui/AppPage";
 import HeroBanner from "../components/ui/HeroBanner";
@@ -321,8 +322,6 @@ export default function CandidatosPage() {
 
   return (
     <AppPage
-      title="Candidatos"
-      subtitle="Administra candidatos, CVs y datos base antes de postularlos a una vacante."
       actions={
         <Button startIcon={<AddRoundedIcon />} variant="contained" onClick={openCreate}>
           Nuevo candidato
@@ -330,8 +329,10 @@ export default function CandidatosPage() {
       }
     >
       <HeroBanner
+        eyebrow="Prospección y perfil"
+        icon={<PersonSearchRoundedIcon />}
         title="Banco de talento"
-        subtitle="Registra, corrige y reutiliza candidatos sin amarrarlos desde el día uno a una sola vacante."
+        subtitle="Registra, corrige y conserva candidatos con su información base y CV, listos para moverlos al proceso correcto cuando toque."
       />
 
       <Grid container spacing={2}>
@@ -389,7 +390,7 @@ export default function CandidatosPage() {
         subtitle="Desde aquí puedes editar, subir CV y descargarlo."
       >
         {isLoading ? (
-          <Typography>Loading...</Typography>
+          <Typography>Cargando candidatos...</Typography>
         ) : candidatos.length === 0 ? (
           <Alert severity="info">No hay candidatos con los filtros actuales.</Alert>
         ) : (

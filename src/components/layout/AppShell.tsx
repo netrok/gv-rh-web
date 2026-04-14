@@ -373,6 +373,27 @@ function getPageHeaderMeta(pathname: string): {
   };
 }
 
+function normalizeHeaderText(value: string) {
+  return value.trim().toUpperCase();
+}
+
+function shouldShowBreadcrumb(breadcrumb: string[], pageTitle: string) {
+  if (breadcrumb.length === 0) return false;
+  if (breadcrumb.length > 1) return true;
+
+  return normalizeHeaderText(breadcrumb[0]) !== normalizeHeaderText(pageTitle);
+}
+
+function shouldShowHeaderMeta(
+  pathname: string,
+  breadcrumb: string[],
+  pageTitle: string
+) {
+  if (pathname === "/dashboard") return false;
+
+  return shouldShowBreadcrumb(breadcrumb, pageTitle);
+}
+
 function SidebarContent({
   pathname,
   roles,
@@ -870,6 +891,22 @@ export default function AppShell({ children }: AppShellProps) {
     () => getPageHeaderMeta(location.pathname),
     [location.pathname]
   );
+  const pageTitle = useMemo(
+    () => getPageTitle(location.pathname),
+    [location.pathname]
+  );
+  const pageSubtitle = useMemo(
+    () => getPageSubtitle(location.pathname),
+    [location.pathname]
+  );
+  const showBreadcrumb = useMemo(
+    () => shouldShowBreadcrumb(breadcrumb, pageTitle),
+    [breadcrumb, pageTitle]
+  );
+  const showHeaderMeta = useMemo(
+    () => shouldShowHeaderMeta(location.pathname, breadcrumb, pageTitle),
+    [location.pathname, breadcrumb, pageTitle]
+  );
 
   const handleDrawerToggle = () => {
     setMobileOpen((prev) => !prev);
@@ -920,75 +957,81 @@ export default function AppShell({ children }: AppShellProps) {
           )}
 
           <Box sx={{ minWidth: 0, flex: 1 }}>
-            <Stack
-              direction="row"
-              spacing={1}
-              alignItems="center"
-              flexWrap="wrap"
-              sx={{ mb: 0.85 }}
-            >
-              <Chip
-                icon={headerMeta.icon}
-                label={headerMeta.label}
-                size="small"
-                sx={{
-                  height: 28,
-                  borderRadius: "999px",
-                  fontWeight: 800,
-                  color: "#0f172a",
-                  backgroundColor: alpha("#1d4ed8", 0.08),
-                  border: `1px solid ${alpha("#1d4ed8", 0.16)}`,
-                  "& .MuiChip-icon": {
-                    color: "#1d4ed8",
-                    ml: 0.6,
-                  },
-                }}
-              />
-
+            {(showHeaderMeta || showBreadcrumb) ? (
               <Stack
                 direction="row"
-                spacing={0.5}
+                spacing={1}
                 alignItems="center"
                 flexWrap="wrap"
+                sx={{ mb: 0.85 }}
               >
-                {breadcrumb.map((item, index) => (
+                {showHeaderMeta ? (
+                  <Chip
+                    icon={headerMeta.icon}
+                    label={headerMeta.label}
+                    size="small"
+                    sx={{
+                      height: 28,
+                      borderRadius: "999px",
+                      fontWeight: 800,
+                      color: "#0f172a",
+                      backgroundColor: alpha("#1d4ed8", 0.08),
+                      border: `1px solid ${alpha("#1d4ed8", 0.16)}`,
+                      "& .MuiChip-icon": {
+                        color: "#1d4ed8",
+                        ml: 0.6,
+                      },
+                    }}
+                  />
+                ) : null}
+
+                {showBreadcrumb ? (
                   <Stack
-                    key={`${item}-${index}`}
                     direction="row"
                     spacing={0.5}
                     alignItems="center"
+                    flexWrap="wrap"
                   >
-                    {index > 0 && (
-                      <ChevronRightIcon
-                        sx={{ fontSize: 16, color: alpha("#64748b", 0.9) }}
-                      />
-                    )}
-                    <Typography
-                      sx={{
-                        fontSize: "0.8rem",
-                        fontWeight: index === breadcrumb.length - 1 ? 800 : 700,
-                        color:
-                          index === breadcrumb.length - 1
-                            ? "#1d4ed8"
-                            : "#64748b",
-                      }}
-                    >
-                      {item}
-                    </Typography>
+                    {breadcrumb.map((item, index) => (
+                      <Stack
+                        key={`${item}-${index}`}
+                        direction="row"
+                        spacing={0.5}
+                        alignItems="center"
+                      >
+                        {index > 0 && (
+                          <ChevronRightIcon
+                            sx={{ fontSize: 16, color: alpha("#64748b", 0.9) }}
+                          />
+                        )}
+                        <Typography
+                          sx={{
+                            fontSize: "0.8rem",
+                            fontWeight: index === breadcrumb.length - 1 ? 800 : 700,
+                            color:
+                              index === breadcrumb.length - 1
+                                ? "#1d4ed8"
+                                : "#64748b",
+                          }}
+                        >
+                          {item}
+                        </Typography>
+                      </Stack>
+                    ))}
                   </Stack>
-                ))}
+                ) : null}
               </Stack>
-            </Stack>
+            ) : null}
 
             <Typography
               variant="h5"
               sx={{ fontWeight: 900, lineHeight: 1.1, color: "#0f172a" }}
             >
-              {getPageTitle(location.pathname)}
+              {pageTitle}
             </Typography>
 
             <Typography variant="body2" sx={{ color: "#64748b", mt: 0.35 }}>
-              {getPageSubtitle(location.pathname)}
+              {pageSubtitle}
             </Typography>
           </Box>
 
