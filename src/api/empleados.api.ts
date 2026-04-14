@@ -1,16 +1,5 @@
 import { api } from "./axios";
 
-export type EstatusLaboralEmpleado = "ACTIVO" | "BAJA";
-
-export type TipoBajaEmpleado =
-  | "VOLUNTARIA"
-  | "INVOLUNTARIA"
-  | "TERMINO_CONTRATO"
-  | "ABANDONO"
-  | "JUBILACION"
-  | "DEFUNCION"
-  | "OTRA";
-
 export type Empleado = {
   id: number;
   numEmpleado: string;
@@ -22,47 +11,17 @@ export type Empleado = {
   email?: string | null;
   fechaIngreso: string;
   activo: boolean;
-
-  estatusLaboralActual: EstatusLaboralEmpleado;
+  estatusLaboralActual: string;
   fechaBajaActual?: string | null;
-  tipoBajaActual?: TipoBajaEmpleado | null;
+  tipoBajaActual?: string | null;
   fechaReingresoActual?: string | null;
   recontratable?: boolean | null;
-
   departamentoId?: number | null;
   departamentoNombre?: string | null;
-
   puestoId?: number | null;
   puestoNombre?: string | null;
-
   sucursalId?: number | null;
   sucursalNombre?: string | null;
-};
-
-export type SaveEmpleadoInput = {
-  nombres: string;
-  apellidoPaterno: string;
-  apellidoMaterno?: string | null;
-  fechaNacimiento?: string | null;
-  telefono?: string | null;
-  email?: string | null;
-  fechaIngreso: string;
-  activo: boolean;
-  departamentoId: number;
-  puestoId: number;
-  sucursalId?: number | null;
-};
-
-export type GetEmpleadosParams = {
-  page?: number;
-  pageSize?: number;
-  q?: string;
-  activo?: boolean;
-  departamentoId?: number;
-  puestoId?: number;
-  sucursalId?: number;
-  sort?: string;
-  dir?: "asc" | "desc";
 };
 
 export type EmpleadoListResponse = {
@@ -73,19 +32,53 @@ export type EmpleadoListResponse = {
   items: Empleado[];
 };
 
+export type EmpleadoCreateInput = {
+  nombres: string;
+  apellidoPaterno: string;
+  apellidoMaterno?: string | null;
+  fechaNacimiento?: string | null;
+  telefono?: string | null;
+  email?: string | null;
+  fechaIngreso: string;
+  activo: boolean;
+  departamentoId?: number | null;
+  puestoId?: number | null;
+  sucursalId?: number | null;
+};
+
+export type EmpleadoUpdateInput = EmpleadoCreateInput;
+
+export type CreateAccountForEmpleadoInput = {
+  email: string;
+  role: string;
+  password: string;
+  isActive: boolean;
+};
+
+export type DarBajaEmpleadoInput = {
+  fechaBaja: string;
+  tipoBaja: string;
+  motivo?: string | null;
+  comentario?: string | null;
+  recontratable?: boolean | null;
+  desactivarUsuario: boolean;
+};
+
+export type ReingresarEmpleadoInput = {
+  fechaReingreso: string;
+  comentario?: string | null;
+  departamentoId?: number | null;
+  puestoId?: number | null;
+  sucursalId?: number | null;
+  reactivarUsuario: boolean;
+};
+
 export type EmpleadoMovimientoLaboral = {
   id: number;
   empleadoId: number;
-  tipoMovimiento:
-    | "ALTA"
-    | "BAJA"
-    | "REINGRESO"
-    | "CAMBIO_PUESTO"
-    | "CAMBIO_DEPARTAMENTO"
-    | "CAMBIO_SUCURSAL"
-    | "CAMBIO_SALARIO";
+  tipoMovimiento: string;
   fechaMovimiento: string;
-  tipoBaja?: TipoBajaEmpleado | null;
+  tipoBaja?: string | null;
   motivo?: string | null;
   comentario?: string | null;
   recontratable?: boolean | null;
@@ -93,22 +86,16 @@ export type EmpleadoMovimientoLaboral = {
   createdAtUtc: string;
 };
 
-export type DarBajaEmpleadoInput = {
-  fechaBaja: string;
-  tipoBaja: TipoBajaEmpleado;
-  motivo?: string | null;
-  comentario?: string | null;
-  recontratable?: boolean | null;
-  desactivarUsuario?: boolean;
-};
-
-export type ReingresarEmpleadoInput = {
-  fechaReingreso: string;
+export type EmpleadosQueryParams = {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  activo?: boolean | null;
   departamentoId?: number | null;
   puestoId?: number | null;
   sucursalId?: number | null;
-  comentario?: string | null;
-  reactivarUsuario?: boolean;
+  sort?: string;
+  dir?: "asc" | "desc";
 };
 
 export type EmpleadosReporteParams = {
@@ -122,136 +109,89 @@ export type EmpleadosReporteParams = {
   search?: string | null;
 };
 
-type EmpleadoListEnvelope =
-  | Empleado[]
-  | {
-      items?: Empleado[];
-      data?: Empleado[];
-      page?: number;
-      pageSize?: number;
-      total?: number;
-      totalPages?: number;
-    };
+export function getEmpleadoNombreCompleto(
+  empleado?:
+    | Pick<Empleado, "nombres" | "apellidoPaterno" | "apellidoMaterno">
+    | null
+) {
+  if (!empleado) return "";
 
-function normalizeEmpleados(payload: EmpleadoListEnvelope): Empleado[] {
-  if (Array.isArray(payload)) return payload;
-  return payload.items ?? payload.data ?? [];
+  return [
+    empleado.nombres?.trim() ?? "",
+    empleado.apellidoPaterno?.trim() ?? "",
+    empleado.apellidoMaterno?.trim() ?? "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
 
-function normalizeEmpleadoListResponse(
-  payload: EmpleadoListEnvelope,
-  requestedPage = 1,
-  requestedPageSize = 20
-): EmpleadoListResponse {
-  if (Array.isArray(payload)) {
-    return {
-      page: requestedPage,
-      pageSize: payload.length || requestedPageSize,
-      total: payload.length,
-      totalPages: payload.length > 0 ? 1 : 0,
-      items: payload,
-    };
-  }
-
-  const items = payload.items ?? payload.data ?? [];
-  const total = payload.total ?? items.length;
-  const pageSize = payload.pageSize ?? requestedPageSize;
-  const page = payload.page ?? requestedPage;
-  const totalPages =
-    payload.totalPages ?? (pageSize > 0 ? Math.ceil(total / pageSize) : 0);
-
-  return {
-    page,
-    pageSize,
-    total,
-    totalPages,
-    items,
-  };
+function appendIfValue(
+  params: URLSearchParams,
+  key: string,
+  value: string | number | boolean | null | undefined
+) {
+  if (value === undefined || value === null || value === "") return;
+  params.set(key, String(value));
 }
 
-function normalizeNullableString(value?: string | null): string | null {
-  if (value == null) return null;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
+function buildListParams(query: EmpleadosQueryParams) {
+  const params = new URLSearchParams();
+
+  appendIfValue(params, "page", query.page);
+  appendIfValue(params, "pageSize", query.pageSize);
+  appendIfValue(params, "q", query.q);
+  appendIfValue(params, "activo", query.activo);
+  appendIfValue(params, "departamentoId", query.departamentoId);
+  appendIfValue(params, "puestoId", query.puestoId);
+  appendIfValue(params, "sucursalId", query.sucursalId);
+  appendIfValue(params, "sort", query.sort);
+  appendIfValue(params, "dir", query.dir);
+
+  return params;
 }
 
-function normalizeSaveEmpleadoInput(input: SaveEmpleadoInput): SaveEmpleadoInput {
-  return {
-    nombres: input.nombres.trim(),
-    apellidoPaterno: input.apellidoPaterno.trim(),
-    apellidoMaterno: normalizeNullableString(input.apellidoMaterno),
-    fechaNacimiento: normalizeNullableString(input.fechaNacimiento),
-    telefono: normalizeNullableString(input.telefono),
-    email: normalizeNullableString(input.email),
-    fechaIngreso: input.fechaIngreso,
-    activo: input.activo,
-    departamentoId: input.departamentoId,
-    puestoId: input.puestoId,
-    sucursalId: input.sucursalId ?? null,
-  };
-}
+function buildReporteParams(query: EmpleadosReporteParams) {
+  const params = new URLSearchParams();
 
-function buildReporteParams(params: EmpleadosReporteParams) {
-  const searchParams = new URLSearchParams();
+  appendIfValue(params, "sucursalId", query.sucursalId);
+  appendIfValue(params, "departamentoId", query.departamentoId);
+  appendIfValue(params, "puestoId", query.puestoId);
+  appendIfValue(params, "activo", query.activo);
+  appendIfValue(params, "estatusLaboral", query.estatusLaboral);
+  appendIfValue(params, "fechaIngresoDesde", query.fechaIngresoDesde);
+  appendIfValue(params, "fechaIngresoHasta", query.fechaIngresoHasta);
+  appendIfValue(params, "search", query.search);
 
-  if (params.sucursalId != null) {
-    searchParams.set("sucursalId", String(params.sucursalId));
-  }
-
-  if (params.departamentoId != null) {
-    searchParams.set("departamentoId", String(params.departamentoId));
-  }
-
-  if (params.puestoId != null) {
-    searchParams.set("puestoId", String(params.puestoId));
-  }
-
-  if (params.activo != null) {
-    searchParams.set("activo", String(params.activo));
-  }
-
-  if (params.estatusLaboral) {
-    searchParams.set("estatusLaboral", params.estatusLaboral);
-  }
-
-  if (params.fechaIngresoDesde) {
-    searchParams.set("fechaIngresoDesde", params.fechaIngresoDesde);
-  }
-
-  if (params.fechaIngresoHasta) {
-    searchParams.set("fechaIngresoHasta", params.fechaIngresoHasta);
-  }
-
-  if (params.search) {
-    searchParams.set("search", params.search);
-  }
-
-  return searchParams;
+  return params;
 }
 
 function downloadBlob(blob: Blob, fileName: string) {
-  const url = window.URL.createObjectURL(blob);
+  const blobUrl = window.URL.createObjectURL(blob);
   const link = document.createElement("a");
-  link.href = url;
+  link.href = blobUrl;
   link.download = fileName;
   document.body.appendChild(link);
   link.click();
   link.remove();
-  window.URL.revokeObjectURL(url);
+  window.URL.revokeObjectURL(blobUrl);
 }
 
 function getFileNameFromDisposition(
-  disposition?: string | null,
-  fallback = "reporte"
+  contentDisposition?: string,
+  fallback = "archivo"
 ) {
-  if (!disposition) return fallback;
+  if (!contentDisposition) return fallback;
 
-  const utfMatch = disposition.match(/filename\*=UTF-8''([^;]+)/i);
-  if (utfMatch?.[1]) {
-    return decodeURIComponent(utfMatch[1]);
+  const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8Match?.[1]) {
+    try {
+      return decodeURIComponent(utf8Match[1]);
+    } catch {
+      return utf8Match[1];
+    }
   }
 
-  const asciiMatch = disposition.match(/filename="?([^"]+)"?/i);
+  const asciiMatch = contentDisposition.match(/filename="?([^"]+)"?/i);
   if (asciiMatch?.[1]) {
     return asciiMatch[1];
   }
@@ -259,40 +199,23 @@ function getFileNameFromDisposition(
   return fallback;
 }
 
-export function getEmpleadoNombreCompleto(
-  empleado: Pick<Empleado, "nombres" | "apellidoPaterno" | "apellidoMaterno">
-): string {
-  return [
-    empleado.nombres,
-    empleado.apellidoPaterno,
-    empleado.apellidoMaterno ?? "",
-  ]
-    .map((part) => part?.trim())
-    .filter(Boolean)
-    .join(" ");
-}
-
 export async function getEmpleados(
-  params?: GetEmpleadosParams
-): Promise<Empleado[]> {
-  const { data } = await api.get<EmpleadoListEnvelope>("/api/Empleados", {
-    params,
-  });
-
-  return normalizeEmpleados(data);
-}
-
-export async function getEmpleadosPage(
-  params?: GetEmpleadosParams
+  query: EmpleadosQueryParams = {}
 ): Promise<EmpleadoListResponse> {
-  const requestedPage = params?.page ?? 1;
-  const requestedPageSize = params?.pageSize ?? 20;
+  const params = buildListParams(query);
+  const url = params.toString()
+    ? `/api/Empleados?${params.toString()}`
+    : "/api/Empleados";
 
-  const { data } = await api.get<EmpleadoListEnvelope>("/api/Empleados", {
-    params,
-  });
+  const { data } = await api.get<EmpleadoListResponse>(url);
 
-  return normalizeEmpleadoListResponse(data, requestedPage, requestedPageSize);
+  return {
+    page: data.page ?? 1,
+    pageSize: data.pageSize ?? 20,
+    total: data.total ?? 0,
+    totalPages: data.totalPages ?? 0,
+    items: Array.isArray(data.items) ? data.items : [],
+  };
 }
 
 export async function getEmpleadoById(id: number): Promise<Empleado> {
@@ -301,19 +224,38 @@ export async function getEmpleadoById(id: number): Promise<Empleado> {
 }
 
 export async function createEmpleado(
-  input: SaveEmpleadoInput
+  payload: EmpleadoCreateInput
 ): Promise<Empleado> {
-  const payload = normalizeSaveEmpleadoInput(input);
   const { data } = await api.post<Empleado>("/api/Empleados", payload);
   return data;
 }
 
 export async function updateEmpleado(
   id: number,
-  input: SaveEmpleadoInput
+  payload: EmpleadoUpdateInput
 ): Promise<Empleado> {
-  const payload = normalizeSaveEmpleadoInput(input);
   const { data } = await api.put<Empleado>(`/api/Empleados/${id}`, payload);
+  return data;
+}
+
+export async function deleteEmpleado(id: number): Promise<void> {
+  await api.delete(`/api/Empleados/${id}`);
+}
+
+export async function restoreEmpleado(id: number): Promise<void> {
+  await api.post(`/api/Empleados/${id}/restore`);
+}
+
+export async function createAccountForEmpleado(
+  id: number,
+  payload: CreateAccountForEmpleadoInput
+) {
+  const { data } = await api.post(`/api/Empleados/${id}/create-account`, payload);
+  return data;
+}
+
+export async function linkUserByEmail(id: number) {
+  const { data } = await api.post(`/api/Empleados/${id}/link-user-by-email`);
   return data;
 }
 
@@ -376,6 +318,19 @@ export async function exportEmpleadosPdf(params: EmpleadosReporteParams) {
   const fileName = getFileNameFromDisposition(
     response.headers["content-disposition"],
     "empleados.pdf"
+  );
+
+  downloadBlob(response.data, fileName);
+}
+
+export async function exportEmpleadoFichaPdf(id: number) {
+  const response = await api.get(`/api/Empleados/${id}/ficha/pdf`, {
+    responseType: "blob",
+  });
+
+  const fileName = getFileNameFromDisposition(
+    response.headers["content-disposition"],
+    `ficha_empleado_${id}.pdf`
   );
 
   downloadBlob(response.data, fileName);

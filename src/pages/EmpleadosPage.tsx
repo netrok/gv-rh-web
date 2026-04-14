@@ -52,6 +52,7 @@ import { useNavigate } from "react-router-dom";
 import {
   createEmpleado,
   darBajaEmpleado,
+  exportEmpleadoFichaPdf,
   exportEmpleadosPdf,
   exportEmpleadosXlsx,
   getEmpleadoMovimientos,
@@ -60,10 +61,9 @@ import {
   updateEmpleado,
   type DarBajaEmpleadoInput,
   type Empleado,
+  type EmpleadoCreateInput,
   type EmpleadoMovimientoLaboral,
   type ReingresarEmpleadoInput,
-  type SaveEmpleadoInput,
-  type TipoBajaEmpleado,
 } from "../api/empleados.api";
 import {
   getDepartamentos,
@@ -78,6 +78,16 @@ import MetricCard from "../components/ui/MetricCard";
 import SectionCard from "../components/ui/SectionCard";
 import { useAppSnackbar } from "../features/ui/AppSnackbarContext";
 import { useAuth } from "../features/auth/AuthContext";
+
+type SaveEmpleadoInput = EmpleadoCreateInput;
+type TipoBajaEmpleado =
+  | "VOLUNTARIA"
+  | "INVOLUNTARIA"
+  | "TERMINO_CONTRATO"
+  | "ABANDONO"
+  | "JUBILACION"
+  | "DEFUNCION"
+  | "OTRA";
 
 const empleadoSchema = z.object({
   nombres: z
@@ -250,7 +260,7 @@ function empleadoStatusChipSx(
 }
 
 function actionIconButtonSx(
-  variant: "view" | "edit" | "baja" | "reingreso" | "history"
+  variant: "view" | "edit" | "baja" | "reingreso" | "history" | "pdf"
 ) {
   const map = {
     view: {
@@ -282,6 +292,12 @@ function actionIconButtonSx(
       border: alpha("#4338ca", 0.18),
       bg: alpha("#4338ca", 0.05),
       hover: alpha("#4338ca", 0.1),
+    },
+    pdf: {
+      color: "#b91c1c",
+      border: alpha("#b91c1c", 0.18),
+      bg: alpha("#b91c1c", 0.05),
+      hover: alpha("#b91c1c", 0.1),
     },
   }[variant];
 
@@ -1036,7 +1052,7 @@ function MovimientosDialog({
                         />
                       </TableCell>
                       <TableCell>{formatDate(item.fechaMovimiento)}</TableCell>
-                      <TableCell>{getTipoBajaLabel(item.tipoBaja)}</TableCell>
+                      <TableCell>{getTipoBajaLabel(item.tipoBaja as TipoBajaEmpleado | null)}</TableCell>
                       <TableCell>{item.motivo || "-"}</TableCell>
                       <TableCell>{item.comentario || "-"}</TableCell>
                       <TableCell>{item.usuarioResponsableId ?? "-"}</TableCell>
@@ -1075,13 +1091,17 @@ export default function EmpleadosPage() {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [exportingXlsx, setExportingXlsx] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
+  const [downloadingFichaId, setDownloadingFichaId] = useState<number | null>(null);
 
   const normalizedRoles = useMemo(() => normalizeRoles(roles), [roles]);
   const canManageEmpleados = hasSomeRole(roles, ["ADMIN", "RRHH"]);
 
   const empleadosQuery = useQuery<Empleado[], Error>({
     queryKey: ["empleados"],
-    queryFn: () => getEmpleados(),
+    queryFn: async () => {
+      const data = await getEmpleados();
+      return Array.isArray(data.items) ? data.items : [];
+    },
   });
 
   const departamentosQuery = useQuery<Departamento[], Error>({
@@ -1311,6 +1331,21 @@ export default function EmpleadosPage() {
   const openMovimientosDialog = (row: Empleado) => {
     setMovimientosTarget(row);
   };
+
+  async function handleDownloadFicha(row: Empleado) {
+    try {
+      setDownloadingFichaId(row.id);
+      await exportEmpleadoFichaPdf(row.id);
+      showSnackbar("Ficha PDF generada correctamente.", "success");
+    } catch (error) {
+      showSnackbar(
+        getErrorMessage(error) || "No se pudo descargar la ficha del empleado.",
+        "error"
+      );
+    } finally {
+      setDownloadingFichaId(null);
+    }
+  }
 
   const canOpenDialog =
     canManageEmpleados &&
@@ -1899,6 +1934,23 @@ export default function EmpleadosPage() {
                             flexWrap="wrap"
                             useFlexGap
                           >
+                            <Tooltip title="Descargar ficha">
+                              <span>
+                                <IconButton
+                                  size="small"
+                                  onClick={() => void handleDownloadFicha(row)}
+                                  disabled={downloadingFichaId === row.id}
+                                  sx={actionIconButtonSx("pdf")}
+                                >
+                                  {downloadingFichaId === row.id ? (
+                                    <CircularProgress size={16} />
+                                  ) : (
+                                    <PictureAsPdfRoundedIcon fontSize="small" />
+                                  )}
+                                </IconButton>
+                              </span>
+                            </Tooltip>
+
                             <Tooltip title="Expediente">
                               <span>
                                 <IconButton
