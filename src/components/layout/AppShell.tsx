@@ -245,6 +245,9 @@ function getPageTitle(pathname: string) {
   if (pathname.startsWith("/empleados")) return "Empleados";
   if (pathname.startsWith("/incidencias")) return "Incidencias";
   if (pathname.startsWith("/puestos")) return "Puestos";
+  if (pathname === "/reclutamiento") return "Resumen ejecutivo";
+  if (pathname.startsWith("/reclutamiento/candidatos")) return "Candidatos";
+  if (pathname.startsWith("/reclutamiento/vacantes")) return "Vacantes";
   if (pathname.startsWith("/reclutamiento")) return "Reclutamiento";
   if (pathname.startsWith("/sucursales")) return "Sucursales";
   if (pathname.startsWith("/usuarios")) return "Usuarios";

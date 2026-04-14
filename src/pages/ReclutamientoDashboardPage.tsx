@@ -1,16 +1,16 @@
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   Alert,
   Box,
   Button,
+  ButtonBase,
   Chip,
   CircularProgress,
   Divider,
   List,
   ListItem,
-  ListItemText,
   Stack,
   Typography,
 } from "@mui/material";
@@ -23,6 +23,7 @@ import TimelineRoundedIcon from "@mui/icons-material/TimelineRounded";
 import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import AssignmentTurnedInRoundedIcon from "@mui/icons-material/AssignmentTurnedInRounded";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
+import OpenInNewRoundedIcon from "@mui/icons-material/OpenInNewRounded";
 import { alpha, useTheme } from "@mui/material/styles";
 
 import {
@@ -96,6 +97,50 @@ function getAlertSeverity(
   return "info";
 }
 
+function ClickableMetricCard({
+  title,
+  value,
+  subtitle,
+  icon,
+  onClick,
+}: {
+  title: string;
+  value: number;
+  subtitle: string;
+  icon: ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <ButtonBase
+      onClick={onClick}
+      sx={{
+        width: "100%",
+        display: "block",
+        textAlign: "inherit",
+        borderRadius: "22px",
+        overflow: "hidden",
+      }}
+    >
+      <Box
+        sx={{
+          width: "100%",
+          transition: "transform 140ms ease",
+          "&:hover": {
+            transform: "translateY(-2px)",
+          },
+        }}
+      >
+        <MetricCard
+          title={title}
+          value={value}
+          icon={icon}
+          subtitle={subtitle}
+        />
+      </Box>
+    </ButtonBase>
+  );
+}
+
 function PipelineList({ items }: { items: DashboardCountItem[] }) {
   const theme = useTheme();
   const max = Math.max(...items.map((x) => x.total), 1);
@@ -159,7 +204,15 @@ function PipelineList({ items }: { items: DashboardCountItem[] }) {
   );
 }
 
-function VacantesTopList({ items }: { items: DashboardVacanteResumen[] }) {
+function VacantesTopList({
+  items,
+  onOpenVacante,
+}: {
+  items: DashboardVacanteResumen[];
+  onOpenVacante: (id: number) => void;
+}) {
+  const theme = useTheme();
+
   if (items.length === 0) {
     return (
       <Typography variant="body2" color="text.secondary">
@@ -171,68 +224,85 @@ function VacantesTopList({ items }: { items: DashboardVacanteResumen[] }) {
   return (
     <List disablePadding sx={{ display: "grid", gap: 1.1 }}>
       {items.map((item, index) => (
-        <ListItem
-          key={item.id}
-          disableGutters
-          sx={{
-            alignItems: "flex-start",
-            px: 0,
-            py: 0,
-          }}
-        >
-          <Stack
-            direction="row"
-            spacing={1.25}
-            alignItems="flex-start"
-            sx={{ width: "100%" }}
+        <ListItem key={item.id} disableGutters sx={{ px: 0, py: 0 }}>
+          <ButtonBase
+            onClick={() => onOpenVacante(item.id)}
+            sx={{
+              width: "100%",
+              textAlign: "left",
+              borderRadius: "18px",
+              p: 1.2,
+              justifyContent: "flex-start",
+              border: `1px solid ${alpha(theme.palette.text.primary, 0.08)}`,
+              backgroundColor: alpha(theme.palette.primary.main, 0.02),
+              transition:
+                "transform 140ms ease, background-color 140ms ease, border-color 140ms ease",
+              "&:hover": {
+                transform: "translateY(-1px)",
+                backgroundColor: alpha(theme.palette.primary.main, 0.05),
+                borderColor: alpha(theme.palette.primary.main, 0.2),
+              },
+            }}
           >
-            <Box
-              sx={{
-                width: 32,
-                height: 32,
-                borderRadius: "10px",
-                display: "grid",
-                placeItems: "center",
-                fontWeight: 900,
-                fontSize: 13,
-                bgcolor: "primary.main",
-                color: "primary.contrastText",
-                flexShrink: 0,
-              }}
+            <Stack
+              direction="row"
+              spacing={1.25}
+              alignItems="flex-start"
+              sx={{ width: "100%" }}
             >
-              {index + 1}
-            </Box>
-
-            <Box sx={{ minWidth: 0, flex: 1 }}>
-              <Stack
-                direction="row"
-                spacing={1}
-                alignItems="center"
-                flexWrap="wrap"
-                sx={{ mb: 0.5 }}
+              <Box
+                sx={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: "10px",
+                  display: "grid",
+                  placeItems: "center",
+                  fontWeight: 900,
+                  fontSize: 13,
+                  bgcolor: "primary.main",
+                  color: "primary.contrastText",
+                  flexShrink: 0,
+                }}
               >
-                <Typography fontWeight={800}>{item.titulo}</Typography>
+                {index + 1}
+              </Box>
+
+              <Box sx={{ minWidth: 0, flex: 1 }}>
+                <Stack
+                  direction="row"
+                  spacing={1}
+                  alignItems="center"
+                  flexWrap="wrap"
+                  sx={{ mb: 0.5 }}
+                >
+                  <Typography fontWeight={800}>{item.titulo}</Typography>
+                  <Chip
+                    size="small"
+                    variant="outlined"
+                    label={item.estatus}
+                    color={getVacanteStatusTone(item.estatus)}
+                  />
+                </Stack>
+
+                <Typography variant="body2" color="text.secondary">
+                  {item.departamento || "Sin departamento"} •{" "}
+                  {item.sucursal || "Sin sucursal"}
+                </Typography>
+              </Box>
+
+              <Stack alignItems="flex-end" spacing={0.8}>
                 <Chip
                   size="small"
-                  variant="outlined"
-                  label={item.estatus}
-                  color={getVacanteStatusTone(item.estatus)}
+                  label={`${item.totalCandidatos} candidatos`}
+                  color="primary"
+                  variant="filled"
+                />
+                <OpenInNewRoundedIcon
+                  sx={{ fontSize: 18, color: "text.secondary" }}
                 />
               </Stack>
-
-              <Typography variant="body2" color="text.secondary">
-                {item.departamento || "Sin departamento"} •{" "}
-                {item.sucursal || "Sin sucursal"}
-              </Typography>
-            </Box>
-
-            <Chip
-              size="small"
-              label={`${item.totalCandidatos} candidatos`}
-              color="primary"
-              variant="filled"
-            />
-          </Stack>
+            </Stack>
+          </ButtonBase>
         </ListItem>
       ))}
     </List>
@@ -241,9 +311,13 @@ function VacantesTopList({ items }: { items: DashboardVacanteResumen[] }) {
 
 function CandidatosRecientesList({
   items,
+  onOpenCandidatos,
 }: {
   items: DashboardCandidatoResumen[];
+  onOpenCandidatos: () => void;
 }) {
+  const theme = useTheme();
+
   if (items.length === 0) {
     return (
       <Typography variant="body2" color="text.secondary">
@@ -260,14 +334,33 @@ function CandidatosRecientesList({
           disableGutters
           sx={{ px: 0, py: 0 }}
         >
-          <ListItemText
-            primary={
+          <ButtonBase
+            onClick={onOpenCandidatos}
+            sx={{
+              width: "100%",
+              textAlign: "left",
+              borderRadius: "18px",
+              p: 1.2,
+              justifyContent: "flex-start",
+              border: `1px solid ${alpha(theme.palette.text.primary, 0.08)}`,
+              backgroundColor: alpha(theme.palette.primary.main, 0.02),
+              transition:
+                "transform 140ms ease, background-color 140ms ease, border-color 140ms ease",
+              "&:hover": {
+                transform: "translateY(-1px)",
+                backgroundColor: alpha(theme.palette.primary.main, 0.05),
+                borderColor: alpha(theme.palette.primary.main, 0.2),
+              },
+            }}
+          >
+            <Box sx={{ width: "100%" }}>
               <Stack
                 direction="row"
                 justifyContent="space-between"
                 alignItems="center"
                 spacing={1}
                 flexWrap="wrap"
+                sx={{ mb: 0.6 }}
               >
                 <Typography fontWeight={800}>{item.nombreCompleto}</Typography>
                 <Chip
@@ -277,18 +370,27 @@ function CandidatosRecientesList({
                   variant="outlined"
                 />
               </Stack>
-            }
-            secondary={
-              <Stack spacing={0.35} sx={{ mt: 0.6 }}>
-                <Typography variant="body2" color="text.secondary">
-                  {item.vacante || "Sin vacante"}
-                </Typography>
+
+              <Typography variant="body2" color="text.secondary">
+                {item.vacante || "Sin vacante"}
+              </Typography>
+
+              <Stack
+                direction="row"
+                justifyContent="space-between"
+                alignItems="center"
+                spacing={1}
+                sx={{ mt: 0.7 }}
+              >
                 <Typography variant="caption" color="text.secondary">
                   Registrado: {formatDate(item.fechaRegistroUtc)}
                 </Typography>
+                <OpenInNewRoundedIcon
+                  sx={{ fontSize: 18, color: "text.secondary" }}
+                />
               </Stack>
-            }
-          />
+            </Box>
+          </ButtonBase>
         </ListItem>
       ))}
     </List>
@@ -345,14 +447,16 @@ export default function ReclutamientoDashboardPage() {
     ];
   }, [query.data]);
 
+  const goToVacantes = () => navigate("/reclutamiento/vacantes");
+  const goToCandidatos = () => navigate("/reclutamiento/candidatos");
+  const goToVacanteDetail = (id: number) =>
+    navigate(`/reclutamiento/vacantes/${id}`);
+
   return (
-    <AppPage
-      title="Reclutamiento"
-      subtitle="Vista ejecutiva del módulo para seguimiento de vacantes, candidatos y avance del pipeline."
-    >
+    <AppPage title="" subtitle="">
       <Stack spacing={3}>
         <HeroBanner
-          eyebrow="Módulo de reclutamiento"
+          eyebrow="Pipeline, vacantes y cierre"
           title="Pulso comercial del talento"
           subtitle="Revisa cómo va la atracción, selección y cierre de vacantes sin entrar módulo por módulo como arqueólogo del sistema."
           actions={
@@ -360,14 +464,14 @@ export default function ReclutamientoDashboardPage() {
               <Button
                 variant="contained"
                 startIcon={<AddRoundedIcon />}
-                onClick={() => navigate("/reclutamiento/vacantes")}
+                onClick={goToVacantes}
               >
                 Nueva vacante
               </Button>
               <Button
                 variant="outlined"
                 startIcon={<PersonSearchRoundedIcon />}
-                onClick={() => navigate("/reclutamiento/candidatos")}
+                onClick={goToCandidatos}
               >
                 Ver candidatos
               </Button>
@@ -423,35 +527,40 @@ export default function ReclutamientoDashboardPage() {
                 gap: 2,
               }}
             >
-              <MetricCard
+              <ClickableMetricCard
                 title="Vacantes activas"
                 value={query.data.vacantesActivas}
                 icon={<WorkOutlineRoundedIcon />}
                 subtitle="Posiciones abiertas"
+                onClick={goToVacantes}
               />
-              <MetricCard
+              <ClickableMetricCard
                 title="Vacantes cerradas"
                 value={query.data.vacantesCerradas}
                 icon={<TaskAltRoundedIcon />}
                 subtitle="Vacantes finalizadas"
+                onClick={goToVacantes}
               />
-              <MetricCard
+              <ClickableMetricCard
                 title="Candidatos totales"
                 value={query.data.candidatosTotales}
                 icon={<Groups2RoundedIcon />}
                 subtitle="Banco de talento"
+                onClick={goToCandidatos}
               />
-              <MetricCard
+              <ClickableMetricCard
                 title="En proceso"
                 value={query.data.candidatosEnProceso}
                 icon={<TimelineRoundedIcon />}
                 subtitle="Postulaciones activas"
+                onClick={goToCandidatos}
               />
-              <MetricCard
+              <ClickableMetricCard
                 title="Contratados del mes"
                 value={query.data.contratadosMes}
                 icon={<AssignmentTurnedInRoundedIcon />}
                 subtitle="Cierres del periodo"
+                onClick={goToCandidatos}
               />
             </Box>
 
@@ -471,9 +580,12 @@ export default function ReclutamientoDashboardPage() {
 
               <SectionCard
                 title="Vacantes con más candidatos"
-                subtitle="Las posiciones que están jalando más tráfico."
+                subtitle="Haz clic en una vacante para abrir su detalle."
               >
-                <VacantesTopList items={query.data.vacantesTop} />
+                <VacantesTopList
+                  items={query.data.vacantesTop}
+                  onOpenVacante={goToVacanteDetail}
+                />
               </SectionCard>
             </Box>
 
@@ -486,10 +598,11 @@ export default function ReclutamientoDashboardPage() {
             >
               <SectionCard
                 title="Candidatos recientes"
-                subtitle="Últimos movimientos relevantes del pipeline."
+                subtitle="Haz clic en un registro para ir al listado de candidatos."
               >
                 <CandidatosRecientesList
                   items={query.data.candidatosRecientes}
+                  onOpenCandidatos={goToCandidatos}
                 />
               </SectionCard>
 
@@ -520,25 +633,25 @@ export default function ReclutamientoDashboardPage() {
                   title="Vacantes"
                   subtitle="Revisar y administrar posiciones abiertas"
                   icon={<WorkOutlineRoundedIcon />}
-                  onClick={() => navigate("/reclutamiento/vacantes")}
+                  onClick={goToVacantes}
                 />
                 <ActionTile
                   title="Candidatos"
                   subtitle="Consultar banco de talento y perfiles"
                   icon={<PersonSearchRoundedIcon />}
-                  onClick={() => navigate("/reclutamiento/candidatos")}
+                  onClick={goToCandidatos}
                 />
                 <ActionTile
                   title="Nueva vacante"
                   subtitle="Ir al módulo para crear una nueva posición"
                   icon={<AddRoundedIcon />}
-                  onClick={() => navigate("/reclutamiento/vacantes")}
+                  onClick={goToVacantes}
                 />
                 <ActionTile
                   title="Seguimiento"
                   subtitle="Dar continuidad al proceso de selección"
                   icon={<SearchRoundedIcon />}
-                  onClick={() => navigate("/reclutamiento/candidatos")}
+                  onClick={goToCandidatos}
                 />
               </Box>
 
@@ -557,7 +670,7 @@ export default function ReclutamientoDashboardPage() {
                 <Button
                   variant="text"
                   endIcon={<ArrowForwardRoundedIcon />}
-                  onClick={() => navigate("/reclutamiento/vacantes")}
+                  onClick={goToVacantes}
                 >
                   Ir a Vacantes
                 </Button>
