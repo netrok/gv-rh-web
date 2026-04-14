@@ -18,6 +18,31 @@ function trimTrailingSlash(value: string): string {
   return value.replace(/\/+$/, "");
 }
 
+function resolveApiBaseUrl(rawValue: string, browserHost: string): string {
+  const normalized = trimTrailingSlash(rawValue.trim());
+
+  if (!normalized) {
+    return `http://${browserHost}:5041`;
+  }
+
+  // Caso Rocky / Docker:
+  // Si VITE_API_URL=/api y nuestras llamadas ya usan "/api/...",
+  // el baseURL debe quedar vacío para evitar "/api/api/...".
+  if (normalized === "/api") {
+    return "";
+  }
+
+  // Caso adicional:
+  // Si alguien configura una URL absoluta terminada en /api,
+  // por ejemplo "http://192.168.0.3/api", también la recortamos
+  // porque los endpoints del proyecto ya incluyen "/api/...".
+  if (normalized.endsWith("/api")) {
+    return normalized.slice(0, -4);
+  }
+
+  return normalized;
+}
+
 const browserHost =
   typeof window !== "undefined" && window.location.hostname
     ? window.location.hostname
@@ -28,9 +53,7 @@ const envApiBaseUrl =
   import.meta.env.VITE_API_URL?.trim() ||
   "";
 
-const API_BASE_URL = trimTrailingSlash(
-  envApiBaseUrl || `http://${browserHost}:5041`
-);
+const API_BASE_URL = resolveApiBaseUrl(envApiBaseUrl, browserHost);
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -56,11 +79,14 @@ function isAuthRoute(url?: string): boolean {
   return (
     url.includes("/api/auth/login") ||
     url.includes("/api/auth/refresh") ||
-    url.includes("/api/auth/logout")
+    url.includes("/api/auth/logout") ||
+    url.includes("/api/auth/change-password")
   );
 }
 
 function redirectToLogin(): void {
+  if (typeof window === "undefined") return;
+
   if (window.location.pathname !== "/login") {
     window.location.href = "/login";
   }
