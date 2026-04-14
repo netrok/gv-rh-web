@@ -13,6 +13,8 @@ import UsuariosPage from "./pages/UsuariosPage";
 import ForbiddenPage from "./pages/ForbiddenPage";
 import NotFoundPage from "./pages/NotFoundPage";
 import ChangePasswordRequiredPage from "./pages/ChangePasswordRequiredPage";
+import ReclutamientoDashboardPage from "./pages/ReclutamientoDashboardPage";
+
 import RequireAuth from "./features/auth/RequireAuth";
 import RoleGuard from "./features/auth/RoleGuard";
 import { useAuth } from "./features/auth/AuthContext";
@@ -177,6 +179,19 @@ export default function App() {
               allow={["ADMIN", "RRHH"]}
             >
               <IncidenciasPage />
+            </RoleGuard>
+          }
+        />
+
+        <Route
+          path="reclutamiento"
+          element={
+            <RoleGuard
+              isAuthenticated={isAuthenticated}
+              userRoles={roles}
+              allow={["ADMIN", "RRHH"]}
+            >
+              <ReclutamientoDashboardPage />
             </RoleGuard>
           }
         />

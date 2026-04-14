@@ -227,7 +227,7 @@ function buildNavSections(roles?: string[] | null): NavSection[] {
           return hasSomeRole(roles, entry.item.allow);
         }
 
-        return hasSomeRole(entry.allow ? roles : roles, entry.allow ?? []);
+        return hasSomeRole(roles, entry.allow ?? []);
       }),
     }))
     .filter((section) => section.entries.length > 0);
@@ -260,6 +260,9 @@ function getPageSubtitle(pathname: string) {
     return "Control administrativo de incidencias";
   }
   if (pathname.startsWith("/puestos")) return "Catálogo de puestos y jerarquías";
+  if (pathname === "/reclutamiento") {
+    return "Vista ejecutiva del módulo de reclutamiento";
+  }
   if (pathname.startsWith("/reclutamiento/candidatos")) {
     return "Banco de talento y gestión de perfiles";
   }
@@ -279,6 +282,9 @@ function getPageSubtitle(pathname: string) {
 }
 
 function getPageBreadcrumb(pathname: string) {
+  if (pathname === "/reclutamiento") {
+    return ["Reclutamiento", "Resumen"];
+  }
   if (pathname.startsWith("/reclutamiento/candidatos")) {
     return ["Reclutamiento", "Candidatos"];
   }
@@ -387,6 +393,7 @@ function SidebarContent({
   const primaryRole = normalizeRoles(roles)[0] ?? "USUARIO";
 
   const isRecruitmentRoute = pathname.startsWith("/reclutamiento");
+  const isResumenRoute = pathname === "/reclutamiento";
   const isCandidatosRoute = pathname.startsWith("/reclutamiento/candidatos");
   const isVacantesRoute = pathname.startsWith("/reclutamiento/vacantes");
 
@@ -694,6 +701,49 @@ function SidebarContent({
 
                     <Collapse in={reclutamientoOpen} timeout="auto" unmountOnExit>
                       <List sx={{ p: 0, pt: 0.75, display: "grid", gap: 0.6 }}>
+                        <ListItemButton
+                          component={RouterLink}
+                          to="/reclutamiento"
+                          onClick={onNavigate}
+                          sx={subNavButtonSx(isResumenRoute)}
+                        >
+                          <ListItemIcon
+                            sx={{
+                              minWidth: 34,
+                              color: isResumenRoute
+                                ? "#ffffff"
+                                : alpha("#ffffff", 0.78),
+                            }}
+                          >
+                            <Box
+                              sx={{
+                                width: 26,
+                                height: 26,
+                                borderRadius: "9px",
+                                display: "grid",
+                                placeItems: "center",
+                                backgroundColor: isResumenRoute
+                                  ? alpha("#ffffff", 0.1)
+                                  : alpha("#ffffff", 0.05),
+                                border: `1px solid ${alpha(
+                                  "#ffffff",
+                                  isResumenRoute ? 0.1 : 0.05
+                                )}`,
+                              }}
+                            >
+                              <BusinessCenterRoundedIcon sx={{ fontSize: 17 }} />
+                            </Box>
+                          </ListItemIcon>
+
+                          <ListItemText
+                            primary="Resumen"
+                            primaryTypographyProps={{
+                              fontSize: "0.93rem",
+                              fontWeight: isResumenRoute ? 800 : 600,
+                            }}
+                          />
+                        </ListItemButton>
+
                         <ListItemButton
                           component={RouterLink}
                           to="/reclutamiento/candidatos"
