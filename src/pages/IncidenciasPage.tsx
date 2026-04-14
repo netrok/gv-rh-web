@@ -17,6 +17,7 @@ import {
   DialogTitle,
   FormControl,
   FormControlLabel,
+  IconButton,
   InputLabel,
   MenuItem,
   Select,
@@ -329,6 +330,54 @@ function estatusChipSx(estatus: string | number) {
     color: "text.primary",
     borderColor: "divider",
     fontWeight: 800,
+  };
+}
+
+function tableActionIconSx(tone: "primary" | "success" | "error" = "primary") {
+  if (tone === "success") {
+    return {
+      width: 34,
+      height: 34,
+      borderRadius: "10px",
+      border: "1px solid",
+      borderColor: (theme: any) => alpha(theme.palette.success.main, 0.24),
+      bgcolor: (theme: any) => alpha(theme.palette.success.main, 0.08),
+      color: "success.dark",
+      "&:hover": {
+        bgcolor: (theme: any) => alpha(theme.palette.success.main, 0.16),
+        borderColor: (theme: any) => alpha(theme.palette.success.main, 0.36),
+      },
+    };
+  }
+
+  if (tone === "error") {
+    return {
+      width: 34,
+      height: 34,
+      borderRadius: "10px",
+      border: "1px solid",
+      borderColor: (theme: any) => alpha(theme.palette.error.main, 0.24),
+      bgcolor: (theme: any) => alpha(theme.palette.error.main, 0.06),
+      color: "error.dark",
+      "&:hover": {
+        bgcolor: (theme: any) => alpha(theme.palette.error.main, 0.12),
+        borderColor: (theme: any) => alpha(theme.palette.error.main, 0.36),
+      },
+    };
+  }
+
+  return {
+    width: 34,
+    height: 34,
+    borderRadius: "10px",
+    border: "1px solid",
+    borderColor: (theme: any) => alpha(theme.palette.primary.main, 0.18),
+    bgcolor: (theme: any) => alpha(theme.palette.primary.main, 0.05),
+    color: "primary.main",
+    "&:hover": {
+      bgcolor: (theme: any) => alpha(theme.palette.primary.main, 0.1),
+      borderColor: (theme: any) => alpha(theme.palette.primary.main, 0.3),
+    },
   };
 }
 
@@ -1604,78 +1653,85 @@ export default function IncidenciasPage() {
                         <TableCell align="right">
                           <Stack
                             direction="row"
-                            spacing={1}
+                            spacing={0.75}
                             justifyContent="flex-end"
                             flexWrap="wrap"
                             useFlexGap
                           >
                             {canManageEvidence && (
-                              <Button
-                                size="small"
-                                variant="outlined"
-                                startIcon={<AttachFileRoundedIcon />}
-                                onClick={() => handleOpenEvidencia(item)}
-                                sx={{ fontWeight: 700 }}
+                              <Tooltip
+                                title={
+                                  item.tieneEvidencia
+                                    ? "Gestionar evidencia"
+                                    : "Subir evidencia"
+                                }
+                                arrow
                               >
-                                {item.tieneEvidencia
-                                  ? "Gestionar evidencia"
-                                  : "Subir evidencia"}
-                              </Button>
+                                <span>
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => handleOpenEvidencia(item)}
+                                    sx={tableActionIconSx("primary")}
+                                  >
+                                    <AttachFileRoundedIcon fontSize="small" />
+                                  </IconButton>
+                                </span>
+                              </Tooltip>
                             )}
 
                             {canManageIncidencias && (
-                              <Button
-                                size="small"
-                                variant="outlined"
-                                startIcon={<EditIcon />}
-                                onClick={() => openEdit(item)}
-                                disabled={!isPendiente || isThisPendingRow}
-                                sx={{ fontWeight: 700 }}
-                              >
-                                Editar
-                              </Button>
+                              <Tooltip title="Editar" arrow>
+                                <span>
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => openEdit(item)}
+                                    disabled={!isPendiente || isThisPendingRow}
+                                    sx={tableActionIconSx("primary")}
+                                  >
+                                    <EditIcon fontSize="small" />
+                                  </IconButton>
+                                </span>
+                              </Tooltip>
                             )}
 
                             {canApproveReject && (
-                              <Button
-                                size="small"
-                                color="success"
-                                variant="outlined"
-                                startIcon={
-                                  isThisPendingRow &&
-                                  pendingAction?.type === "approve" ? (
-                                    <CircularProgress size={16} />
-                                  ) : (
-                                    <CheckCircleOutlineIcon />
-                                  )
-                                }
-                                onClick={() => requestApprove(item)}
-                                disabled={!isPendiente || confirmLoading}
-                                sx={{ fontWeight: 700 }}
-                              >
-                                Aprobar
-                              </Button>
+                              <Tooltip title="Aprobar" arrow>
+                                <span>
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => requestApprove(item)}
+                                    disabled={!isPendiente || confirmLoading}
+                                    sx={tableActionIconSx("success")}
+                                  >
+                                    {isThisPendingRow &&
+                                    pendingAction?.type === "approve" ? (
+                                      <CircularProgress size={16} />
+                                    ) : (
+                                      <CheckCircleOutlineIcon fontSize="small" />
+                                    )}
+                                  </IconButton>
+                                </span>
+                              </Tooltip>
                             )}
 
                             {canApproveReject && (
-                              <Button
-                                size="small"
-                                color="error"
-                                variant="outlined"
-                                startIcon={
-                                  isThisPendingRow &&
-                                  pendingAction?.type === "reject" ? (
-                                    <CircularProgress size={16} />
-                                  ) : (
-                                    <CloseIcon />
-                                  )
-                                }
-                                onClick={() => requestReject(item)}
-                                disabled={!isPendiente || confirmLoading}
-                                sx={{ fontWeight: 700 }}
-                              >
-                                Rechazar
-                              </Button>
+                              <Tooltip title="Rechazar" arrow>
+                                <span>
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => requestReject(item)}
+                                    disabled={!isPendiente || confirmLoading}
+                                    sx={tableActionIconSx("error")}
+                                  >
+                                    {isThisPendingRow &&
+                                    pendingAction?.type === "reject" ? (
+                                      <CircularProgress size={16} />
+                                    ) : (
+                                      <CloseIcon fontSize="small" />
+                                    )}
+                                  </IconButton>
+                                </span>
+                              </Tooltip>
                             )}
                           </Stack>
                         </TableCell>
