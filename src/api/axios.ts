@@ -25,17 +25,15 @@ function resolveApiBaseUrl(rawValue: string, browserHost: string): string {
     return `http://${browserHost}:5041`;
   }
 
-  // Caso Rocky / Docker:
-  // Si VITE_API_URL=/api y nuestras llamadas ya usan "/api/...",
-  // el baseURL debe quedar vacío para evitar "/api/api/...".
+  // En Docker/Rocky usamos VITE_API_URL=/api
+  // pero las llamadas del proyecto ya traen "/api/..."
+  // así que dejamos baseURL vacío para evitar "/api/api/..."
   if (normalized === "/api") {
     return "";
   }
 
-  // Caso adicional:
-  // Si alguien configura una URL absoluta terminada en /api,
-  // por ejemplo "http://192.168.0.3/api", también la recortamos
-  // porque los endpoints del proyecto ya incluyen "/api/...".
+  // Si alguien puso una absoluta terminada en /api,
+  // la recortamos por la misma razón.
   if (normalized.endsWith("/api")) {
     return normalized.slice(0, -4);
   }
