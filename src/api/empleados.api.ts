@@ -25,11 +25,13 @@ export type Empleado = {
   email?: string | null;
   fechaIngreso: string;
   activo: boolean;
+
   estatusLaboralActual: string;
   fechaBajaActual?: string | null;
   tipoBajaActual?: string | null;
   fechaReingresoActual?: string | null;
-  recontratable?: boolean | null;
+  recontratable: boolean;
+
   departamentoId?: number | null;
   departamentoNombre?: string | null;
   puestoId?: number | null;
@@ -56,17 +58,25 @@ export type Empleado = {
   direccionEstado?: string | null;
   direccionCodigoPostal?: string | null;
 
+  // Fiscales
+  codigoPostalFiscal?: string | null;
+  entidadFiscal?: string | null;
+
   // Emergencia
   contactoEmergenciaNombre?: string | null;
   contactoEmergenciaTelefono?: string | null;
   contactoEmergenciaParentesco?: string | null;
 
   // Foto
-  fotoRutaRelativa?: string | null;
+  fotoUrl?: string | null;
+  tieneFoto: boolean;
   fotoNombreOriginal?: string | null;
   fotoMimeType?: string | null;
   fotoTamanoBytes?: number | null;
-  fotoUpdatedAtUtc?: string | null;
+
+  // Auditoría / metadata
+  createdAtUtc: string;
+  updatedAtUtc?: string | null;
 };
 
 export type EmpleadoListResponse = {
@@ -78,6 +88,7 @@ export type EmpleadoListResponse = {
 };
 
 export type EmpleadoCreateInput = {
+  numEmpleado: string;
   nombres: string;
   apellidoPaterno: string;
   apellidoMaterno?: string | null;
@@ -86,6 +97,7 @@ export type EmpleadoCreateInput = {
   email?: string | null;
   fechaIngreso: string;
   activo: boolean;
+
   departamentoId?: number | null;
   puestoId?: number | null;
   sucursalId?: number | null;
@@ -109,13 +121,77 @@ export type EmpleadoCreateInput = {
   direccionEstado?: string | null;
   direccionCodigoPostal?: string | null;
 
+  // Fiscales
+  codigoPostalFiscal?: string | null;
+  entidadFiscal?: string | null;
+
   // Emergencia
   contactoEmergenciaNombre?: string | null;
   contactoEmergenciaTelefono?: string | null;
   contactoEmergenciaParentesco?: string | null;
 };
 
-export type EmpleadoUpdateInput = EmpleadoCreateInput;
+export type EmpleadoUpdateInput = {
+  nombres: string;
+  apellidoPaterno: string;
+  apellidoMaterno?: string | null;
+  fechaNacimiento?: string | null;
+  telefono?: string | null;
+  email?: string | null;
+  fechaIngreso: string;
+  activo: boolean;
+
+  departamentoId?: number | null;
+  puestoId?: number | null;
+  sucursalId?: number | null;
+
+  // Identificación
+  curp?: string | null;
+  rfc?: string | null;
+  nss?: string | null;
+
+  // Personales
+  sexo: SexoEmpleado;
+  estadoCivil: EstadoCivilEmpleado;
+  nacionalidad?: string | null;
+
+  // Domicilio
+  direccionCalle?: string | null;
+  direccionNumeroExterior?: string | null;
+  direccionNumeroInterior?: string | null;
+  direccionColonia?: string | null;
+  direccionCiudad?: string | null;
+  direccionEstado?: string | null;
+  direccionCodigoPostal?: string | null;
+
+  // Fiscales
+  codigoPostalFiscal?: string | null;
+  entidadFiscal?: string | null;
+
+  // Emergencia
+  contactoEmergenciaNombre?: string | null;
+  contactoEmergenciaTelefono?: string | null;
+  contactoEmergenciaParentesco?: string | null;
+};
+
+export type CambiarNumeroEmpleadoInput = {
+  numEmpleadoNuevo: string;
+  motivo: string;
+};
+
+export type SiguienteNumeroEmpleadoResponse = {
+  numEmpleadoSugerido: string;
+};
+
+export type EmpleadoPhotoResponse = {
+  id: number;
+  numEmpleado: string;
+  fotoUrl: string;
+  fotoNombreOriginal?: string | null;
+  fotoMimeType?: string | null;
+  fotoTamanoBytes?: number | null;
+  fotoUpdatedAtUtc?: string | null;
+};
 
 export type CreateAccountForEmpleadoInput = {
   email: string;
@@ -305,6 +381,45 @@ export async function updateEmpleado(
 ): Promise<Empleado> {
   const { data } = await api.put<Empleado>(`/api/Empleados/${id}`, payload);
   return data;
+}
+
+export async function cambiarNumeroEmpleado(
+  id: number,
+  payload: CambiarNumeroEmpleadoInput
+) {
+  const { data } = await api.put(`/api/Empleados/${id}/numero-empleado`, payload);
+  return data;
+}
+
+export async function getSiguienteNumeroEmpleadoSugerido(): Promise<SiguienteNumeroEmpleadoResponse> {
+  const { data } = await api.get<SiguienteNumeroEmpleadoResponse>(
+    "/api/Empleados/siguiente-numero-sugerido"
+  );
+  return data;
+}
+
+export async function uploadEmpleadoPhoto(
+  id: number,
+  file: File
+): Promise<EmpleadoPhotoResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const { data } = await api.post<EmpleadoPhotoResponse>(
+    `/api/Empleados/${id}/foto`,
+    formData,
+    {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    }
+  );
+
+  return data;
+}
+
+export async function deleteEmpleadoPhoto(id: number): Promise<void> {
+  await api.delete(`/api/Empleados/${id}/foto`);
 }
 
 export async function deleteEmpleado(id: number): Promise<void> {

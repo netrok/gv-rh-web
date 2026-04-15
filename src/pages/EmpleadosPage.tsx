@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import axios from "axios";
 import {
   Alert,
@@ -57,15 +57,19 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate } from "react-router-dom";
 
 import {
+  cambiarNumeroEmpleado,
   createEmpleado,
   darBajaEmpleado,
+  deleteEmpleadoPhoto,
   exportEmpleadoFichaPdf,
   exportEmpleadosPdf,
   exportEmpleadosXlsx,
   getEmpleadoMovimientos,
   getEmpleados,
+  getSiguienteNumeroEmpleadoSugerido,
   reingresarEmpleado,
   updateEmpleado,
+  uploadEmpleadoPhoto,
   type DarBajaEmpleadoInput,
   type Empleado,
   type EmpleadoCreateInput,
@@ -89,6 +93,7 @@ import { useAppSnackbar } from "../features/ui/AppSnackbarContext";
 import { useAuth } from "../features/auth/AuthContext";
 
 type SaveEmpleadoInput = EmpleadoCreateInput;
+
 type TipoBajaEmpleado =
   | "VOLUNTARIA"
   | "INVOLUNTARIA"
@@ -123,18 +128,27 @@ const ESTADO_CIVIL_OPTIONS: { value: EstadoCivilEmpleado; label: string }[] = [
 
 const empleadoSchema = z.object({
   // Generales
+  numEmpleado: z
+    .string()
+    .trim()
+    .min(1, "El número de empleado es obligatorio")
+    .max(30, "Máximo 30 caracteres"),
+
   nombres: z
     .string()
     .trim()
     .min(1, "Los nombres son obligatorios")
     .max(120, "Máximo 120 caracteres"),
+
   apellidoPaterno: z
     .string()
     .trim()
     .min(1, "El apellido paterno es obligatorio")
     .max(120, "Máximo 120 caracteres"),
+
   apellidoMaterno: z.string().trim().max(120, "Máximo 120 caracteres"),
   fechaNacimiento: z.string(),
+
   telefono: z
     .string()
     .trim()
@@ -142,7 +156,9 @@ const empleadoSchema = z.object({
     .refine((value) => value === "" || /^\d{10,15}$/.test(value), {
       message: "El teléfono debe contener entre 10 y 15 dígitos",
     }),
+
   email: z.union([z.literal(""), z.string().email("Correo inválido")]),
+
   fechaIngreso: z.string().min(1, "La fecha de ingreso es obligatoria"),
   activo: z.boolean(),
   departamentoId: z.coerce.number().min(1, "Debes seleccionar un departamento"),
@@ -160,6 +176,7 @@ const empleadoSchema = z.object({
         /^[A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]\d$/.test(value.toUpperCase()),
       { message: "La CURP no tiene un formato válido" }
     ),
+
   rfc: z
     .string()
     .trim()
@@ -170,6 +187,7 @@ const empleadoSchema = z.object({
         /^([A-Z&Ñ]{3,4})\d{6}([A-Z\d]{3})$/.test(value.toUpperCase()),
       { message: "El RFC no tiene un formato válido" }
     ),
+
   nss: z
     .string()
     .trim()
@@ -177,6 +195,7 @@ const empleadoSchema = z.object({
     .refine((value) => value === "" || /^\d{11}$/.test(value), {
       message: "El NSS debe contener exactamente 11 dígitos",
     }),
+
   sexo: z.enum(["NoEspecificado", "Hombre", "Mujer", "Otro"]),
   estadoCivil: z.enum([
     "NoEspecificado",
@@ -203,11 +222,23 @@ const empleadoSchema = z.object({
       message: "El código postal debe contener exactamente 5 dígitos",
     }),
 
+  // Fiscales
+  codigoPostalFiscal: z
+    .string()
+    .trim()
+    .max(5, "Máximo 5 caracteres")
+    .refine((value) => value === "" || /^\d{5}$/.test(value), {
+      message: "El código postal fiscal debe contener exactamente 5 dígitos",
+    }),
+
+  entidadFiscal: z.string().trim().max(120, "Máximo 120 caracteres"),
+
   // Emergencia
   contactoEmergenciaNombre: z
     .string()
     .trim()
     .max(150, "Máximo 150 caracteres"),
+
   contactoEmergenciaTelefono: z
     .string()
     .trim()
@@ -216,6 +247,7 @@ const empleadoSchema = z.object({
       message:
         "El teléfono de emergencia debe contener entre 10 y 15 dígitos",
     }),
+
   contactoEmergenciaParentesco: z
     .string()
     .trim()
@@ -481,6 +513,10 @@ function digitsOnlyInput(value: string) {
   return value.replace(/\D/g, "");
 }
 
+function normalizeNumEmpleadoInput(value: string) {
+  return value.toUpperCase().replace(/\s+/g, "");
+}
+
 function EmpleadoDialog({
   open,
   onClose,
@@ -501,7 +537,23 @@ function EmpleadoDialog({
   sucursales: SucursalDto[];
 }) {
   const isEdit = !!initialValues;
+  const queryClient = useQueryClient();
+  const { showSnackbar } = useAppSnackbar();
+
   const [activeStep, setActiveStep] = useState(0);
+  const [suggestingNumero, setSuggestingNumero] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [deletingPhoto, setDeletingPhoto] = useState(false);
+  const [changingNumero, setChangingNumero] = useState(false);
+
+  const [showChangeNumero, setShowChangeNumero] = useState(false);
+  const [numeroNuevo, setNumeroNuevo] = useState("");
+  const [motivoCambioNumero, setMotivoCambioNumero] = useState("");
+
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [photoName, setPhotoName] = useState<string | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const {
     register,
@@ -515,6 +567,7 @@ function EmpleadoDialog({
     resolver: zodResolver(empleadoSchema),
     mode: "onBlur",
     defaultValues: {
+      numEmpleado: "",
       nombres: "",
       apellidoPaterno: "",
       apellidoMaterno: "",
@@ -542,6 +595,9 @@ function EmpleadoDialog({
       direccionEstado: "",
       direccionCodigoPostal: "",
 
+      codigoPostalFiscal: "",
+      entidadFiscal: "",
+
       contactoEmergenciaNombre: "",
       contactoEmergenciaTelefono: "",
       contactoEmergenciaParentesco: "",
@@ -552,8 +608,14 @@ function EmpleadoDialog({
     if (!open) return;
 
     setActiveStep(0);
+    setShowChangeNumero(false);
+    setNumeroNuevo("");
+    setMotivoCambioNumero("");
+    setPhotoUrl(initialValues?.fotoUrl ?? null);
+    setPhotoName(initialValues?.fotoNombreOriginal ?? null);
 
     reset({
+      numEmpleado: initialValues?.numEmpleado ?? "",
       nombres: initialValues?.nombres ?? "",
       apellidoPaterno: initialValues?.apellidoPaterno ?? "",
       apellidoMaterno: initialValues?.apellidoMaterno ?? "",
@@ -583,6 +645,9 @@ function EmpleadoDialog({
       direccionEstado: initialValues?.direccionEstado ?? "",
       direccionCodigoPostal: initialValues?.direccionCodigoPostal ?? "",
 
+      codigoPostalFiscal: initialValues?.codigoPostalFiscal ?? "",
+      entidadFiscal: initialValues?.entidadFiscal ?? "",
+
       contactoEmergenciaNombre: initialValues?.contactoEmergenciaNombre ?? "",
       contactoEmergenciaTelefono: initialValues?.contactoEmergenciaTelefono ?? "",
       contactoEmergenciaParentesco:
@@ -594,6 +659,7 @@ function EmpleadoDialog({
   const puestoId = Number(watch("puestoId") ?? 0);
   const sucursalId = Number(watch("sucursalId") ?? 0);
   const activo = !!watch("activo");
+  const numEmpleado = watch("numEmpleado");
 
   const puestosDisponibles = useMemo(() => {
     if (departamentoId <= 0) return [];
@@ -615,6 +681,7 @@ function EmpleadoDialog({
 
   const stepFields: Array<Array<keyof EmpleadoFormInput>> = [
     [
+      "numEmpleado",
       "nombres",
       "apellidoPaterno",
       "apellidoMaterno",
@@ -636,6 +703,8 @@ function EmpleadoDialog({
       "direccionCiudad",
       "direccionEstado",
       "direccionCodigoPostal",
+      "codigoPostalFiscal",
+      "entidadFiscal",
     ],
     [
       "contactoEmergenciaNombre",
@@ -656,8 +725,113 @@ function EmpleadoDialog({
     setActiveStep((current) => Math.max(current - 1, 0));
   };
 
+  const handleSuggestNumero = async () => {
+    try {
+      setSuggestingNumero(true);
+      const data = await getSiguienteNumeroEmpleadoSugerido();
+      setValue("numEmpleado", data.numEmpleadoSugerido, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+    } catch (error) {
+      showSnackbar(getErrorMessage(error), "error");
+    } finally {
+      setSuggestingNumero(false);
+    }
+  };
+
+  const handleSelectPhoto = () => {
+    if (!isEdit) return;
+    fileInputRef.current?.click();
+  };
+
+  const handlePhotoChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !initialValues?.id) return;
+
+    try {
+      setUploadingPhoto(true);
+      const result = await uploadEmpleadoPhoto(initialValues.id, file);
+      setPhotoUrl(result.fotoUrl ?? null);
+      setPhotoName(result.fotoNombreOriginal ?? file.name);
+      void queryClient.invalidateQueries({ queryKey: ["empleados"] });
+      showSnackbar("Foto actualizada correctamente.", "success");
+    } catch (error) {
+      showSnackbar(getErrorMessage(error), "error");
+    } finally {
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+      setUploadingPhoto(false);
+    }
+  };
+
+  const handleDeletePhoto = async () => {
+    if (!initialValues?.id) return;
+
+    try {
+      setDeletingPhoto(true);
+      await deleteEmpleadoPhoto(initialValues.id);
+      setPhotoUrl(null);
+      setPhotoName(null);
+      void queryClient.invalidateQueries({ queryKey: ["empleados"] });
+      showSnackbar("Foto eliminada correctamente.", "success");
+    } catch (error) {
+      showSnackbar(getErrorMessage(error), "error");
+    } finally {
+      setDeletingPhoto(false);
+    }
+  };
+
+  const handleChangeNumero = async () => {
+    if (!initialValues?.id) return;
+
+    const nuevo = normalizeNumEmpleadoInput(numeroNuevo);
+    const motivo = motivoCambioNumero.trim();
+
+    if (!nuevo) {
+      showSnackbar("Debes capturar el nuevo número de empleado.", "error");
+      return;
+    }
+
+    if (!motivo) {
+      showSnackbar("Debes capturar el motivo del cambio.", "error");
+      return;
+    }
+
+    try {
+      setChangingNumero(true);
+      const data = await cambiarNumeroEmpleado(initialValues.id, {
+        numEmpleadoNuevo: nuevo,
+        motivo,
+      });
+
+      const nuevoConfirmado =
+        typeof data?.numEmpleado === "string" && data.numEmpleado.trim()
+          ? data.numEmpleado
+          : nuevo;
+
+      setValue("numEmpleado", nuevoConfirmado, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+
+      setNumeroNuevo("");
+      setMotivoCambioNumero("");
+      setShowChangeNumero(false);
+
+      void queryClient.invalidateQueries({ queryKey: ["empleados"] });
+      showSnackbar("Número de empleado actualizado.", "success");
+    } catch (error) {
+      showSnackbar(getErrorMessage(error), "error");
+    } finally {
+      setChangingNumero(false);
+    }
+  };
+
   const submitForm = async (values: EmpleadoFormValues) => {
     await onSubmit({
+      numEmpleado: normalizeNumEmpleadoInput(values.numEmpleado),
       nombres: values.nombres.trim(),
       apellidoPaterno: values.apellidoPaterno.trim(),
       apellidoMaterno: normalizeOptional(values.apellidoMaterno ?? ""),
@@ -692,6 +866,11 @@ function EmpleadoDialog({
         values.direccionCodigoPostal ?? ""
       ),
 
+      codigoPostalFiscal: normalizeDigitsOptional(
+        values.codigoPostalFiscal ?? ""
+      ),
+      entidadFiscal: normalizeOptional(values.entidadFiscal ?? ""),
+
       contactoEmergenciaNombre: normalizeOptional(
         values.contactoEmergenciaNombre ?? ""
       ),
@@ -708,175 +887,375 @@ function EmpleadoDialog({
     switch (activeStep) {
       case 0:
         return (
-          <Box
-            sx={{
-              display: "grid",
-              gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-              gap: 2,
-            }}
-          >
-            <TextField
-              label="Nombres"
-              {...register("nombres")}
-              error={!!errors.nombres}
-              helperText={errors.nombres?.message}
-              fullWidth
-            />
-
-            <TextField
-              label="Apellido paterno"
-              {...register("apellidoPaterno")}
-              error={!!errors.apellidoPaterno}
-              helperText={errors.apellidoPaterno?.message}
-              fullWidth
-            />
-
-            <TextField
-              label="Apellido materno"
-              {...register("apellidoMaterno")}
-              error={!!errors.apellidoMaterno}
-              helperText={errors.apellidoMaterno?.message}
-              fullWidth
-            />
-
-            <TextField
-              label="Teléfono"
-              value={watch("telefono")}
-              onChange={(e) =>
-                setValue("telefono", digitsOnlyInput(e.target.value), {
-                  shouldDirty: true,
-                  shouldValidate: true,
-                })
-              }
-              error={!!errors.telefono}
-              helperText={errors.telefono?.message}
-              fullWidth
-              inputProps={{ maxLength: 15, inputMode: "numeric" }}
-            />
-
-            <TextField
-              label="Correo"
-              {...register("email")}
-              error={!!errors.email}
-              helperText={errors.email?.message}
-              fullWidth
-            />
-
-            <TextField
-              label="Fecha de nacimiento"
-              type="date"
-              {...register("fechaNacimiento")}
-              InputLabelProps={{ shrink: true }}
-              fullWidth
-            />
-
-            <TextField
-              label="Fecha de ingreso"
-              type="date"
-              {...register("fechaIngreso")}
-              error={!!errors.fechaIngreso}
-              helperText={errors.fechaIngreso?.message}
-              InputLabelProps={{ shrink: true }}
-              fullWidth
-            />
-
-            <TextField
-              select
-              label="Sucursal"
-              value={sucursalId}
-              onChange={(e) => {
-                setValue("sucursalId", Number(e.target.value), {
-                  shouldDirty: true,
-                  shouldValidate: true,
-                });
+          <Stack spacing={2.5}>
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: { xs: "1fr", md: "220px 1fr" },
+                gap: 2,
+                alignItems: "start",
               }}
-              error={!!errors.sucursalId}
-              helperText={errors.sucursalId?.message}
-              fullWidth
             >
-              <MenuItem value={0}>Sin sucursal</MenuItem>
-              {sucursales.map((sucursal) => (
-                <MenuItem key={sucursal.id} value={sucursal.id}>
-                  {sucursal.clave} - {sucursal.nombre}
-                </MenuItem>
-              ))}
-            </TextField>
+              <Box
+                sx={{
+                  border: `1px dashed ${alpha("#0f172a", 0.14)}`,
+                  borderRadius: 3,
+                  p: 2,
+                  textAlign: "center",
+                  backgroundColor: alpha("#0f172a", 0.02),
+                }}
+              >
+                <Box
+                  sx={{
+                    width: 140,
+                    height: 140,
+                    mx: "auto",
+                    mb: 1.5,
+                    borderRadius: "20px",
+                    overflow: "hidden",
+                    border: `1px solid ${alpha("#0f172a", 0.08)}`,
+                    backgroundColor: alpha("#0f172a", 0.04),
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  {photoUrl ? (
+                    <Box
+                      component="img"
+                      src={photoUrl}
+                      alt="Foto de perfil"
+                      sx={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                      }}
+                    />
+                  ) : (
+                    <Typography variant="caption" color="text.secondary">
+                      Sin foto
+                    </Typography>
+                  )}
+                </Box>
 
-            <TextField
-              select
-              label="Departamento"
-              value={departamentoId}
-              onChange={(e) => {
-                const value = Number(e.target.value);
-                setValue("departamentoId", value, {
-                  shouldDirty: true,
-                  shouldValidate: true,
-                });
-                setValue("puestoId", 0, {
-                  shouldDirty: true,
-                  shouldValidate: true,
-                });
-              }}
-              error={!!errors.departamentoId}
-              helperText={errors.departamentoId?.message}
-              fullWidth
-            >
-              <MenuItem value={0}>Selecciona un departamento</MenuItem>
-              {departamentos.map((dep) => (
-                <MenuItem key={dep.id} value={dep.id}>
-                  {dep.clave} - {dep.nombre}
-                </MenuItem>
-              ))}
-            </TextField>
+                <Typography fontWeight={800} sx={{ mb: 0.5 }}>
+                  Foto de perfil
+                </Typography>
 
-            <TextField
-              select
-              label="Puesto"
-              value={puestoId}
-              onChange={(e) => {
-                setValue("puestoId", Number(e.target.value), {
-                  shouldDirty: true,
-                  shouldValidate: true,
-                });
-              }}
-              error={!!errors.puestoId}
-              helperText={
-                errors.puestoId?.message ||
-                (departamentoId <= 0
-                  ? "Primero selecciona un departamento"
-                  : puestosDisponibles.length === 0
-                    ? "No hay puestos para este departamento"
-                    : "")
-              }
-              disabled={departamentoId <= 0 || puestosDisponibles.length === 0}
-              fullWidth
-            >
-              <MenuItem value={0}>
-                {departamentoId > 0
-                  ? "Selecciona un puesto"
-                  : "Primero elige un departamento"}
-              </MenuItem>
-              {puestosDisponibles.map((puesto) => (
-                <MenuItem key={puesto.id} value={puesto.id}>
-                  {puesto.clave} - {puesto.nombre}
-                </MenuItem>
-              ))}
-            </TextField>
+                <Typography variant="caption" color="text.secondary">
+                  JPG, PNG o WEBP · Máx. 2 MB
+                </Typography>
 
-            <Box sx={{ display: "flex", alignItems: "center" }}>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={activo}
-                    onChange={(_, checked) =>
-                      setValue("activo", checked, { shouldDirty: true })
-                    }
+                <Stack spacing={1} sx={{ mt: 1.5 }}>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                    hidden
+                    onChange={handlePhotoChange}
                   />
-                }
-                label={activo ? "Activo" : "Inactivo"}
-              />
+
+                  <Button
+                    variant="outlined"
+                    onClick={handleSelectPhoto}
+                    disabled={!isEdit || uploadingPhoto || deletingPhoto || saving}
+                  >
+                    {uploadingPhoto ? "Subiendo..." : photoUrl ? "Reemplazar foto" : "Subir foto"}
+                  </Button>
+
+                  <Button
+                    variant="text"
+                    color="inherit"
+                    onClick={handleDeletePhoto}
+                    disabled={!isEdit || !photoUrl || uploadingPhoto || deletingPhoto || saving}
+                  >
+                    {deletingPhoto ? "Quitando..." : "Quitar foto"}
+                  </Button>
+                </Stack>
+
+                {!isEdit && (
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ display: "block", mt: 1.25 }}
+                  >
+                    Guarda primero el empleado para poder cargar su foto.
+                  </Typography>
+                )}
+
+                {photoName && (
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ display: "block", mt: 1.25 }}
+                  >
+                    Archivo: {photoName}
+                  </Typography>
+                )}
+              </Box>
+
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+                  gap: 2,
+                }}
+              >
+                <TextField
+                  label="Número de empleado"
+                  value={numEmpleado}
+                  onChange={(e) =>
+                    setValue("numEmpleado", normalizeNumEmpleadoInput(e.target.value), {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    })
+                  }
+                  error={!!errors.numEmpleado}
+                  helperText={
+                    errors.numEmpleado?.message ||
+                    (isEdit
+                      ? "El cambio se realiza con flujo controlado."
+                      : "Clave operativa definida por RH.")
+                  }
+                  fullWidth
+                  inputProps={{ maxLength: 30 }}
+                  disabled={isEdit}
+                />
+
+                <Stack direction="row" spacing={1} alignItems="flex-start">
+                  {!isEdit ? (
+                    <Button
+                      variant="outlined"
+                      onClick={() => void handleSuggestNumero()}
+                      disabled={suggestingNumero || saving}
+                      sx={{ mt: 0.5 }}
+                    >
+                      {suggestingNumero ? "Sugiriendo..." : "Sugerir consecutivo"}
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="outlined"
+                      onClick={() => setShowChangeNumero((v) => !v)}
+                      disabled={changingNumero || saving}
+                      sx={{ mt: 0.5 }}
+                    >
+                      {showChangeNumero ? "Cancelar cambio" : "Cambiar número"}
+                    </Button>
+                  )}
+                </Stack>
+
+                <TextField
+                  label="Nombres"
+                  {...register("nombres")}
+                  error={!!errors.nombres}
+                  helperText={errors.nombres?.message}
+                  fullWidth
+                />
+
+                <TextField
+                  label="Apellido paterno"
+                  {...register("apellidoPaterno")}
+                  error={!!errors.apellidoPaterno}
+                  helperText={errors.apellidoPaterno?.message}
+                  fullWidth
+                />
+
+                <TextField
+                  label="Apellido materno"
+                  {...register("apellidoMaterno")}
+                  error={!!errors.apellidoMaterno}
+                  helperText={errors.apellidoMaterno?.message}
+                  fullWidth
+                />
+
+                <TextField
+                  label="Teléfono"
+                  value={watch("telefono")}
+                  onChange={(e) =>
+                    setValue("telefono", digitsOnlyInput(e.target.value), {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    })
+                  }
+                  error={!!errors.telefono}
+                  helperText={errors.telefono?.message}
+                  fullWidth
+                  inputProps={{ maxLength: 15, inputMode: "numeric" }}
+                />
+
+                <TextField
+                  label="Correo"
+                  {...register("email")}
+                  error={!!errors.email}
+                  helperText={errors.email?.message}
+                  fullWidth
+                />
+
+                <TextField
+                  label="Fecha de nacimiento"
+                  type="date"
+                  {...register("fechaNacimiento")}
+                  InputLabelProps={{ shrink: true }}
+                  fullWidth
+                />
+
+                <TextField
+                  label="Fecha de ingreso"
+                  type="date"
+                  {...register("fechaIngreso")}
+                  error={!!errors.fechaIngreso}
+                  helperText={errors.fechaIngreso?.message}
+                  InputLabelProps={{ shrink: true }}
+                  fullWidth
+                />
+
+                <TextField
+                  select
+                  label="Sucursal"
+                  value={sucursalId}
+                  onChange={(e) => {
+                    setValue("sucursalId", Number(e.target.value), {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    });
+                  }}
+                  error={!!errors.sucursalId}
+                  helperText={errors.sucursalId?.message}
+                  fullWidth
+                >
+                  <MenuItem value={0}>Sin sucursal</MenuItem>
+                  {sucursales.map((sucursal) => (
+                    <MenuItem key={sucursal.id} value={sucursal.id}>
+                      {sucursal.clave} - {sucursal.nombre}
+                    </MenuItem>
+                  ))}
+                </TextField>
+
+                <TextField
+                  select
+                  label="Departamento"
+                  value={departamentoId}
+                  onChange={(e) => {
+                    const value = Number(e.target.value);
+                    setValue("departamentoId", value, {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    });
+                    setValue("puestoId", 0, {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    });
+                  }}
+                  error={!!errors.departamentoId}
+                  helperText={errors.departamentoId?.message}
+                  fullWidth
+                >
+                  <MenuItem value={0}>Selecciona un departamento</MenuItem>
+                  {departamentos.map((dep) => (
+                    <MenuItem key={dep.id} value={dep.id}>
+                      {dep.clave} - {dep.nombre}
+                    </MenuItem>
+                  ))}
+                </TextField>
+
+                <TextField
+                  select
+                  label="Puesto"
+                  value={puestoId}
+                  onChange={(e) => {
+                    setValue("puestoId", Number(e.target.value), {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    });
+                  }}
+                  error={!!errors.puestoId}
+                  helperText={
+                    errors.puestoId?.message ||
+                    (departamentoId <= 0
+                      ? "Primero selecciona un departamento"
+                      : puestosDisponibles.length === 0
+                        ? "No hay puestos para este departamento"
+                        : "")
+                  }
+                  disabled={departamentoId <= 0 || puestosDisponibles.length === 0}
+                  fullWidth
+                >
+                  <MenuItem value={0}>
+                    {departamentoId > 0
+                      ? "Selecciona un puesto"
+                      : "Primero elige un departamento"}
+                  </MenuItem>
+                  {puestosDisponibles.map((puesto) => (
+                    <MenuItem key={puesto.id} value={puesto.id}>
+                      {puesto.clave} - {puesto.nombre}
+                    </MenuItem>
+                  ))}
+                </TextField>
+
+                <Box sx={{ display: "flex", alignItems: "center" }}>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={activo}
+                        onChange={(_, checked) =>
+                          setValue("activo", checked, { shouldDirty: true })
+                        }
+                      />
+                    }
+                    label={activo ? "Activo" : "Inactivo"}
+                  />
+                </Box>
+              </Box>
             </Box>
-          </Box>
+
+            {isEdit && showChangeNumero && (
+              <Box
+                sx={{
+                  border: `1px solid ${alpha("#0f172a", 0.08)}`,
+                  borderRadius: 3,
+                  p: 2,
+                  backgroundColor: alpha("#0f172a", 0.02),
+                }}
+              >
+                <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1.5 }}>
+                  Cambio controlado de número de empleado
+                </Typography>
+
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: { xs: "1fr", md: "1fr 1fr auto" },
+                    gap: 2,
+                    alignItems: "start",
+                  }}
+                >
+                  <TextField
+                    label="Nuevo número"
+                    value={numeroNuevo}
+                    onChange={(e) => setNumeroNuevo(normalizeNumEmpleadoInput(e.target.value))}
+                    inputProps={{ maxLength: 30 }}
+                    fullWidth
+                  />
+
+                  <TextField
+                    label="Motivo"
+                    value={motivoCambioNumero}
+                    onChange={(e) => setMotivoCambioNumero(e.target.value)}
+                    fullWidth
+                  />
+
+                  <Button
+                    variant="contained"
+                    onClick={() => void handleChangeNumero()}
+                    disabled={changingNumero || saving}
+                    sx={{ minHeight: 56 }}
+                  >
+                    {changingNumero ? "Guardando..." : "Aplicar"}
+                  </Button>
+                </Box>
+              </Box>
+            )}
+          </Stack>
         );
 
       case 1:
@@ -1056,6 +1435,29 @@ function EmpleadoDialog({
               fullWidth
               inputProps={{ maxLength: 5, inputMode: "numeric" }}
             />
+
+            <TextField
+              label="Código postal fiscal"
+              value={watch("codigoPostalFiscal")}
+              onChange={(e) =>
+                setValue("codigoPostalFiscal", digitsOnlyInput(e.target.value), {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                })
+              }
+              error={!!errors.codigoPostalFiscal}
+              helperText={errors.codigoPostalFiscal?.message}
+              fullWidth
+              inputProps={{ maxLength: 5, inputMode: "numeric" }}
+            />
+
+            <TextField
+              label="Entidad fiscal"
+              {...register("entidadFiscal")}
+              error={!!errors.entidadFiscal}
+              helperText={errors.entidadFiscal?.message}
+              fullWidth
+            />
           </Box>
         );
 
@@ -1114,7 +1516,7 @@ function EmpleadoDialog({
     {
       icon: <BadgeOutlinedIcon fontSize="small" />,
       title: "Datos generales",
-      subtitle: "Información operativa y asignación organizacional del empleado.",
+      subtitle: "Información operativa, número de empleado, foto y asignación organizacional.",
     },
     {
       icon: <BadgeOutlinedIcon fontSize="small" />,
@@ -1123,8 +1525,8 @@ function EmpleadoDialog({
     },
     {
       icon: <HomeWorkOutlinedIcon fontSize="small" />,
-      title: "Domicilio",
-      subtitle: "Dirección de residencia para expediente y contacto administrativo.",
+      title: "Domicilio y fiscal",
+      subtitle: "Dirección de residencia y referencia fiscal básica para expediente.",
     },
     {
       icon: <ContactPhoneOutlinedIcon fontSize="small" />,
@@ -1133,10 +1535,17 @@ function EmpleadoDialog({
     },
   ] as const;
 
+  const busy =
+    saving ||
+    suggestingNumero ||
+    uploadingPhoto ||
+    deletingPhoto ||
+    changingNumero;
+
   return (
     <Dialog
       open={open}
-      onClose={saving ? undefined : onClose}
+      onClose={busy ? undefined : onClose}
       fullWidth
       maxWidth="md"
     >
@@ -1173,24 +1582,24 @@ function EmpleadoDialog({
       </DialogContent>
 
       <DialogActions sx={{ justifyContent: "space-between" }}>
-        <Button onClick={onClose} disabled={saving} color="inherit">
+        <Button onClick={onClose} disabled={busy} color="inherit">
           Cancelar
         </Button>
 
         <Stack direction="row" spacing={1}>
-          <Button onClick={handleBack} disabled={saving || activeStep === 0}>
+          <Button onClick={handleBack} disabled={busy || activeStep === 0}>
             Anterior
           </Button>
 
           {activeStep < EMPLEADO_FORM_STEPS.length - 1 ? (
-            <Button variant="contained" onClick={() => void handleNext()} disabled={saving}>
+            <Button variant="contained" onClick={() => void handleNext()} disabled={busy}>
               Siguiente
             </Button>
           ) : (
             <Button
               onClick={handleSubmit(submitForm)}
               variant="contained"
-              disabled={saving}
+              disabled={busy}
             >
               {saving ? "Guardando..." : isEdit ? "Guardar cambios" : "Crear"}
             </Button>
@@ -1666,7 +2075,12 @@ export default function EmpleadosPage() {
   const empleadosQuery = useQuery<Empleado[], Error>({
     queryKey: ["empleados"],
     queryFn: async () => {
-      const data = await getEmpleados();
+      const data = await getEmpleados({
+        page: 1,
+        pageSize: 500,
+        sort: "id",
+        dir: "desc",
+      });
       return Array.isArray(data.items) ? data.items : [];
     },
   });
@@ -2453,16 +2867,57 @@ export default function EmpleadosPage() {
                         </TableCell>
 
                         <TableCell>
-                          <Stack spacing={0.25}>
-                            <Typography fontWeight={700}>
-                              {getEmpleadoNombre(row)}
-                            </Typography>
-                            <Typography
-                              variant="caption"
-                              color="text.secondary"
+                          <Stack direction="row" spacing={1.25} alignItems="center">
+                            <Box
+                              sx={{
+                                width: 34,
+                                height: 34,
+                                borderRadius: "12px",
+                                overflow: "hidden",
+                                border: `1px solid ${alpha("#0f172a", 0.08)}`,
+                                backgroundColor: alpha("#0f172a", 0.04),
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                flexShrink: 0,
+                              }}
                             >
-                              {row.email || "Sin correo"}
-                            </Typography>
+                              {row.tieneFoto && row.fotoUrl ? (
+                                <Box
+                                  component="img"
+                                  src={row.fotoUrl}
+                                  alt={getEmpleadoNombre(row)}
+                                  sx={{
+                                    width: "100%",
+                                    height: "100%",
+                                    objectFit: "cover",
+                                  }}
+                                />
+                              ) : (
+                                <BadgeOutlinedIcon
+                                  sx={{ fontSize: 18, color: "text.secondary" }}
+                                />
+                              )}
+                            </Box>
+
+                            <Stack spacing={0.25} sx={{ minWidth: 0 }}>
+                              <Typography fontWeight={700}>
+                                {getEmpleadoNombre(row)}
+                              </Typography>
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                sx={{
+                                  display: "block",
+                                  maxWidth: 240,
+                                  whiteSpace: "nowrap",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                }}
+                              >
+                                {row.email || "Sin correo"}
+                              </Typography>
+                            </Stack>
                           </Stack>
                         </TableCell>
 
