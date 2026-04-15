@@ -529,7 +529,7 @@ function EmpleadoDialog({
 }: {
   open: boolean;
   onClose: () => void;
-  onSubmit: (values: SaveEmpleadoInput) => Promise<void>;
+  onSubmit: (values: SaveEmpleadoInput, photoFile?: File | null) => Promise<void>;
   saving: boolean;
   initialValues?: Empleado | null;
   departamentos: Departamento[];
@@ -552,6 +552,8 @@ function EmpleadoDialog({
 
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [photoName, setPhotoName] = useState<string | null>(null);
+  const [pendingPhotoFile, setPendingPhotoFile] = useState<File | null>(null);
+  const [localPhotoPreviewUrl, setLocalPhotoPreviewUrl] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -605,12 +607,27 @@ function EmpleadoDialog({
   });
 
   useEffect(() => {
+    return () => {
+      if (localPhotoPreviewUrl) {
+        URL.revokeObjectURL(localPhotoPreviewUrl);
+      }
+    };
+  }, [localPhotoPreviewUrl]);
+
+  useEffect(() => {
     if (!open) return;
 
     setActiveStep(0);
     setShowChangeNumero(false);
     setNumeroNuevo("");
     setMotivoCambioNumero("");
+    setPendingPhotoFile(null);
+
+    if (localPhotoPreviewUrl) {
+      URL.revokeObjectURL(localPhotoPreviewUrl);
+      setLocalPhotoPreviewUrl(null);
+    }
+
     setPhotoUrl(initialValues?.fotoUrl ?? null);
     setPhotoName(initialValues?.fotoNombreOriginal ?? null);
 
@@ -653,13 +670,15 @@ function EmpleadoDialog({
       contactoEmergenciaParentesco:
         initialValues?.contactoEmergenciaParentesco ?? "",
     });
-  }, [initialValues, open, reset]);
+  }, [initialValues, open, reset, localPhotoPreviewUrl]);
 
   const departamentoId = Number(watch("departamentoId") ?? 0);
   const puestoId = Number(watch("puestoId") ?? 0);
   const sucursalId = Number(watch("sucursalId") ?? 0);
   const activo = !!watch("activo");
   const numEmpleado = watch("numEmpleado");
+
+  const effectivePhotoUrl = localPhotoPreviewUrl || photoUrl;
 
   const puestosDisponibles = useMemo(() => {
     if (departamentoId <= 0) return [];
@@ -741,46 +760,72 @@ function EmpleadoDialog({
   };
 
   const handleSelectPhoto = () => {
-    if (!isEdit) return;
     fileInputRef.current?.click();
   };
 
   const handlePhotoChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file || !initialValues?.id) return;
+    if (!file) return;
 
-    try {
-      setUploadingPhoto(true);
-      const result = await uploadEmpleadoPhoto(initialValues.id, file);
-      setPhotoUrl(result.fotoUrl ?? null);
-      setPhotoName(result.fotoNombreOriginal ?? file.name);
-      void queryClient.invalidateQueries({ queryKey: ["empleados"] });
-      showSnackbar("Foto actualizada correctamente.", "success");
-    } catch (error) {
-      showSnackbar(getErrorMessage(error), "error");
-    } finally {
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
+    if (isEdit && initialValues?.id) {
+      try {
+        setUploadingPhoto(true);
+        const result = await uploadEmpleadoPhoto(initialValues.id, file);
+        setPhotoUrl(result.fotoUrl ?? null);
+        setPhotoName(result.fotoNombreOriginal ?? file.name);
+        void queryClient.invalidateQueries({ queryKey: ["empleados"] });
+        showSnackbar("Foto actualizada correctamente.", "success");
+      } catch (error) {
+        showSnackbar(getErrorMessage(error), "error");
+      } finally {
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
+        setUploadingPhoto(false);
       }
-      setUploadingPhoto(false);
+
+      return;
+    }
+
+    if (localPhotoPreviewUrl) {
+      URL.revokeObjectURL(localPhotoPreviewUrl);
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+    setPendingPhotoFile(file);
+    setLocalPhotoPreviewUrl(previewUrl);
+    setPhotoName(file.name);
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
     }
   };
 
   const handleDeletePhoto = async () => {
-    if (!initialValues?.id) return;
+    if (isEdit && initialValues?.id) {
+      try {
+        setDeletingPhoto(true);
+        await deleteEmpleadoPhoto(initialValues.id);
+        setPhotoUrl(null);
+        setPhotoName(null);
+        void queryClient.invalidateQueries({ queryKey: ["empleados"] });
+        showSnackbar("Foto eliminada correctamente.", "success");
+      } catch (error) {
+        showSnackbar(getErrorMessage(error), "error");
+      } finally {
+        setDeletingPhoto(false);
+      }
 
-    try {
-      setDeletingPhoto(true);
-      await deleteEmpleadoPhoto(initialValues.id);
-      setPhotoUrl(null);
-      setPhotoName(null);
-      void queryClient.invalidateQueries({ queryKey: ["empleados"] });
-      showSnackbar("Foto eliminada correctamente.", "success");
-    } catch (error) {
-      showSnackbar(getErrorMessage(error), "error");
-    } finally {
-      setDeletingPhoto(false);
+      return;
     }
+
+    if (localPhotoPreviewUrl) {
+      URL.revokeObjectURL(localPhotoPreviewUrl);
+    }
+
+    setPendingPhotoFile(null);
+    setLocalPhotoPreviewUrl(null);
+    setPhotoName(null);
   };
 
   const handleChangeNumero = async () => {
@@ -830,57 +875,60 @@ function EmpleadoDialog({
   };
 
   const submitForm = async (values: EmpleadoFormValues) => {
-    await onSubmit({
-      numEmpleado: normalizeNumEmpleadoInput(values.numEmpleado),
-      nombres: values.nombres.trim(),
-      apellidoPaterno: values.apellidoPaterno.trim(),
-      apellidoMaterno: normalizeOptional(values.apellidoMaterno ?? ""),
-      fechaNacimiento: normalizeOptional(values.fechaNacimiento ?? ""),
-      telefono: normalizeDigitsOptional(values.telefono ?? ""),
-      email: normalizeOptional(values.email ?? ""),
-      fechaIngreso: values.fechaIngreso,
-      activo: values.activo,
-      departamentoId: Number(values.departamentoId),
-      puestoId: Number(values.puestoId),
-      sucursalId:
-        Number(values.sucursalId) > 0 ? Number(values.sucursalId) : null,
+    await onSubmit(
+      {
+        numEmpleado: normalizeNumEmpleadoInput(values.numEmpleado),
+        nombres: values.nombres.trim(),
+        apellidoPaterno: values.apellidoPaterno.trim(),
+        apellidoMaterno: normalizeOptional(values.apellidoMaterno ?? ""),
+        fechaNacimiento: normalizeOptional(values.fechaNacimiento ?? ""),
+        telefono: normalizeDigitsOptional(values.telefono ?? ""),
+        email: normalizeOptional(values.email ?? ""),
+        fechaIngreso: values.fechaIngreso,
+        activo: values.activo,
+        departamentoId: Number(values.departamentoId),
+        puestoId: Number(values.puestoId),
+        sucursalId:
+          Number(values.sucursalId) > 0 ? Number(values.sucursalId) : null,
 
-      curp: normalizeUpperOptional(values.curp ?? ""),
-      rfc: normalizeUpperOptional(values.rfc ?? ""),
-      nss: normalizeDigitsOptional(values.nss ?? ""),
-      sexo: values.sexo,
-      estadoCivil: values.estadoCivil,
-      nacionalidad: normalizeOptional(values.nacionalidad ?? ""),
+        curp: normalizeUpperOptional(values.curp ?? ""),
+        rfc: normalizeUpperOptional(values.rfc ?? ""),
+        nss: normalizeDigitsOptional(values.nss ?? ""),
+        sexo: values.sexo,
+        estadoCivil: values.estadoCivil,
+        nacionalidad: normalizeOptional(values.nacionalidad ?? ""),
 
-      direccionCalle: normalizeOptional(values.direccionCalle ?? ""),
-      direccionNumeroExterior: normalizeOptional(
-        values.direccionNumeroExterior ?? ""
-      ),
-      direccionNumeroInterior: normalizeOptional(
-        values.direccionNumeroInterior ?? ""
-      ),
-      direccionColonia: normalizeOptional(values.direccionColonia ?? ""),
-      direccionCiudad: normalizeOptional(values.direccionCiudad ?? ""),
-      direccionEstado: normalizeOptional(values.direccionEstado ?? ""),
-      direccionCodigoPostal: normalizeDigitsOptional(
-        values.direccionCodigoPostal ?? ""
-      ),
+        direccionCalle: normalizeOptional(values.direccionCalle ?? ""),
+        direccionNumeroExterior: normalizeOptional(
+          values.direccionNumeroExterior ?? ""
+        ),
+        direccionNumeroInterior: normalizeOptional(
+          values.direccionNumeroInterior ?? ""
+        ),
+        direccionColonia: normalizeOptional(values.direccionColonia ?? ""),
+        direccionCiudad: normalizeOptional(values.direccionCiudad ?? ""),
+        direccionEstado: normalizeOptional(values.direccionEstado ?? ""),
+        direccionCodigoPostal: normalizeDigitsOptional(
+          values.direccionCodigoPostal ?? ""
+        ),
 
-      codigoPostalFiscal: normalizeDigitsOptional(
-        values.codigoPostalFiscal ?? ""
-      ),
-      entidadFiscal: normalizeOptional(values.entidadFiscal ?? ""),
+        codigoPostalFiscal: normalizeDigitsOptional(
+          values.codigoPostalFiscal ?? ""
+        ),
+        entidadFiscal: normalizeOptional(values.entidadFiscal ?? ""),
 
-      contactoEmergenciaNombre: normalizeOptional(
-        values.contactoEmergenciaNombre ?? ""
-      ),
-      contactoEmergenciaTelefono: normalizeDigitsOptional(
-        values.contactoEmergenciaTelefono ?? ""
-      ),
-      contactoEmergenciaParentesco: normalizeOptional(
-        values.contactoEmergenciaParentesco ?? ""
-      ),
-    });
+        contactoEmergenciaNombre: normalizeOptional(
+          values.contactoEmergenciaNombre ?? ""
+        ),
+        contactoEmergenciaTelefono: normalizeDigitsOptional(
+          values.contactoEmergenciaTelefono ?? ""
+        ),
+        contactoEmergenciaParentesco: normalizeOptional(
+          values.contactoEmergenciaParentesco ?? ""
+        ),
+      },
+      pendingPhotoFile
+    );
   };
 
   function renderStepContent() {
@@ -920,10 +968,10 @@ function EmpleadoDialog({
                     justifyContent: "center",
                   }}
                 >
-                  {photoUrl ? (
+                  {effectivePhotoUrl ? (
                     <Box
                       component="img"
-                      src={photoUrl}
+                      src={effectivePhotoUrl}
                       alt="Foto de perfil"
                       sx={{
                         width: "100%",
@@ -958,16 +1006,20 @@ function EmpleadoDialog({
                   <Button
                     variant="outlined"
                     onClick={handleSelectPhoto}
-                    disabled={!isEdit || uploadingPhoto || deletingPhoto || saving}
+                    disabled={uploadingPhoto || deletingPhoto || saving}
                   >
-                    {uploadingPhoto ? "Subiendo..." : photoUrl ? "Reemplazar foto" : "Subir foto"}
+                    {uploadingPhoto
+                      ? "Subiendo..."
+                      : effectivePhotoUrl
+                        ? "Reemplazar foto"
+                        : "Subir foto"}
                   </Button>
 
                   <Button
                     variant="text"
                     color="inherit"
                     onClick={handleDeletePhoto}
-                    disabled={!isEdit || !photoUrl || uploadingPhoto || deletingPhoto || saving}
+                    disabled={!effectivePhotoUrl || uploadingPhoto || deletingPhoto || saving}
                   >
                     {deletingPhoto ? "Quitando..." : "Quitar foto"}
                   </Button>
@@ -979,7 +1031,7 @@ function EmpleadoDialog({
                     color="text.secondary"
                     sx={{ display: "block", mt: 1.25 }}
                   >
-                    Guarda primero el empleado para poder cargar su foto.
+                    La foto se guardará automáticamente al crear el empleado.
                   </Typography>
                 )}
 
@@ -2117,19 +2169,35 @@ export default function EmpleadosPage() {
   }, [sucursales]);
 
   const saveMutation = useMutation({
-    mutationFn: async (values: SaveEmpleadoInput) => {
+    mutationFn: async ({
+      values,
+      photoFile,
+    }: {
+      values: SaveEmpleadoInput;
+      photoFile?: File | null;
+    }) => {
       if (editing) {
         return updateEmpleado(editing.id, values);
       }
 
-      return createEmpleado(values);
+      const created = await createEmpleado(values);
+
+      if (photoFile && created?.id) {
+        await uploadEmpleadoPhoto(created.id, photoFile);
+      }
+
+      return created;
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       void queryClient.invalidateQueries({ queryKey: ["empleados"] });
       setDialogOpen(false);
       setEditing(null);
       showSnackbar(
-        editing ? "Empleado actualizado." : "Empleado creado.",
+        editing
+          ? "Empleado actualizado."
+          : variables.photoFile
+            ? "Empleado creado y foto cargada."
+            : "Empleado creado.",
         "success"
       );
     },
@@ -3138,8 +3206,8 @@ export default function EmpleadosPage() {
         departamentos={departamentos}
         puestos={puestos}
         sucursales={sucursales}
-        onSubmit={async (values) => {
-          await saveMutation.mutateAsync(values);
+        onSubmit={async (values, photoFile) => {
+          await saveMutation.mutateAsync({ values, photoFile });
         }}
       />
 
