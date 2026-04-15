@@ -10,11 +10,15 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Divider,
   FormControlLabel,
   IconButton,
   InputAdornment,
   MenuItem,
   Stack,
+  Step,
+  StepLabel,
+  Stepper,
   Switch,
   Table,
   TableBody,
@@ -43,6 +47,9 @@ import HistoryRoundedIcon from "@mui/icons-material/HistoryRounded";
 import ReplayRoundedIcon from "@mui/icons-material/ReplayRounded";
 import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded";
 import TableViewRoundedIcon from "@mui/icons-material/TableViewRounded";
+import BadgeOutlinedIcon from "@mui/icons-material/BadgeOutlined";
+import HomeWorkOutlinedIcon from "@mui/icons-material/HomeWorkOutlined";
+import ContactPhoneOutlinedIcon from "@mui/icons-material/ContactPhoneOutlined";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -64,6 +71,8 @@ import {
   type EmpleadoCreateInput,
   type EmpleadoMovimientoLaboral,
   type ReingresarEmpleadoInput,
+  type SexoEmpleado,
+  type EstadoCivilEmpleado,
 } from "../api/empleados.api";
 import {
   getDepartamentos,
@@ -89,24 +98,128 @@ type TipoBajaEmpleado =
   | "DEFUNCION"
   | "OTRA";
 
+const EMPLEADO_FORM_STEPS = [
+  "Generales",
+  "Identificación",
+  "Domicilio",
+  "Emergencia",
+] as const;
+
+const SEXO_OPTIONS: { value: SexoEmpleado; label: string }[] = [
+  { value: "NoEspecificado", label: "No especificado" },
+  { value: "Hombre", label: "Hombre" },
+  { value: "Mujer", label: "Mujer" },
+  { value: "Otro", label: "Otro" },
+];
+
+const ESTADO_CIVIL_OPTIONS: { value: EstadoCivilEmpleado; label: string }[] = [
+  { value: "NoEspecificado", label: "No especificado" },
+  { value: "Soltero", label: "Soltero" },
+  { value: "Casado", label: "Casado" },
+  { value: "Divorciado", label: "Divorciado" },
+  { value: "Viudo", label: "Viudo" },
+  { value: "UnionLibre", label: "Unión libre" },
+];
+
 const empleadoSchema = z.object({
+  // Generales
   nombres: z
     .string()
+    .trim()
     .min(1, "Los nombres son obligatorios")
     .max(120, "Máximo 120 caracteres"),
   apellidoPaterno: z
     .string()
+    .trim()
     .min(1, "El apellido paterno es obligatorio")
     .max(120, "Máximo 120 caracteres"),
-  apellidoMaterno: z.string().max(120, "Máximo 120 caracteres"),
+  apellidoMaterno: z.string().trim().max(120, "Máximo 120 caracteres"),
   fechaNacimiento: z.string(),
-  telefono: z.string().max(30, "Máximo 30 caracteres"),
+  telefono: z
+    .string()
+    .trim()
+    .max(15, "Máximo 15 caracteres")
+    .refine((value) => value === "" || /^\d{10,15}$/.test(value), {
+      message: "El teléfono debe contener entre 10 y 15 dígitos",
+    }),
   email: z.union([z.literal(""), z.string().email("Correo inválido")]),
   fechaIngreso: z.string().min(1, "La fecha de ingreso es obligatoria"),
   activo: z.boolean(),
   departamentoId: z.coerce.number().min(1, "Debes seleccionar un departamento"),
   puestoId: z.coerce.number().min(1, "Debes seleccionar un puesto"),
   sucursalId: z.coerce.number().min(0),
+
+  // Identificación
+  curp: z
+    .string()
+    .trim()
+    .max(18, "Máximo 18 caracteres")
+    .refine(
+      (value) =>
+        value === "" ||
+        /^[A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]\d$/.test(value.toUpperCase()),
+      { message: "La CURP no tiene un formato válido" }
+    ),
+  rfc: z
+    .string()
+    .trim()
+    .max(13, "Máximo 13 caracteres")
+    .refine(
+      (value) =>
+        value === "" ||
+        /^([A-Z&Ñ]{3,4})\d{6}([A-Z\d]{3})$/.test(value.toUpperCase()),
+      { message: "El RFC no tiene un formato válido" }
+    ),
+  nss: z
+    .string()
+    .trim()
+    .max(11, "Máximo 11 caracteres")
+    .refine((value) => value === "" || /^\d{11}$/.test(value), {
+      message: "El NSS debe contener exactamente 11 dígitos",
+    }),
+  sexo: z.enum(["NoEspecificado", "Hombre", "Mujer", "Otro"]),
+  estadoCivil: z.enum([
+    "NoEspecificado",
+    "Soltero",
+    "Casado",
+    "Divorciado",
+    "Viudo",
+    "UnionLibre",
+  ]),
+  nacionalidad: z.string().trim().max(80, "Máximo 80 caracteres"),
+
+  // Domicilio
+  direccionCalle: z.string().trim().max(150, "Máximo 150 caracteres"),
+  direccionNumeroExterior: z.string().trim().max(20, "Máximo 20 caracteres"),
+  direccionNumeroInterior: z.string().trim().max(20, "Máximo 20 caracteres"),
+  direccionColonia: z.string().trim().max(120, "Máximo 120 caracteres"),
+  direccionCiudad: z.string().trim().max(120, "Máximo 120 caracteres"),
+  direccionEstado: z.string().trim().max(120, "Máximo 120 caracteres"),
+  direccionCodigoPostal: z
+    .string()
+    .trim()
+    .max(5, "Máximo 5 caracteres")
+    .refine((value) => value === "" || /^\d{5}$/.test(value), {
+      message: "El código postal debe contener exactamente 5 dígitos",
+    }),
+
+  // Emergencia
+  contactoEmergenciaNombre: z
+    .string()
+    .trim()
+    .max(150, "Máximo 150 caracteres"),
+  contactoEmergenciaTelefono: z
+    .string()
+    .trim()
+    .max(15, "Máximo 15 caracteres")
+    .refine((value) => value === "" || /^\d{10,15}$/.test(value), {
+      message:
+        "El teléfono de emergencia debe contener entre 10 y 15 dígitos",
+    }),
+  contactoEmergenciaParentesco: z
+    .string()
+    .trim()
+    .max(60, "Máximo 60 caracteres"),
 });
 
 type EmpleadoFormInput = z.input<typeof empleadoSchema>;
@@ -133,7 +246,9 @@ function getErrorMessage(error: unknown) {
       return apiMessage;
     }
 
-    return `${error.response?.status ?? ""} ${error.response?.statusText ?? error.message}`.trim();
+    return `${error.response?.status ?? ""} ${
+      error.response?.statusText ?? error.message
+    }`.trim();
   }
 
   if (error instanceof Error) return error.message;
@@ -143,6 +258,16 @@ function getErrorMessage(error: unknown) {
 function normalizeOptional(value: string) {
   const trimmed = value.trim();
   return trimmed === "" ? null : trimmed;
+}
+
+function normalizeUpperOptional(value: string) {
+  const normalized = normalizeOptional(value);
+  return normalized ? normalized.toUpperCase() : null;
+}
+
+function normalizeDigitsOptional(value: string) {
+  const normalized = value.replace(/\D/g, "").trim();
+  return normalized === "" ? null : normalized;
 }
 
 function normalizeDateInput(value?: string | null) {
@@ -304,8 +429,8 @@ function actionIconButtonSx(
   return {
     width: 34,
     height: 34,
-    borderRadius: "12px",
     border: `1px solid ${map.border}`,
+    borderRadius: "12px",
     color: map.color,
     backgroundColor: map.bg,
     "&:hover": {
@@ -348,6 +473,14 @@ function getTipoBajaLabel(tipo?: TipoBajaEmpleado | null) {
   return found?.label ?? tipo ?? "-";
 }
 
+function toUpperInput(value: string) {
+  return value.toUpperCase().replace(/\s+/g, "");
+}
+
+function digitsOnlyInput(value: string) {
+  return value.replace(/\D/g, "");
+}
+
 function EmpleadoDialog({
   open,
   onClose,
@@ -368,6 +501,7 @@ function EmpleadoDialog({
   sucursales: SucursalDto[];
 }) {
   const isEdit = !!initialValues;
+  const [activeStep, setActiveStep] = useState(0);
 
   const {
     register,
@@ -375,9 +509,11 @@ function EmpleadoDialog({
     reset,
     watch,
     setValue,
+    trigger,
     formState: { errors },
   } = useForm<EmpleadoFormInput, undefined, EmpleadoFormValues>({
     resolver: zodResolver(empleadoSchema),
+    mode: "onBlur",
     defaultValues: {
       nombres: "",
       apellidoPaterno: "",
@@ -390,11 +526,32 @@ function EmpleadoDialog({
       departamentoId: 0,
       puestoId: 0,
       sucursalId: 0,
+
+      curp: "",
+      rfc: "",
+      nss: "",
+      sexo: "NoEspecificado",
+      estadoCivil: "NoEspecificado",
+      nacionalidad: "",
+
+      direccionCalle: "",
+      direccionNumeroExterior: "",
+      direccionNumeroInterior: "",
+      direccionColonia: "",
+      direccionCiudad: "",
+      direccionEstado: "",
+      direccionCodigoPostal: "",
+
+      contactoEmergenciaNombre: "",
+      contactoEmergenciaTelefono: "",
+      contactoEmergenciaParentesco: "",
     },
   });
 
   useEffect(() => {
     if (!open) return;
+
+    setActiveStep(0);
 
     reset({
       nombres: initialValues?.nombres ?? "",
@@ -410,6 +567,26 @@ function EmpleadoDialog({
       departamentoId: Number(initialValues?.departamentoId ?? 0),
       puestoId: Number(initialValues?.puestoId ?? 0),
       sucursalId: Number(initialValues?.sucursalId ?? 0),
+
+      curp: initialValues?.curp ?? "",
+      rfc: initialValues?.rfc ?? "",
+      nss: initialValues?.nss ?? "",
+      sexo: initialValues?.sexo ?? "NoEspecificado",
+      estadoCivil: initialValues?.estadoCivil ?? "NoEspecificado",
+      nacionalidad: initialValues?.nacionalidad ?? "",
+
+      direccionCalle: initialValues?.direccionCalle ?? "",
+      direccionNumeroExterior: initialValues?.direccionNumeroExterior ?? "",
+      direccionNumeroInterior: initialValues?.direccionNumeroInterior ?? "",
+      direccionColonia: initialValues?.direccionColonia ?? "",
+      direccionCiudad: initialValues?.direccionCiudad ?? "",
+      direccionEstado: initialValues?.direccionEstado ?? "",
+      direccionCodigoPostal: initialValues?.direccionCodigoPostal ?? "",
+
+      contactoEmergenciaNombre: initialValues?.contactoEmergenciaNombre ?? "",
+      contactoEmergenciaTelefono: initialValues?.contactoEmergenciaTelefono ?? "",
+      contactoEmergenciaParentesco:
+        initialValues?.contactoEmergenciaParentesco ?? "",
     });
   }, [initialValues, open, reset]);
 
@@ -436,13 +613,56 @@ function EmpleadoDialog({
     }
   }, [puestoId, puestosDisponibles, setValue]);
 
+  const stepFields: Array<Array<keyof EmpleadoFormInput>> = [
+    [
+      "nombres",
+      "apellidoPaterno",
+      "apellidoMaterno",
+      "fechaNacimiento",
+      "telefono",
+      "email",
+      "fechaIngreso",
+      "activo",
+      "departamentoId",
+      "puestoId",
+      "sucursalId",
+    ],
+    ["curp", "rfc", "nss", "sexo", "estadoCivil", "nacionalidad"],
+    [
+      "direccionCalle",
+      "direccionNumeroExterior",
+      "direccionNumeroInterior",
+      "direccionColonia",
+      "direccionCiudad",
+      "direccionEstado",
+      "direccionCodigoPostal",
+    ],
+    [
+      "contactoEmergenciaNombre",
+      "contactoEmergenciaTelefono",
+      "contactoEmergenciaParentesco",
+    ],
+  ];
+
+  const handleNext = async () => {
+    const isStepValid = await trigger(stepFields[activeStep]);
+    if (!isStepValid) return;
+    setActiveStep((current) =>
+      Math.min(current + 1, EMPLEADO_FORM_STEPS.length - 1)
+    );
+  };
+
+  const handleBack = () => {
+    setActiveStep((current) => Math.max(current - 1, 0));
+  };
+
   const submitForm = async (values: EmpleadoFormValues) => {
     await onSubmit({
       nombres: values.nombres.trim(),
       apellidoPaterno: values.apellidoPaterno.trim(),
       apellidoMaterno: normalizeOptional(values.apellidoMaterno ?? ""),
       fechaNacimiento: normalizeOptional(values.fechaNacimiento ?? ""),
-      telefono: normalizeOptional(values.telefono ?? ""),
+      telefono: normalizeDigitsOptional(values.telefono ?? ""),
       email: normalizeOptional(values.email ?? ""),
       fechaIngreso: values.fechaIngreso,
       activo: values.activo,
@@ -450,8 +670,468 @@ function EmpleadoDialog({
       puestoId: Number(values.puestoId),
       sucursalId:
         Number(values.sucursalId) > 0 ? Number(values.sucursalId) : null,
+
+      curp: normalizeUpperOptional(values.curp ?? ""),
+      rfc: normalizeUpperOptional(values.rfc ?? ""),
+      nss: normalizeDigitsOptional(values.nss ?? ""),
+      sexo: values.sexo,
+      estadoCivil: values.estadoCivil,
+      nacionalidad: normalizeOptional(values.nacionalidad ?? ""),
+
+      direccionCalle: normalizeOptional(values.direccionCalle ?? ""),
+      direccionNumeroExterior: normalizeOptional(
+        values.direccionNumeroExterior ?? ""
+      ),
+      direccionNumeroInterior: normalizeOptional(
+        values.direccionNumeroInterior ?? ""
+      ),
+      direccionColonia: normalizeOptional(values.direccionColonia ?? ""),
+      direccionCiudad: normalizeOptional(values.direccionCiudad ?? ""),
+      direccionEstado: normalizeOptional(values.direccionEstado ?? ""),
+      direccionCodigoPostal: normalizeDigitsOptional(
+        values.direccionCodigoPostal ?? ""
+      ),
+
+      contactoEmergenciaNombre: normalizeOptional(
+        values.contactoEmergenciaNombre ?? ""
+      ),
+      contactoEmergenciaTelefono: normalizeDigitsOptional(
+        values.contactoEmergenciaTelefono ?? ""
+      ),
+      contactoEmergenciaParentesco: normalizeOptional(
+        values.contactoEmergenciaParentesco ?? ""
+      ),
     });
   };
+
+  function renderStepContent() {
+    switch (activeStep) {
+      case 0:
+        return (
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+              gap: 2,
+            }}
+          >
+            <TextField
+              label="Nombres"
+              {...register("nombres")}
+              error={!!errors.nombres}
+              helperText={errors.nombres?.message}
+              fullWidth
+            />
+
+            <TextField
+              label="Apellido paterno"
+              {...register("apellidoPaterno")}
+              error={!!errors.apellidoPaterno}
+              helperText={errors.apellidoPaterno?.message}
+              fullWidth
+            />
+
+            <TextField
+              label="Apellido materno"
+              {...register("apellidoMaterno")}
+              error={!!errors.apellidoMaterno}
+              helperText={errors.apellidoMaterno?.message}
+              fullWidth
+            />
+
+            <TextField
+              label="Teléfono"
+              value={watch("telefono")}
+              onChange={(e) =>
+                setValue("telefono", digitsOnlyInput(e.target.value), {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                })
+              }
+              error={!!errors.telefono}
+              helperText={errors.telefono?.message}
+              fullWidth
+              inputProps={{ maxLength: 15, inputMode: "numeric" }}
+            />
+
+            <TextField
+              label="Correo"
+              {...register("email")}
+              error={!!errors.email}
+              helperText={errors.email?.message}
+              fullWidth
+            />
+
+            <TextField
+              label="Fecha de nacimiento"
+              type="date"
+              {...register("fechaNacimiento")}
+              InputLabelProps={{ shrink: true }}
+              fullWidth
+            />
+
+            <TextField
+              label="Fecha de ingreso"
+              type="date"
+              {...register("fechaIngreso")}
+              error={!!errors.fechaIngreso}
+              helperText={errors.fechaIngreso?.message}
+              InputLabelProps={{ shrink: true }}
+              fullWidth
+            />
+
+            <TextField
+              select
+              label="Sucursal"
+              value={sucursalId}
+              onChange={(e) => {
+                setValue("sucursalId", Number(e.target.value), {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                });
+              }}
+              error={!!errors.sucursalId}
+              helperText={errors.sucursalId?.message}
+              fullWidth
+            >
+              <MenuItem value={0}>Sin sucursal</MenuItem>
+              {sucursales.map((sucursal) => (
+                <MenuItem key={sucursal.id} value={sucursal.id}>
+                  {sucursal.clave} - {sucursal.nombre}
+                </MenuItem>
+              ))}
+            </TextField>
+
+            <TextField
+              select
+              label="Departamento"
+              value={departamentoId}
+              onChange={(e) => {
+                const value = Number(e.target.value);
+                setValue("departamentoId", value, {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                });
+                setValue("puestoId", 0, {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                });
+              }}
+              error={!!errors.departamentoId}
+              helperText={errors.departamentoId?.message}
+              fullWidth
+            >
+              <MenuItem value={0}>Selecciona un departamento</MenuItem>
+              {departamentos.map((dep) => (
+                <MenuItem key={dep.id} value={dep.id}>
+                  {dep.clave} - {dep.nombre}
+                </MenuItem>
+              ))}
+            </TextField>
+
+            <TextField
+              select
+              label="Puesto"
+              value={puestoId}
+              onChange={(e) => {
+                setValue("puestoId", Number(e.target.value), {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                });
+              }}
+              error={!!errors.puestoId}
+              helperText={
+                errors.puestoId?.message ||
+                (departamentoId <= 0
+                  ? "Primero selecciona un departamento"
+                  : puestosDisponibles.length === 0
+                    ? "No hay puestos para este departamento"
+                    : "")
+              }
+              disabled={departamentoId <= 0 || puestosDisponibles.length === 0}
+              fullWidth
+            >
+              <MenuItem value={0}>
+                {departamentoId > 0
+                  ? "Selecciona un puesto"
+                  : "Primero elige un departamento"}
+              </MenuItem>
+              {puestosDisponibles.map((puesto) => (
+                <MenuItem key={puesto.id} value={puesto.id}>
+                  {puesto.clave} - {puesto.nombre}
+                </MenuItem>
+              ))}
+            </TextField>
+
+            <Box sx={{ display: "flex", alignItems: "center" }}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={activo}
+                    onChange={(_, checked) =>
+                      setValue("activo", checked, { shouldDirty: true })
+                    }
+                  />
+                }
+                label={activo ? "Activo" : "Inactivo"}
+              />
+            </Box>
+          </Box>
+        );
+
+      case 1:
+        return (
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+              gap: 2,
+            }}
+          >
+            <TextField
+              label="CURP"
+              value={watch("curp")}
+              onChange={(e) =>
+                setValue("curp", toUpperInput(e.target.value), {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                })
+              }
+              error={!!errors.curp}
+              helperText={errors.curp?.message}
+              fullWidth
+              inputProps={{ maxLength: 18 }}
+            />
+
+            <TextField
+              label="RFC"
+              value={watch("rfc")}
+              onChange={(e) =>
+                setValue("rfc", toUpperInput(e.target.value), {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                })
+              }
+              error={!!errors.rfc}
+              helperText={errors.rfc?.message}
+              fullWidth
+              inputProps={{ maxLength: 13 }}
+            />
+
+            <TextField
+              label="NSS"
+              value={watch("nss")}
+              onChange={(e) =>
+                setValue("nss", digitsOnlyInput(e.target.value), {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                })
+              }
+              error={!!errors.nss}
+              helperText={errors.nss?.message}
+              fullWidth
+              inputProps={{ maxLength: 11, inputMode: "numeric" }}
+            />
+
+            <TextField
+              select
+              label="Sexo"
+              value={watch("sexo")}
+              onChange={(e) =>
+                setValue("sexo", e.target.value as SexoEmpleado, {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                })
+              }
+              error={!!errors.sexo}
+              helperText={errors.sexo?.message}
+              fullWidth
+            >
+              {SEXO_OPTIONS.map((item) => (
+                <MenuItem key={item.value} value={item.value}>
+                  {item.label}
+                </MenuItem>
+              ))}
+            </TextField>
+
+            <TextField
+              select
+              label="Estado civil"
+              value={watch("estadoCivil")}
+              onChange={(e) =>
+                setValue("estadoCivil", e.target.value as EstadoCivilEmpleado, {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                })
+              }
+              error={!!errors.estadoCivil}
+              helperText={errors.estadoCivil?.message}
+              fullWidth
+            >
+              {ESTADO_CIVIL_OPTIONS.map((item) => (
+                <MenuItem key={item.value} value={item.value}>
+                  {item.label}
+                </MenuItem>
+              ))}
+            </TextField>
+
+            <TextField
+              label="Nacionalidad"
+              {...register("nacionalidad")}
+              error={!!errors.nacionalidad}
+              helperText={errors.nacionalidad?.message}
+              fullWidth
+            />
+          </Box>
+        );
+
+      case 2:
+        return (
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+              gap: 2,
+            }}
+          >
+            <TextField
+              label="Calle"
+              {...register("direccionCalle")}
+              error={!!errors.direccionCalle}
+              helperText={errors.direccionCalle?.message}
+              fullWidth
+            />
+
+            <TextField
+              label="No. exterior"
+              {...register("direccionNumeroExterior")}
+              error={!!errors.direccionNumeroExterior}
+              helperText={errors.direccionNumeroExterior?.message}
+              fullWidth
+            />
+
+            <TextField
+              label="No. interior"
+              {...register("direccionNumeroInterior")}
+              error={!!errors.direccionNumeroInterior}
+              helperText={errors.direccionNumeroInterior?.message}
+              fullWidth
+            />
+
+            <TextField
+              label="Colonia"
+              {...register("direccionColonia")}
+              error={!!errors.direccionColonia}
+              helperText={errors.direccionColonia?.message}
+              fullWidth
+            />
+
+            <TextField
+              label="Ciudad"
+              {...register("direccionCiudad")}
+              error={!!errors.direccionCiudad}
+              helperText={errors.direccionCiudad?.message}
+              fullWidth
+            />
+
+            <TextField
+              label="Estado"
+              {...register("direccionEstado")}
+              error={!!errors.direccionEstado}
+              helperText={errors.direccionEstado?.message}
+              fullWidth
+            />
+
+            <TextField
+              label="Código postal"
+              value={watch("direccionCodigoPostal")}
+              onChange={(e) =>
+                setValue("direccionCodigoPostal", digitsOnlyInput(e.target.value), {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                })
+              }
+              error={!!errors.direccionCodigoPostal}
+              helperText={errors.direccionCodigoPostal?.message}
+              fullWidth
+              inputProps={{ maxLength: 5, inputMode: "numeric" }}
+            />
+          </Box>
+        );
+
+      case 3:
+        return (
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+              gap: 2,
+            }}
+          >
+            <TextField
+              label="Contacto de emergencia"
+              {...register("contactoEmergenciaNombre")}
+              error={!!errors.contactoEmergenciaNombre}
+              helperText={errors.contactoEmergenciaNombre?.message}
+              fullWidth
+            />
+
+            <TextField
+              label="Teléfono de emergencia"
+              value={watch("contactoEmergenciaTelefono")}
+              onChange={(e) =>
+                setValue(
+                  "contactoEmergenciaTelefono",
+                  digitsOnlyInput(e.target.value),
+                  {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  }
+                )
+              }
+              error={!!errors.contactoEmergenciaTelefono}
+              helperText={errors.contactoEmergenciaTelefono?.message}
+              fullWidth
+              inputProps={{ maxLength: 15, inputMode: "numeric" }}
+            />
+
+            <TextField
+              label="Parentesco"
+              {...register("contactoEmergenciaParentesco")}
+              error={!!errors.contactoEmergenciaParentesco}
+              helperText={errors.contactoEmergenciaParentesco?.message}
+              fullWidth
+            />
+          </Box>
+        );
+
+      default:
+        return null;
+    }
+  }
+
+  const stepMeta = [
+    {
+      icon: <BadgeOutlinedIcon fontSize="small" />,
+      title: "Datos generales",
+      subtitle: "Información operativa y asignación organizacional del empleado.",
+    },
+    {
+      icon: <BadgeOutlinedIcon fontSize="small" />,
+      title: "Identificación",
+      subtitle: "Datos oficiales y catálogos personales básicos para RH.",
+    },
+    {
+      icon: <HomeWorkOutlinedIcon fontSize="small" />,
+      title: "Domicilio",
+      subtitle: "Dirección de residencia para expediente y contacto administrativo.",
+    },
+    {
+      icon: <ContactPhoneOutlinedIcon fontSize="small" />,
+      title: "Contacto de emergencia",
+      subtitle: "Persona y teléfono de contacto ante incidentes o urgencias.",
+    },
+  ] as const;
 
   return (
     <Dialog
@@ -463,182 +1143,59 @@ function EmpleadoDialog({
       <DialogTitle>{isEdit ? "Editar empleado" : "Nuevo empleado"}</DialogTitle>
 
       <DialogContent dividers>
-        <Box
-          component="form"
-          sx={{
-            mt: 1,
-            display: "grid",
-            gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-            gap: 2,
-          }}
-          onSubmit={handleSubmit(submitForm)}
-        >
-          <TextField
-            label="Nombres"
-            {...register("nombres")}
-            error={!!errors.nombres}
-            helperText={errors.nombres?.message}
-            fullWidth
-          />
-
-          <TextField
-            label="Apellido paterno"
-            {...register("apellidoPaterno")}
-            error={!!errors.apellidoPaterno}
-            helperText={errors.apellidoPaterno?.message}
-            fullWidth
-          />
-
-          <TextField
-            label="Apellido materno"
-            {...register("apellidoMaterno")}
-            error={!!errors.apellidoMaterno}
-            helperText={errors.apellidoMaterno?.message}
-            fullWidth
-          />
-
-          <TextField
-            label="Teléfono"
-            {...register("telefono")}
-            error={!!errors.telefono}
-            helperText={errors.telefono?.message}
-            fullWidth
-          />
-
-          <TextField
-            label="Correo"
-            {...register("email")}
-            error={!!errors.email}
-            helperText={errors.email?.message}
-            fullWidth
-          />
-
-          <TextField
-            label="Fecha de nacimiento"
-            type="date"
-            {...register("fechaNacimiento")}
-            InputLabelProps={{ shrink: true }}
-            fullWidth
-          />
-
-          <TextField
-            label="Fecha de ingreso"
-            type="date"
-            {...register("fechaIngreso")}
-            error={!!errors.fechaIngreso}
-            helperText={errors.fechaIngreso?.message}
-            InputLabelProps={{ shrink: true }}
-            fullWidth
-          />
-
-          <TextField
-            select
-            label="Sucursal"
-            value={sucursalId}
-            onChange={(e) => {
-              setValue("sucursalId", Number(e.target.value), {
-                shouldDirty: true,
-                shouldValidate: true,
-              });
-            }}
-            error={!!errors.sucursalId}
-            helperText={errors.sucursalId?.message}
-            fullWidth
-          >
-            <MenuItem value={0}>Sin sucursal</MenuItem>
-            {sucursales.map((sucursal) => (
-              <MenuItem key={sucursal.id} value={sucursal.id}>
-                {sucursal.clave} - {sucursal.nombre}
-              </MenuItem>
+        <Box component="form" sx={{ mt: 1 }} onSubmit={handleSubmit(submitForm)}>
+          <Stepper activeStep={activeStep} alternativeLabel sx={{ mb: 3 }}>
+            {EMPLEADO_FORM_STEPS.map((label) => (
+              <Step key={label}>
+                <StepLabel>{label}</StepLabel>
+              </Step>
             ))}
-          </TextField>
+          </Stepper>
 
-          <TextField
-            select
-            label="Departamento"
-            value={departamentoId}
-            onChange={(e) => {
-              const value = Number(e.target.value);
-              setValue("departamentoId", value, {
-                shouldDirty: true,
-                shouldValidate: true,
-              });
-              setValue("puestoId", 0, {
-                shouldDirty: true,
-                shouldValidate: true,
-              });
-            }}
-            error={!!errors.departamentoId}
-            helperText={errors.departamentoId?.message}
-            fullWidth
-          >
-            <MenuItem value={0}>Selecciona un departamento</MenuItem>
-            {departamentos.map((dep) => (
-              <MenuItem key={dep.id} value={dep.id}>
-                {dep.clave} - {dep.nombre}
-              </MenuItem>
-            ))}
-          </TextField>
+          <Stack spacing={2.5}>
+            <Box>
+              <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
+                {stepMeta[activeStep].icon}
+                <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                  {stepMeta[activeStep].title}
+                </Typography>
+              </Stack>
+              <Typography variant="body2" color="text.secondary">
+                {stepMeta[activeStep].subtitle}
+              </Typography>
+            </Box>
 
-          <TextField
-            select
-            label="Puesto"
-            value={puestoId}
-            onChange={(e) => {
-              setValue("puestoId", Number(e.target.value), {
-                shouldDirty: true,
-                shouldValidate: true,
-              });
-            }}
-            error={!!errors.puestoId}
-            helperText={
-              errors.puestoId?.message ||
-              (departamentoId <= 0
-                ? "Primero selecciona un departamento"
-                : puestosDisponibles.length === 0
-                  ? "No hay puestos para este departamento"
-                  : "")
-            }
-            disabled={departamentoId <= 0 || puestosDisponibles.length === 0}
-            fullWidth
-          >
-            <MenuItem value={0}>
-              {departamentoId > 0
-                ? "Selecciona un puesto"
-                : "Primero elige un departamento"}
-            </MenuItem>
-            {puestosDisponibles.map((puesto) => (
-              <MenuItem key={puesto.id} value={puesto.id}>
-                {puesto.clave} - {puesto.nombre}
-              </MenuItem>
-            ))}
-          </TextField>
+            <Divider />
 
-          <FormControlLabel
-            control={
-              <Switch
-                checked={activo}
-                onChange={(_, checked) =>
-                  setValue("activo", checked, { shouldDirty: true })
-                }
-              />
-            }
-            label={activo ? "Activo" : "Inactivo"}
-          />
+            {renderStepContent()}
+          </Stack>
         </Box>
       </DialogContent>
 
-      <DialogActions>
+      <DialogActions sx={{ justifyContent: "space-between" }}>
         <Button onClick={onClose} disabled={saving} color="inherit">
           Cancelar
         </Button>
-        <Button
-          onClick={handleSubmit(submitForm)}
-          variant="contained"
-          disabled={saving}
-        >
-          {saving ? "Guardando..." : isEdit ? "Guardar cambios" : "Crear"}
-        </Button>
+
+        <Stack direction="row" spacing={1}>
+          <Button onClick={handleBack} disabled={saving || activeStep === 0}>
+            Anterior
+          </Button>
+
+          {activeStep < EMPLEADO_FORM_STEPS.length - 1 ? (
+            <Button variant="contained" onClick={() => void handleNext()} disabled={saving}>
+              Siguiente
+            </Button>
+          ) : (
+            <Button
+              onClick={handleSubmit(submitForm)}
+              variant="contained"
+              disabled={saving}
+            >
+              {saving ? "Guardando..." : isEdit ? "Guardar cambios" : "Crear"}
+            </Button>
+          )}
+        </Stack>
       </DialogActions>
     </Dialog>
   );
@@ -1052,7 +1609,11 @@ function MovimientosDialog({
                         />
                       </TableCell>
                       <TableCell>{formatDate(item.fechaMovimiento)}</TableCell>
-                      <TableCell>{getTipoBajaLabel(item.tipoBaja as TipoBajaEmpleado | null)}</TableCell>
+                      <TableCell>
+                        {getTipoBajaLabel(
+                          item.tipoBaja as TipoBajaEmpleado | null
+                        )}
+                      </TableCell>
                       <TableCell>{item.motivo || "-"}</TableCell>
                       <TableCell>{item.comentario || "-"}</TableCell>
                       <TableCell>{item.usuarioResponsableId ?? "-"}</TableCell>
@@ -1085,13 +1646,19 @@ export default function EmpleadosPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Empleado | null>(null);
   const [bajaTarget, setBajaTarget] = useState<Empleado | null>(null);
-  const [reingresoTarget, setReingresoTarget] = useState<Empleado | null>(null);
-  const [movimientosTarget, setMovimientosTarget] = useState<Empleado | null>(null);
+  const [reingresoTarget, setReingresoTarget] = useState<Empleado | null>(
+    null
+  );
+  const [movimientosTarget, setMovimientosTarget] = useState<Empleado | null>(
+    null
+  );
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [exportingXlsx, setExportingXlsx] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
-  const [downloadingFichaId, setDownloadingFichaId] = useState<number | null>(null);
+  const [downloadingFichaId, setDownloadingFichaId] = useState<number | null>(
+    null
+  );
 
   const normalizedRoles = useMemo(() => normalizeRoles(roles), [roles]);
   const canManageEmpleados = hasSomeRole(roles, ["ADMIN", "RRHH"]);
@@ -1235,6 +1802,9 @@ export default function EmpleadosPage() {
         (row.apellidoPaterno ?? "").toLowerCase().includes(term) ||
         (row.apellidoMaterno ?? "").toLowerCase().includes(term) ||
         (row.email ?? "").toLowerCase().includes(term) ||
+        (row.curp ?? "").toLowerCase().includes(term) ||
+        (row.rfc ?? "").toLowerCase().includes(term) ||
+        (row.nss ?? "").toLowerCase().includes(term) ||
         (departamento?.nombre ?? "").toLowerCase().includes(term) ||
         (departamento?.clave ?? "").toLowerCase().includes(term) ||
         (puesto?.nombre ?? "").toLowerCase().includes(term) ||
@@ -1269,7 +1839,13 @@ export default function EmpleadosPage() {
 
   useEffect(() => {
     setPage(0);
-  }, [search, departamentoFilter, sucursalFilter, statusFilter, filteredRows.length]);
+  }, [
+    search,
+    departamentoFilter,
+    sucursalFilter,
+    statusFilter,
+    filteredRows.length,
+  ]);
 
   const activeCount = useMemo(
     () =>
@@ -1459,7 +2035,9 @@ export default function EmpleadosPage() {
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
           <Button
             variant="outlined"
-            startIcon={isRefreshing ? <CircularProgress size={18} /> : <RefreshIcon />}
+            startIcon={
+              isRefreshing ? <CircularProgress size={18} /> : <RefreshIcon />
+            }
             onClick={handleRefresh}
             disabled={
               loadingAny ||
@@ -1475,7 +2053,13 @@ export default function EmpleadosPage() {
 
           <Button
             variant="outlined"
-            startIcon={exportingXlsx ? <CircularProgress size={18} /> : <TableViewRoundedIcon />}
+            startIcon={
+              exportingXlsx ? (
+                <CircularProgress size={18} />
+              ) : (
+                <TableViewRoundedIcon />
+              )
+            }
             onClick={handleExportXlsx}
             disabled={loadingAny || exportingXlsx || exportingPdf}
           >
@@ -1484,7 +2068,13 @@ export default function EmpleadosPage() {
 
           <Button
             variant="outlined"
-            startIcon={exportingPdf ? <CircularProgress size={18} /> : <PictureAsPdfRoundedIcon />}
+            startIcon={
+              exportingPdf ? (
+                <CircularProgress size={18} />
+              ) : (
+                <PictureAsPdfRoundedIcon />
+              )
+            }
             onClick={handleExportPdf}
             disabled={loadingAny || exportingXlsx || exportingPdf}
           >
@@ -1549,28 +2139,46 @@ export default function EmpleadosPage() {
 
             <Stack direction="row" spacing={2.5}>
               <Box>
-                <Typography variant="h4" sx={{ fontWeight: 900, lineHeight: 1 }}>
+                <Typography
+                  variant="h4"
+                  sx={{ fontWeight: 900, lineHeight: 1 }}
+                >
                   {filteredRows.length}
                 </Typography>
-                <Typography variant="caption" sx={{ color: alpha("#ffffff", 0.8) }}>
+                <Typography
+                  variant="caption"
+                  sx={{ color: alpha("#ffffff", 0.8) }}
+                >
                   visibles
                 </Typography>
               </Box>
 
               <Box>
-                <Typography variant="h4" sx={{ fontWeight: 900, lineHeight: 1 }}>
+                <Typography
+                  variant="h4"
+                  sx={{ fontWeight: 900, lineHeight: 1 }}
+                >
                   {activeCount}
                 </Typography>
-                <Typography variant="caption" sx={{ color: alpha("#ffffff", 0.8) }}>
+                <Typography
+                  variant="caption"
+                  sx={{ color: alpha("#ffffff", 0.8) }}
+                >
                   activos
                 </Typography>
               </Box>
 
               <Box>
-                <Typography variant="h4" sx={{ fontWeight: 900, lineHeight: 1 }}>
+                <Typography
+                  variant="h4"
+                  sx={{ fontWeight: 900, lineHeight: 1 }}
+                >
                   {activeFiltersCount}
                 </Typography>
-                <Typography variant="caption" sx={{ color: alpha("#ffffff", 0.8) }}>
+                <Typography
+                  variant="caption"
+                  sx={{ color: alpha("#ffffff", 0.8) }}
+                >
                   filtros
                 </Typography>
               </Box>
@@ -1649,7 +2257,9 @@ export default function EmpleadosPage() {
               color={activeFiltersCount > 0 ? "primary" : undefined}
               label={
                 activeFiltersCount > 0
-                  ? `${activeFiltersCount} filtro${activeFiltersCount > 1 ? "s" : ""} activo${activeFiltersCount > 1 ? "s" : ""}`
+                  ? `${activeFiltersCount} filtro${
+                      activeFiltersCount > 1 ? "s" : ""
+                    } activo${activeFiltersCount > 1 ? "s" : ""}`
                   : "Sin filtros"
               }
             />
@@ -1678,7 +2288,7 @@ export default function EmpleadosPage() {
             <TextField
               fullWidth
               label="Buscar"
-              placeholder="No. empleado, nombre, correo, puesto, sucursal..."
+              placeholder="No. empleado, nombre, correo, CURP, RFC, NSS..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               InputProps={{
@@ -1837,7 +2447,9 @@ export default function EmpleadosPage() {
                         <TableCell>{row.id}</TableCell>
 
                         <TableCell>
-                          <Typography fontWeight={700}>{row.numEmpleado}</Typography>
+                          <Typography fontWeight={700}>
+                            {row.numEmpleado}
+                          </Typography>
                         </TableCell>
 
                         <TableCell>
@@ -1845,7 +2457,10 @@ export default function EmpleadosPage() {
                             <Typography fontWeight={700}>
                               {getEmpleadoNombre(row)}
                             </Typography>
-                            <Typography variant="caption" color="text.secondary">
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                            >
                               {row.email || "Sin correo"}
                             </Typography>
                           </Stack>
@@ -1914,12 +2529,18 @@ export default function EmpleadosPage() {
                             />
 
                             {row.estatusLaboralActual === "BAJA" &&
-                              row.fechaBajaActual ? (
-                              <Typography variant="caption" color="text.secondary">
+                            row.fechaBajaActual ? (
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                              >
                                 Baja: {formatDate(row.fechaBajaActual)}
                               </Typography>
                             ) : row.fechaReingresoActual ? (
-                              <Typography variant="caption" color="text.secondary">
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                              >
                                 Reingreso: {formatDate(row.fechaReingresoActual)}
                               </Typography>
                             ) : null}
@@ -2041,7 +2662,9 @@ export default function EmpleadosPage() {
               rowsPerPageOptions={[5, 10, 25, 50]}
               labelRowsPerPage="Filas por página"
               labelDisplayedRows={({ from, to, count }) =>
-                `${from}-${to} de ${count !== -1 ? count : `más de ${to}`}`
+                `${from}-${to} de ${
+                  count !== -1 ? count : `más de ${to}`
+                }`
               }
             />
           </>

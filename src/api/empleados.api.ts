@@ -1,5 +1,19 @@
 import { api } from "./axios";
 
+export type SexoEmpleado =
+  | "NoEspecificado"
+  | "Hombre"
+  | "Mujer"
+  | "Otro";
+
+export type EstadoCivilEmpleado =
+  | "NoEspecificado"
+  | "Soltero"
+  | "Casado"
+  | "Divorciado"
+  | "Viudo"
+  | "UnionLibre";
+
 export type Empleado = {
   id: number;
   numEmpleado: string;
@@ -22,6 +36,37 @@ export type Empleado = {
   puestoNombre?: string | null;
   sucursalId?: number | null;
   sucursalNombre?: string | null;
+
+  // Identificación
+  curp?: string | null;
+  rfc?: string | null;
+  nss?: string | null;
+
+  // Personales
+  sexo: SexoEmpleado;
+  estadoCivil: EstadoCivilEmpleado;
+  nacionalidad?: string | null;
+
+  // Domicilio
+  direccionCalle?: string | null;
+  direccionNumeroExterior?: string | null;
+  direccionNumeroInterior?: string | null;
+  direccionColonia?: string | null;
+  direccionCiudad?: string | null;
+  direccionEstado?: string | null;
+  direccionCodigoPostal?: string | null;
+
+  // Emergencia
+  contactoEmergenciaNombre?: string | null;
+  contactoEmergenciaTelefono?: string | null;
+  contactoEmergenciaParentesco?: string | null;
+
+  // Foto
+  fotoRutaRelativa?: string | null;
+  fotoNombreOriginal?: string | null;
+  fotoMimeType?: string | null;
+  fotoTamanoBytes?: number | null;
+  fotoUpdatedAtUtc?: string | null;
 };
 
 export type EmpleadoListResponse = {
@@ -44,6 +89,30 @@ export type EmpleadoCreateInput = {
   departamentoId?: number | null;
   puestoId?: number | null;
   sucursalId?: number | null;
+
+  // Identificación
+  curp?: string | null;
+  rfc?: string | null;
+  nss?: string | null;
+
+  // Personales
+  sexo: SexoEmpleado;
+  estadoCivil: EstadoCivilEmpleado;
+  nacionalidad?: string | null;
+
+  // Domicilio
+  direccionCalle?: string | null;
+  direccionNumeroExterior?: string | null;
+  direccionNumeroInterior?: string | null;
+  direccionColonia?: string | null;
+  direccionCiudad?: string | null;
+  direccionEstado?: string | null;
+  direccionCodigoPostal?: string | null;
+
+  // Emergencia
+  contactoEmergenciaNombre?: string | null;
+  contactoEmergenciaTelefono?: string | null;
+  contactoEmergenciaParentesco?: string | null;
 };
 
 export type EmpleadoUpdateInput = EmpleadoCreateInput;
@@ -250,7 +319,10 @@ export async function createAccountForEmpleado(
   id: number,
   payload: CreateAccountForEmpleadoInput
 ) {
-  const { data } = await api.post(`/api/Empleados/${id}/create-account`, payload);
+  const { data } = await api.post(
+    `/api/Empleados/${id}/create-account`,
+    payload
+  );
   return data;
 }
 
