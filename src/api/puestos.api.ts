@@ -36,6 +36,10 @@ type PuestoListEnvelope =
   | {
       items?: RawPuesto[];
       data?: RawPuesto[];
+      page?: number;
+      pageSize?: number;
+      total?: number;
+      totalPages?: number;
     };
 
 function toNumber(value: unknown, fallback = 0) {
@@ -59,10 +63,7 @@ function normalizePuesto(raw: RawPuesto): Puesto {
     clave: raw.clave ?? "",
     nombre: raw.nombre ?? "",
     departamentoId: toNumber(
-      raw.departamentoId ??
-        raw.departamentoID ??
-        raw.departamento?.id ??
-        0
+      raw.departamentoId ?? raw.departamentoID ?? raw.departamento?.id ?? 0
     ),
     activo: toBoolean(raw.activo),
     createdAtUtc: raw.createdAtUtc,
@@ -71,12 +72,23 @@ function normalizePuesto(raw: RawPuesto): Puesto {
 }
 
 function normalizePuestos(payload: PuestoListEnvelope): Puesto[] {
-  const rows = Array.isArray(payload) ? payload : payload.items ?? payload.data ?? [];
+  const rows = Array.isArray(payload)
+    ? payload
+    : payload.items ?? payload.data ?? [];
+
   return rows.map(normalizePuesto);
 }
 
 export async function getPuestos() {
-  const { data } = await api.get<PuestoListEnvelope>("/api/Puestos");
+  const { data } = await api.get<PuestoListEnvelope>("/api/Puestos", {
+    params: {
+      page: 1,
+      pageSize: 500,
+      sort: "nombre",
+      dir: "asc",
+    },
+  });
+
   return normalizePuestos(data);
 }
 
@@ -86,6 +98,6 @@ export async function createPuesto(input: SavePuestoInput) {
 }
 
 export async function updatePuesto(id: number, input: SavePuestoInput) {
-  const { data } = await api.put<Puesto | void>(`/api/Puestos/${id}`, input);
+  const { data } = await api.put<Puesto>(`/api/Puestos/${id}`, input);
   return data;
 }

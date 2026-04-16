@@ -39,17 +39,14 @@ export type Empleado = {
   sucursalId?: number | null;
   sucursalNombre?: string | null;
 
-  // Identificación
   curp?: string | null;
   rfc?: string | null;
   nss?: string | null;
 
-  // Personales
   sexo: SexoEmpleado;
   estadoCivil: EstadoCivilEmpleado;
   nacionalidad?: string | null;
 
-  // Domicilio
   direccionCalle?: string | null;
   direccionNumeroExterior?: string | null;
   direccionNumeroInterior?: string | null;
@@ -58,23 +55,19 @@ export type Empleado = {
   direccionEstado?: string | null;
   direccionCodigoPostal?: string | null;
 
-  // Fiscales
   codigoPostalFiscal?: string | null;
   entidadFiscal?: string | null;
 
-  // Emergencia
   contactoEmergenciaNombre?: string | null;
   contactoEmergenciaTelefono?: string | null;
   contactoEmergenciaParentesco?: string | null;
 
-  // Foto
   fotoUrl?: string | null;
   tieneFoto: boolean;
   fotoNombreOriginal?: string | null;
   fotoMimeType?: string | null;
   fotoTamanoBytes?: number | null;
 
-  // Auditoría / metadata
   createdAtUtc: string;
   updatedAtUtc?: string | null;
 };
@@ -88,7 +81,7 @@ export type EmpleadoListResponse = {
 };
 
 export type EmpleadoCreateInput = {
-  numEmpleado: string;
+  numEmpleado?: string | null;
   nombres: string;
   apellidoPaterno: string;
   apellidoMaterno?: string | null;
@@ -102,17 +95,14 @@ export type EmpleadoCreateInput = {
   puestoId?: number | null;
   sucursalId?: number | null;
 
-  // Identificación
   curp?: string | null;
   rfc?: string | null;
   nss?: string | null;
 
-  // Personales
   sexo: SexoEmpleado;
   estadoCivil: EstadoCivilEmpleado;
   nacionalidad?: string | null;
 
-  // Domicilio
   direccionCalle?: string | null;
   direccionNumeroExterior?: string | null;
   direccionNumeroInterior?: string | null;
@@ -121,11 +111,9 @@ export type EmpleadoCreateInput = {
   direccionEstado?: string | null;
   direccionCodigoPostal?: string | null;
 
-  // Fiscales
   codigoPostalFiscal?: string | null;
   entidadFiscal?: string | null;
 
-  // Emergencia
   contactoEmergenciaNombre?: string | null;
   contactoEmergenciaTelefono?: string | null;
   contactoEmergenciaParentesco?: string | null;
@@ -145,17 +133,14 @@ export type EmpleadoUpdateInput = {
   puestoId?: number | null;
   sucursalId?: number | null;
 
-  // Identificación
   curp?: string | null;
   rfc?: string | null;
   nss?: string | null;
 
-  // Personales
   sexo: SexoEmpleado;
   estadoCivil: EstadoCivilEmpleado;
   nacionalidad?: string | null;
 
-  // Domicilio
   direccionCalle?: string | null;
   direccionNumeroExterior?: string | null;
   direccionNumeroInterior?: string | null;
@@ -164,11 +149,9 @@ export type EmpleadoUpdateInput = {
   direccionEstado?: string | null;
   direccionCodigoPostal?: string | null;
 
-  // Fiscales
   codigoPostalFiscal?: string | null;
   entidadFiscal?: string | null;
 
-  // Emergencia
   contactoEmergenciaNombre?: string | null;
   contactoEmergenciaTelefono?: string | null;
   contactoEmergenciaParentesco?: string | null;
@@ -254,6 +237,29 @@ export type EmpleadosReporteParams = {
   search?: string | null;
 };
 
+export type EmpleadoImportError = {
+  rowNumber: number;
+  field: string;
+  message: string;
+  value?: string | null;
+};
+
+export type EmpleadoImportValidateResult = {
+  totalRows: number;
+  validRows: number;
+  errorRows: number;
+  canImport?: boolean;
+  errors: EmpleadoImportError[];
+};
+
+export type EmpleadoImportExecuteResult = {
+  totalRows: number;
+  insertedRows: number;
+  skippedRows: number;
+  errorRows: number;
+  errors: EmpleadoImportError[];
+};
+
 export function getEmpleadoNombreCompleto(
   empleado?:
     | Pick<Empleado, "nombres" | "apellidoPaterno" | "apellidoMaterno">
@@ -310,6 +316,12 @@ function buildReporteParams(query: EmpleadosReporteParams) {
   return params;
 }
 
+function buildImportFormData(file: File) {
+  const formData = new FormData();
+  formData.append("file", file);
+  return formData;
+}
+
 function downloadBlob(blob: Blob, fileName: string) {
   const blobUrl = window.URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -342,6 +354,13 @@ function getFileNameFromDisposition(
   }
 
   return fallback;
+}
+
+function resolveFileName(
+  contentDisposition?: string,
+  fallback = "empleados_import_template.xlsx"
+) {
+  return getFileNameFromDisposition(contentDisposition, fallback);
 }
 
 export async function getEmpleados(
@@ -521,4 +540,64 @@ export async function exportEmpleadoFichaPdf(id: number) {
   );
 
   downloadBlob(response.data, fileName);
+}
+
+export async function downloadEmpleadoImportTemplate(): Promise<void> {
+  const response = await api.get("/api/Empleados/import/template", {
+    responseType: "blob",
+  });
+
+  const blob = new Blob([response.data], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+
+  const fileName = resolveFileName(
+    response.headers["content-disposition"],
+    "empleados_import_template.xlsx"
+  );
+
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+}
+
+export async function validateEmpleadoImport(
+  file: File
+): Promise<EmpleadoImportValidateResult> {
+  const formData = buildImportFormData(file);
+
+  const { data } = await api.post<EmpleadoImportValidateResult>(
+    "/api/Empleados/import/validate",
+    formData,
+    {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    }
+  );
+
+  return data;
+}
+
+export async function importEmpleadoExcel(
+  file: File
+): Promise<EmpleadoImportExecuteResult> {
+  const formData = buildImportFormData(file);
+
+  const { data } = await api.post<EmpleadoImportExecuteResult>(
+    "/api/Empleados/import",
+    formData,
+    {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    }
+  );
+
+  return data;
 }

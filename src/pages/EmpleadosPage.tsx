@@ -34,6 +34,7 @@ import { alpha } from "@mui/material/styles";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import RefreshIcon from "@mui/icons-material/Refresh";
+import UploadFileRoundedIcon from "@mui/icons-material/UploadFileRounded";
 import ApartmentOutlinedIcon from "@mui/icons-material/ApartmentOutlined";
 import StoreRoundedIcon from "@mui/icons-material/StoreRounded";
 import PersonOffRoundedIcon from "@mui/icons-material/PersonOffRounded";
@@ -73,6 +74,7 @@ import {
   type DarBajaEmpleadoInput,
   type Empleado,
   type EmpleadoCreateInput,
+  type EmpleadoImportExecuteResult,
   type EmpleadoMovimientoLaboral,
   type ReingresarEmpleadoInput,
   type SexoEmpleado,
@@ -89,6 +91,7 @@ import EmptyState from "../components/ui/EmptyState";
 import HeroBanner from "../components/ui/HeroBanner";
 import MetricCard from "../components/ui/MetricCard";
 import SectionCard from "../components/ui/SectionCard";
+import EmpleadoImportDialog from "../components/empleados/EmpleadoImportDialog";
 import { useAppSnackbar } from "../features/ui/AppSnackbarContext";
 import { useAuth } from "../features/auth/AuthContext";
 
@@ -131,7 +134,6 @@ const empleadoSchema = z.object({
   numEmpleado: z
     .string()
     .trim()
-    .min(1, "El número de empleado es obligatorio")
     .max(30, "Máximo 30 caracteres"),
 
   nombres: z
@@ -877,7 +879,9 @@ function EmpleadoDialog({
   const submitForm = async (values: EmpleadoFormValues) => {
     await onSubmit(
       {
-        numEmpleado: normalizeNumEmpleadoInput(values.numEmpleado),
+        numEmpleado: normalizeOptional(
+          normalizeNumEmpleadoInput(values.numEmpleado ?? "")
+        ),
         nombres: values.nombres.trim(),
         apellidoPaterno: values.apellidoPaterno.trim(),
         apellidoMaterno: normalizeOptional(values.apellidoMaterno ?? ""),
@@ -1067,7 +1071,7 @@ function EmpleadoDialog({
                     errors.numEmpleado?.message ||
                     (isEdit
                       ? "El cambio se realiza con flujo controlado."
-                      : "Clave operativa definida por RH.")
+                      : "Puedes capturarlo manualmente, pedir consecutivo o dejarlo vacío para que el backend lo genere.")
                   }
                   fullWidth
                   inputProps={{ maxLength: 30 }}
@@ -2105,6 +2109,7 @@ export default function EmpleadosPage() {
   const [sucursalFilter, setSucursalFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Empleado | null>(null);
   const [bajaTarget, setBajaTarget] = useState<Empleado | null>(null);
   const [reingresoTarget, setReingresoTarget] = useState<Empleado | null>(
@@ -2390,6 +2395,18 @@ export default function EmpleadosPage() {
     setMovimientosTarget(row);
   };
 
+  const handleImported = async (result: EmpleadoImportExecuteResult) => {
+    setImportDialogOpen(false);
+    await empleadosQuery.refetch();
+
+    showSnackbar(
+      result.insertedRows > 0
+        ? `Importación completada. Insertados: ${result.insertedRows}.`
+        : "La importación terminó sin registros insertados.",
+      "success"
+    );
+  };
+
   async function handleDownloadFicha(row: Empleado) {
     try {
       setDownloadingFichaId(row.id);
@@ -2562,6 +2579,17 @@ export default function EmpleadosPage() {
           >
             {exportingPdf ? "Exportando PDF..." : "Exportar PDF"}
           </Button>
+
+          {canManageEmpleados && (
+            <Button
+              variant="outlined"
+              startIcon={<UploadFileRoundedIcon />}
+              onClick={() => setImportDialogOpen(true)}
+              disabled={exportingXlsx || exportingPdf}
+            >
+              Importar Excel
+            </Button>
+          )}
 
           {canManageEmpleados && (
             <Button
@@ -3209,6 +3237,12 @@ export default function EmpleadosPage() {
         onSubmit={async (values, photoFile) => {
           await saveMutation.mutateAsync({ values, photoFile });
         }}
+      />
+
+      <EmpleadoImportDialog
+        open={importDialogOpen}
+        onClose={() => setImportDialogOpen(false)}
+        onImported={handleImported}
       />
 
       <BajaEmpleadoDialog

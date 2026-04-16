@@ -20,6 +20,10 @@ type DepartamentoListEnvelope =
   | {
       items?: Departamento[];
       data?: Departamento[];
+      page?: number;
+      pageSize?: number;
+      total?: number;
+      totalPages?: number;
     };
 
 function normalizeDepartamentos(payload: DepartamentoListEnvelope): Departamento[] {
@@ -28,7 +32,10 @@ function normalizeDepartamentos(payload: DepartamentoListEnvelope): Departamento
 }
 
 export async function getDepartamentos() {
-  const { data } = await api.get<DepartamentoListEnvelope>("/api/Departamentos");
+  const { data } = await api.get<DepartamentoListEnvelope>(
+    "/api/Departamentos?page=1&pageSize=500&sort=nombre&dir=asc"
+  );
+
   return normalizeDepartamentos(data);
 }
 

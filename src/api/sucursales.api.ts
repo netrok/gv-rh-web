@@ -25,11 +25,36 @@ export type SucursalQueryParams = {
   q?: string;
 };
 
+type SucursalListEnvelope =
+  | SucursalDto[]
+  | {
+      items?: SucursalDto[];
+      data?: SucursalDto[];
+      page?: number;
+      pageSize?: number;
+      total?: number;
+      totalPages?: number;
+    };
+
+function normalizeSucursales(payload: SucursalListEnvelope): SucursalDto[] {
+  if (Array.isArray(payload)) return payload;
+  return payload.items ?? payload.data ?? [];
+}
+
 export async function getSucursales(
   params?: SucursalQueryParams
 ): Promise<SucursalDto[]> {
-  const { data } = await api.get<SucursalDto[]>("/api/Sucursales", { params });
-  return data;
+  const { data } = await api.get<SucursalListEnvelope>("/api/Sucursales", {
+    params: {
+      page: 1,
+      pageSize: 500,
+      sort: "nombre",
+      dir: "asc",
+      ...params,
+    },
+  });
+
+  return normalizeSucursales(data);
 }
 
 export async function getSucursalById(id: number): Promise<SucursalDto> {
