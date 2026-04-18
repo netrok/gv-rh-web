@@ -37,6 +37,8 @@ import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import DoNotDisturbOnRoundedIcon from "@mui/icons-material/DoNotDisturbOnRounded";
 import BlockRoundedIcon from "@mui/icons-material/BlockRounded";
 import AccountTreeRoundedIcon from "@mui/icons-material/AccountTreeRounded";
+import GridOnRoundedIcon from "@mui/icons-material/GridOnRounded";
+import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -44,6 +46,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 
 import {
   createPuesto,
+  downloadBlobFile,
+  exportPuestosPdf,
+  exportPuestosXlsx,
+  getFileNameFromDisposition,
   getPuestos,
   updatePuesto,
   type Puesto,
@@ -184,6 +190,30 @@ function filterToggleBoxSx() {
     backgroundColor: alpha("#0f172a", 0.02),
     display: "flex",
     alignItems: "center",
+  };
+}
+
+function exportButtonSx(kind: "xlsx" | "pdf") {
+  if (kind === "xlsx") {
+    return {
+      borderColor: alpha("#15803d", 0.22),
+      color: "#166534",
+      backgroundColor: alpha("#15803d", 0.04),
+      "&:hover": {
+        borderColor: alpha("#15803d", 0.34),
+        backgroundColor: alpha("#15803d", 0.08),
+      },
+    };
+  }
+
+  return {
+    borderColor: alpha("#b91c1c", 0.20),
+    color: "#b91c1c",
+    backgroundColor: alpha("#b91c1c", 0.04),
+    "&:hover": {
+      borderColor: alpha("#b91c1c", 0.32),
+      backgroundColor: alpha("#b91c1c", 0.08),
+    },
   };
 }
 
@@ -328,6 +358,9 @@ export default function PuestosPage() {
   const [confirmTarget, setConfirmTarget] = useState<Puesto | null>(null);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [exportingFormat, setExportingFormat] = useState<"xlsx" | "pdf" | null>(
+    null
+  );
 
   const normalizedRoles = useMemo(() => normalizeRoles(roles), [roles]);
 
@@ -417,6 +450,15 @@ export default function PuestosPage() {
     });
   }, [puestosQuery.data, search, departamentoFilter, soloActivos, departamentosMap]);
 
+  const reportFilters = useMemo(
+    () => ({
+      q: search.trim() || undefined,
+      activo: soloActivos ? true : undefined,
+      departamentoId: departamentoFilter ? Number(departamentoFilter) : undefined,
+    }),
+    [search, soloActivos, departamentoFilter]
+  );
+
   const paginatedRows = useMemo(() => {
     const start = page * rowsPerPage;
     return filteredRows.slice(start, start + rowsPerPage);
@@ -461,11 +503,46 @@ export default function PuestosPage() {
   };
 
   const canOpenDialog = departamentos.length > 0;
-  const loadingAny = puestosQuery.isLoading || departamentosQuery.isLoading;
+  const loadingAny =
+    puestosQuery.isLoading ||
+    departamentosQuery.isLoading ||
+    saveMutation.isPending ||
+    toggleMutation.isPending;
 
   const handleRefresh = () => {
     void puestosQuery.refetch();
     void departamentosQuery.refetch();
+  };
+
+  const handleExport = async (format: "xlsx" | "pdf") => {
+    try {
+      setExportingFormat(format);
+
+      const response =
+        format === "xlsx"
+          ? await exportPuestosXlsx(reportFilters)
+          : await exportPuestosPdf(reportFilters);
+
+      const fallback = format === "xlsx" ? "puestos.xlsx" : "puestos.pdf";
+
+      const fileName = getFileNameFromDisposition(
+        response.headers["content-disposition"],
+        fallback
+      );
+
+      downloadBlobFile(response.data, fileName);
+
+      showSnackbar(
+        format === "xlsx"
+          ? "Reporte Excel descargado."
+          : "Reporte PDF descargado.",
+        "success"
+      );
+    } catch (error) {
+      showSnackbar(getErrorMessage(error), "error");
+    } finally {
+      setExportingFormat(null);
+    }
   };
 
   return (
@@ -482,6 +559,26 @@ export default function PuestosPage() {
             disabled={loadingAny}
           >
             Actualizar
+          </Button>
+
+          <Button
+            variant="outlined"
+            startIcon={<GridOnRoundedIcon />}
+            onClick={() => void handleExport("xlsx")}
+            disabled={loadingAny || exportingFormat !== null}
+            sx={exportButtonSx("xlsx")}
+          >
+            {exportingFormat === "xlsx" ? "Exportando..." : "Excel"}
+          </Button>
+
+          <Button
+            variant="outlined"
+            startIcon={<PictureAsPdfRoundedIcon />}
+            onClick={() => void handleExport("pdf")}
+            disabled={loadingAny || exportingFormat !== null}
+            sx={exportButtonSx("pdf")}
+          >
+            {exportingFormat === "pdf" ? "Exportando..." : "PDF"}
           </Button>
 
           <Button
@@ -626,7 +723,9 @@ export default function PuestosPage() {
             variant="outlined"
             label={
               activeFiltersCount > 0
-                ? `${activeFiltersCount} filtro${activeFiltersCount > 1 ? "s" : ""} activo${activeFiltersCount > 1 ? "s" : ""}`
+                ? `${activeFiltersCount} filtro${
+                    activeFiltersCount > 1 ? "s" : ""
+                  } activo${activeFiltersCount > 1 ? "s" : ""}`
                 : "Sin filtros"
             }
           />

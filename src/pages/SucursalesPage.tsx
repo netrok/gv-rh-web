@@ -38,6 +38,8 @@ import DoNotDisturbOnRoundedIcon from "@mui/icons-material/DoNotDisturbOnRounded
 import BusinessRoundedIcon from "@mui/icons-material/BusinessRounded";
 import LocationOnRoundedIcon from "@mui/icons-material/LocationOnRounded";
 import PhoneRoundedIcon from "@mui/icons-material/PhoneRounded";
+import GridOnRoundedIcon from "@mui/icons-material/GridOnRounded";
+import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded";
 import axios from "axios";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -51,6 +53,10 @@ import { useAppSnackbar } from "../features/ui/AppSnackbarContext";
 import {
   createSucursal,
   deleteSucursal,
+  downloadBlobFile,
+  exportSucursalesPdf,
+  exportSucursalesXlsx,
+  getFileNameFromDisposition,
   getSucursales,
   updateSucursal,
   type SucursalCreateDto,
@@ -164,6 +170,30 @@ function filterToggleBoxSx() {
   };
 }
 
+function exportButtonSx(kind: "xlsx" | "pdf") {
+  if (kind === "xlsx") {
+    return {
+      borderColor: alpha("#15803d", 0.22),
+      color: "#166534",
+      backgroundColor: alpha("#15803d", 0.04),
+      "&:hover": {
+        borderColor: alpha("#15803d", 0.34),
+        backgroundColor: alpha("#15803d", 0.08),
+      },
+    };
+  }
+
+  return {
+    borderColor: alpha("#b91c1c", 0.20),
+    color: "#b91c1c",
+    backgroundColor: alpha("#b91c1c", 0.04),
+    "&:hover": {
+      borderColor: alpha("#b91c1c", 0.32),
+      backgroundColor: alpha("#b91c1c", 0.08),
+    },
+  };
+}
+
 export default function SucursalesPage() {
   const queryClient = useQueryClient();
   const { roles } = useAuth();
@@ -178,6 +208,9 @@ export default function SucursalesPage() {
   const [submitError, setSubmitError] = useState("");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [exportingFormat, setExportingFormat] = useState<"xlsx" | "pdf" | null>(
+    null
+  );
 
   const normalizedRoles = useMemo(() => normalizeRoles(roles), [roles]);
 
@@ -233,6 +266,14 @@ export default function SucursalesPage() {
   });
 
   const rows = sucursalesQuery.data ?? [];
+
+  const reportFilters = useMemo(
+    () => ({
+      activo: soloActivas ? true : undefined,
+      q: q.trim() || undefined,
+    }),
+    [soloActivas, q]
+  );
 
   const paginatedRows = useMemo(() => {
     const start = page * rowsPerPage;
@@ -327,8 +368,43 @@ export default function SucursalesPage() {
     await createMutation.mutateAsync(payload);
   }
 
+  async function handleExport(format: "xlsx" | "pdf") {
+    try {
+      setExportingFormat(format);
+
+      const response =
+        format === "xlsx"
+          ? await exportSucursalesXlsx(reportFilters)
+          : await exportSucursalesPdf(reportFilters);
+
+      const fallback = format === "xlsx" ? "sucursales.xlsx" : "sucursales.pdf";
+
+      const fileName = getFileNameFromDisposition(
+        response.headers["content-disposition"],
+        fallback
+      );
+
+      downloadBlobFile(response.data, fileName);
+
+      showSnackbar(
+        format === "xlsx"
+          ? "Reporte Excel descargado."
+          : "Reporte PDF descargado.",
+        "success"
+      );
+    } catch (error) {
+      showSnackbar(getErrorMessage(error), "error");
+    } finally {
+      setExportingFormat(null);
+    }
+  }
+
   const busy = createMutation.isPending || updateMutation.isPending;
-  const loading = sucursalesQuery.isLoading;
+  const loading =
+    sucursalesQuery.isLoading ||
+    createMutation.isPending ||
+    updateMutation.isPending ||
+    deleteMutation.isPending;
   const fetching = sucursalesQuery.isFetching;
 
   return (
@@ -342,15 +418,36 @@ export default function SucursalesPage() {
             variant="outlined"
             startIcon={<RefreshRoundedIcon />}
             onClick={() => sucursalesQuery.refetch()}
-            disabled={fetching}
+            disabled={fetching || exportingFormat !== null}
           >
             {fetching ? "Actualizando..." : "Actualizar"}
+          </Button>
+
+          <Button
+            variant="outlined"
+            startIcon={<GridOnRoundedIcon />}
+            onClick={() => void handleExport("xlsx")}
+            disabled={loading || exportingFormat !== null}
+            sx={exportButtonSx("xlsx")}
+          >
+            {exportingFormat === "xlsx" ? "Exportando..." : "Excel"}
+          </Button>
+
+          <Button
+            variant="outlined"
+            startIcon={<PictureAsPdfRoundedIcon />}
+            onClick={() => void handleExport("pdf")}
+            disabled={loading || exportingFormat !== null}
+            sx={exportButtonSx("pdf")}
+          >
+            {exportingFormat === "pdf" ? "Exportando..." : "PDF"}
           </Button>
 
           <Button
             variant="contained"
             startIcon={<AddRoundedIcon />}
             onClick={handleOpenCreate}
+            disabled={exportingFormat !== null}
           >
             Nueva sucursal
           </Button>

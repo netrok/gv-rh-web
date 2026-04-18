@@ -42,6 +42,8 @@ import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import DoNotDisturbOnRoundedIcon from "@mui/icons-material/DoNotDisturbOnRounded";
 import BadgeRoundedIcon from "@mui/icons-material/BadgeRounded";
 import BlockRoundedIcon from "@mui/icons-material/BlockRounded";
+import GridOnRoundedIcon from "@mui/icons-material/GridOnRounded";
+import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -49,7 +51,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 
 import {
   createDepartamento,
+  downloadBlobFile,
+  exportDepartamentosPdf,
+  exportDepartamentosXlsx,
   getDepartamentos,
+  getFileNameFromDisposition,
   updateDepartamento,
   type Departamento,
   type SaveDepartamentoInput,
@@ -186,6 +192,30 @@ function filterToggleBoxSx() {
   };
 }
 
+function exportButtonSx(kind: "xlsx" | "pdf") {
+  if (kind === "xlsx") {
+    return {
+      borderColor: alpha("#15803d", 0.22),
+      color: "#166534",
+      backgroundColor: alpha("#15803d", 0.04),
+      "&:hover": {
+        borderColor: alpha("#15803d", 0.34),
+        backgroundColor: alpha("#15803d", 0.08),
+      },
+    };
+  }
+
+  return {
+    borderColor: alpha("#b91c1c", 0.20),
+    color: "#b91c1c",
+    backgroundColor: alpha("#b91c1c", 0.04),
+    "&:hover": {
+      borderColor: alpha("#b91c1c", 0.32),
+      backgroundColor: alpha("#b91c1c", 0.08),
+    },
+  };
+}
+
 function DepartamentoDialog({
   open,
   onClose,
@@ -309,6 +339,9 @@ export default function DepartamentosPage() {
   const [confirmTarget, setConfirmTarget] = useState<Departamento | null>(null);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [exportingFormat, setExportingFormat] = useState<"xlsx" | "pdf" | null>(
+    null
+  );
 
   const normalizedRoles = useMemo(() => normalizeRoles(roles), [roles]);
 
@@ -383,6 +416,14 @@ export default function DepartamentosPage() {
     });
   }, [rows, search, soloActivos]);
 
+  const reportFilters = useMemo(
+    () => ({
+      q: search.trim() || undefined,
+      activo: soloActivos ? true : undefined,
+    }),
+    [search, soloActivos]
+  );
+
   useEffect(() => {
     setPage(0);
   }, [search, soloActivos, filteredRows.length]);
@@ -419,6 +460,41 @@ export default function DepartamentosPage() {
     setDialogOpen(true);
   }, []);
 
+  const handleExport = useCallback(
+    async (format: "xlsx" | "pdf") => {
+      try {
+        setExportingFormat(format);
+
+        const response =
+          format === "xlsx"
+            ? await exportDepartamentosXlsx(reportFilters)
+            : await exportDepartamentosPdf(reportFilters);
+
+        const fallback =
+          format === "xlsx" ? "departamentos.xlsx" : "departamentos.pdf";
+
+        const fileName = getFileNameFromDisposition(
+          response.headers["content-disposition"],
+          fallback
+        );
+
+        downloadBlobFile(response.data, fileName);
+
+        showSnackbar(
+          format === "xlsx"
+            ? "Reporte Excel descargado."
+            : "Reporte PDF descargado.",
+          "success"
+        );
+      } catch (error) {
+        showSnackbar(getErrorMessage(error), "error");
+      } finally {
+        setExportingFormat(null);
+      }
+    },
+    [reportFilters, showSnackbar]
+  );
+
   const loadingAny =
     departamentosQuery.isLoading ||
     saveMutation.isPending ||
@@ -439,6 +515,26 @@ export default function DepartamentosPage() {
             }}
           >
             Actualizar
+          </Button>
+
+          <Button
+            variant="outlined"
+            startIcon={<GridOnRoundedIcon />}
+            onClick={() => void handleExport("xlsx")}
+            disabled={loadingAny || exportingFormat !== null}
+            sx={exportButtonSx("xlsx")}
+          >
+            {exportingFormat === "xlsx" ? "Exportando..." : "Excel"}
+          </Button>
+
+          <Button
+            variant="outlined"
+            startIcon={<PictureAsPdfRoundedIcon />}
+            onClick={() => void handleExport("pdf")}
+            disabled={loadingAny || exportingFormat !== null}
+            sx={exportButtonSx("pdf")}
+          >
+            {exportingFormat === "pdf" ? "Exportando..." : "PDF"}
           </Button>
 
           <Button
@@ -577,7 +673,9 @@ export default function DepartamentosPage() {
             variant="outlined"
             label={
               activeFiltersCount > 0
-                ? `${activeFiltersCount} filtro${activeFiltersCount > 1 ? "s" : ""} activo${activeFiltersCount > 1 ? "s" : ""}`
+                ? `${activeFiltersCount} filtro${
+                    activeFiltersCount > 1 ? "s" : ""
+                  } activo${activeFiltersCount > 1 ? "s" : ""}`
                 : "Sin filtros"
             }
           />

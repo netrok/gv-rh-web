@@ -1,3 +1,4 @@
+import type { AxiosResponse } from "axios";
 import { api } from "./axios";
 
 export type Puesto = {
@@ -15,6 +16,12 @@ export type SavePuestoInput = {
   nombre: string;
   departamentoId: number;
   activo: boolean;
+};
+
+export type PuestoReporteQuery = {
+  q?: string;
+  activo?: boolean;
+  departamentoId?: number;
 };
 
 type RawPuesto = {
@@ -79,6 +86,29 @@ function normalizePuestos(payload: PuestoListEnvelope): Puesto[] {
   return rows.map(normalizePuesto);
 }
 
+function cleanReportQuery(query?: PuestoReporteQuery) {
+  if (!query) return undefined;
+
+  return Object.fromEntries(
+    Object.entries(query).filter(
+      ([, value]) => value !== undefined && value !== null && value !== ""
+    )
+  );
+}
+
+function buildExportParams(filters?: PuestoReporteQuery) {
+  const cleaned = cleanReportQuery(filters);
+  const params = new URLSearchParams();
+
+  if (!cleaned) return "";
+
+  Object.entries(cleaned).forEach(([key, value]) => {
+    params.append(key, String(value));
+  });
+
+  return params.toString();
+}
+
 export async function getPuestos() {
   const { data } = await api.get<PuestoListEnvelope>("/api/Puestos", {
     params: {
@@ -100,4 +130,54 @@ export async function createPuesto(input: SavePuestoInput) {
 export async function updatePuesto(id: number, input: SavePuestoInput) {
   const { data } = await api.put<Puesto>(`/api/Puestos/${id}`, input);
   return data;
+}
+
+export async function exportPuestosXlsx(
+  filters?: PuestoReporteQuery
+): Promise<AxiosResponse<Blob>> {
+  const query = buildExportParams(filters);
+
+  return api.get(`/api/Puestos/export/xlsx${query ? `?${query}` : ""}`, {
+    responseType: "blob",
+  });
+}
+
+export async function exportPuestosPdf(
+  filters?: PuestoReporteQuery
+): Promise<AxiosResponse<Blob>> {
+  const query = buildExportParams(filters);
+
+  return api.get(`/api/Puestos/export/pdf${query ? `?${query}` : ""}`, {
+    responseType: "blob",
+  });
+}
+
+export function getFileNameFromDisposition(
+  disposition: string | undefined,
+  fallback: string
+) {
+  if (!disposition) return fallback;
+
+  const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8Match?.[1]) {
+    return decodeURIComponent(utf8Match[1]);
+  }
+
+  const simpleMatch = disposition.match(/filename="?([^"]+)"?/i);
+  if (simpleMatch?.[1]) {
+    return simpleMatch[1];
+  }
+
+  return fallback;
+}
+
+export function downloadBlobFile(blob: Blob, fileName: string) {
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
 }
