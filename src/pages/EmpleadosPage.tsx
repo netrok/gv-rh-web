@@ -69,6 +69,7 @@ import {
   getEmpleados,
   getSiguienteNumeroEmpleadoSugerido,
   reingresarEmpleado,
+  resolveEmpleadoPhotoUrl,
   updateEmpleado,
   uploadEmpleadoPhoto,
   type DarBajaEmpleadoInput,
@@ -630,7 +631,7 @@ function EmpleadoDialog({
       setLocalPhotoPreviewUrl(null);
     }
 
-    setPhotoUrl(initialValues?.fotoUrl ?? null);
+    setPhotoUrl(resolveEmpleadoPhotoUrl(initialValues?.fotoUrl));
     setPhotoName(initialValues?.fotoNombreOriginal ?? null);
 
     reset({
@@ -773,7 +774,7 @@ function EmpleadoDialog({
       try {
         setUploadingPhoto(true);
         const result = await uploadEmpleadoPhoto(initialValues.id, file);
-        setPhotoUrl(result.fotoUrl ?? null);
+        setPhotoUrl(resolveEmpleadoPhotoUrl(result.fotoUrl));
         setPhotoName(result.fotoNombreOriginal ?? file.name);
         void queryClient.invalidateQueries({ queryKey: ["empleados"] });
         showSnackbar("Foto actualizada correctamente.", "success");
@@ -2978,10 +2979,10 @@ export default function EmpleadosPage() {
                                 flexShrink: 0,
                               }}
                             >
-                              {row.tieneFoto && row.fotoUrl ? (
+                              {row.tieneFoto && resolveEmpleadoPhotoUrl(row.fotoUrl) ? (
                                 <Box
                                   component="img"
-                                  src={row.fotoUrl}
+                                  src={resolveEmpleadoPhotoUrl(row.fotoUrl) ?? undefined}
                                   alt={getEmpleadoNombre(row)}
                                   sx={{
                                     width: "100%",

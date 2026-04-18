@@ -363,6 +363,58 @@ function resolveFileName(
   return getFileNameFromDisposition(contentDisposition, fallback);
 }
 
+function trimTrailingSlash(value: string) {
+  return value.replace(/\/+$/, "");
+}
+
+export function resolveEmpleadoPhotoUrl(url?: string | null) {
+  if (!url) return null;
+
+  if (
+    url.startsWith("blob:") ||
+    url.startsWith("data:") ||
+    /^https?:\/\//i.test(url)
+  ) {
+    return url;
+  }
+
+  const normalizedPath = url.startsWith("/") ? url : `/${url}`;
+
+  const baseUrl =
+    typeof api.defaults.baseURL === "string"
+      ? trimTrailingSlash(api.defaults.baseURL)
+      : "";
+
+  if (baseUrl) {
+    return `${baseUrl}${normalizedPath}`;
+  }
+
+  const rawEnvBase =
+    import.meta.env.VITE_API_BASE_URL?.trim() ||
+    import.meta.env.VITE_API_URL?.trim() ||
+    "";
+
+  const normalizedEnvBase = trimTrailingSlash(rawEnvBase);
+
+  if (/^https?:\/\//i.test(normalizedEnvBase)) {
+    const root = normalizedEnvBase.endsWith("/api")
+      ? normalizedEnvBase.slice(0, -4)
+      : normalizedEnvBase;
+
+    return `${root}${normalizedPath}`;
+  }
+
+  if (normalizedEnvBase === "/api") {
+    return normalizedPath;
+  }
+
+  if (typeof window !== "undefined") {
+    return `http://${window.location.hostname}:5041${normalizedPath}`;
+  }
+
+  return normalizedPath;
+}
+
 export async function getEmpleados(
   query: EmpleadosQueryParams = {}
 ): Promise<EmpleadoListResponse> {
