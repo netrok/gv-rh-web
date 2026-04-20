@@ -42,6 +42,8 @@ import WorkOutlineRoundedIcon from "@mui/icons-material/WorkOutlineRounded";
 import PersonSearchRoundedIcon from "@mui/icons-material/PersonSearchRounded";
 import ManageAccountsRoundedIcon from "@mui/icons-material/ManageAccountsRounded";
 import RouteRoundedIcon from "@mui/icons-material/RouteRounded";
+import CelebrationRoundedIcon from "@mui/icons-material/CelebrationRounded";
+import CakeRoundedIcon from "@mui/icons-material/CakeRounded";
 
 import {
   getDashboardData,
@@ -51,6 +53,10 @@ import {
   type DashboardStats,
 } from "../api/dashboard.api";
 import type { AuditItem } from "../api/audit.api";
+import {
+  getCumpleaniosHoy,
+  type CumpleaniosItem,
+} from "../api/cumpleanios.api";
 import AppPage from "../components/ui/AppPage";
 
 type KpiTone =
@@ -488,6 +494,7 @@ export default function DashboardPage() {
 
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [cumpleaniosHoy, setCumpleaniosHoy] = useState<CumpleaniosItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -502,13 +509,16 @@ export default function DashboardPage() {
         setLoading(true);
       }
 
-      const [statsResponse, dashboardResponse] = await Promise.all([
-        getDashboardStats(),
-        getDashboardData(),
-      ]);
+      const [statsResponse, dashboardResponse, cumpleaniosHoyResponse] =
+        await Promise.all([
+          getDashboardStats(),
+          getDashboardData(),
+          getCumpleaniosHoy(),
+        ]);
 
       setStats(statsResponse);
       setDashboard(dashboardResponse);
+      setCumpleaniosHoy(cumpleaniosHoyResponse);
     } catch (err) {
       console.error(err);
       setError("No se pudo cargar el dashboard. Revisa la API o intenta nuevamente.");
@@ -561,6 +571,12 @@ export default function DashboardPage() {
         icon: <PendingActionsRoundedIcon />,
       },
       {
+        title: "Cumpleaños",
+        description: "Celebraciones y próximos cumpleaños",
+        to: "/cumpleanios",
+        icon: <CelebrationRoundedIcon />,
+      },
+      {
         title: "Vacantes",
         description: "Publicación y seguimiento de posiciones",
         to: "/reclutamiento/vacantes",
@@ -595,6 +611,7 @@ export default function DashboardPage() {
   ).slice(0, 5);
   const incidenciasPorTipo = dashboard?.incidenciasPorTipo ?? [];
   const incidenciasPorEstatus = dashboard?.incidenciasPorEstatus ?? [];
+  const cumpleaniosVisibles = cumpleaniosHoy.slice(0, 5);
 
   if (loading) {
     return (
@@ -697,8 +714,8 @@ export default function DashboardPage() {
                     }}
                   >
                     Consulta rápido el estado general del sistema, catálogos,
-                    incidencias y actividad reciente, sin volver esto un tablero
-                    triste ni una dona inflada.
+                    incidencias, cumpleaños y actividad reciente, sin volver esto
+                    un tablero triste ni una dona inflada.
                   </Typography>
                 </Box>
 
@@ -755,7 +772,7 @@ export default function DashboardPage() {
                   gridTemplateColumns: {
                     xs: "1fr",
                     sm: "repeat(2, minmax(0, 1fr))",
-                    lg: "repeat(4, minmax(0, 1fr))",
+                    lg: "repeat(5, minmax(0, 1fr))",
                   },
                   gap: 0.9,
                 }}
@@ -773,6 +790,11 @@ export default function DashboardPage() {
                 <Chip
                   icon={<PendingActionsRoundedIcon />}
                   label={`${formatNumber(incidenciasPendientes)} incidencias pendientes`}
+                  sx={heroChipSx()}
+                />
+                <Chip
+                  icon={<CelebrationRoundedIcon />}
+                  label={`${formatNumber(cumpleaniosHoy.length)} cumpleaños hoy`}
                   sx={heroChipSx()}
                 />
                 <Chip
@@ -841,10 +863,10 @@ export default function DashboardPage() {
             tone="success"
           />
           <KpiCard
-            icon={<PendingActionsRoundedIcon />}
-            label="Pendientes"
-            value={incidenciasPendientes}
-            subtitle="Incidencias esperando atención."
+            icon={<CakeRoundedIcon />}
+            label="Cumpleaños"
+            value={cumpleaniosHoy.length}
+            subtitle="Celebraciones registradas para hoy."
             tone="warning"
           />
           <KpiCard
@@ -1261,6 +1283,103 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </Box>
+
+        <Card elevation={0} sx={sectionCardSx(theme)}>
+          <CardContent sx={{ p: 1.8 }}>
+            <Stack spacing={1.35}>
+              <Stack
+                direction={{ xs: "column", md: "row" }}
+                alignItems={{ xs: "flex-start", md: "center" }}
+                justifyContent="space-between"
+                spacing={0.9}
+              >
+                <Box>
+                  <Typography variant="h6" fontWeight={900}>
+                    Cumpleaños de hoy
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Celebraciones registradas para el día actual.
+                  </Typography>
+                </Box>
+
+                <Chip
+                  icon={<CelebrationRoundedIcon />}
+                  label={`${formatNumber(cumpleaniosHoy.length)} celebraciones`}
+                  sx={softChipSx(theme.palette.secondary.main)}
+                />
+              </Stack>
+
+              <Divider />
+
+              {cumpleaniosVisibles.length === 0 ? (
+                <EmptyState
+                  icon={<CakeRoundedIcon />}
+                  title="Hoy no hay cumpleaños"
+                  message="Cuando existan celebraciones para hoy, aquí aparecerán en formato ejecutivo."
+                />
+              ) : (
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: {
+                      xs: "1fr",
+                      md: "repeat(2, minmax(0, 1fr))",
+                      xl: "repeat(3, minmax(0, 1fr))",
+                    },
+                    gap: 1,
+                  }}
+                >
+                  {cumpleaniosVisibles.map((item) => (
+                    <Card key={item.empleadoId} elevation={0} sx={innerCardSx(theme)}>
+                      <CardContent sx={{ p: 1.4 }}>
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <Avatar src={item.fotoUrl ?? undefined}>
+                            {item.nombreCompleto.slice(0, 1).toUpperCase()}
+                          </Avatar>
+
+                          <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Typography fontWeight={800} noWrap>
+                              {item.nombreCompleto}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary" noWrap>
+                              {item.puestoNombre || "Sin puesto"} ·{" "}
+                              {item.sucursalNombre || "Sin sucursal"}
+                            </Typography>
+                          </Box>
+
+                          <Chip
+                            size="small"
+                            color="success"
+                            icon={<CakeRoundedIcon />}
+                            label={`${item.edadQueCumple} años`}
+                            sx={{ fontWeight: 800 }}
+                          />
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </Box>
+              )}
+
+              {cumpleaniosHoy.length > 0 ? (
+                <Box>
+                  <Button
+                    variant="outlined"
+                    startIcon={<CelebrationRoundedIcon />}
+                    onClick={() => navigate("/cumpleanios")}
+                    sx={{
+                      borderRadius: "10px",
+                      textTransform: "none",
+                      fontWeight: 800,
+                    }}
+                  >
+                    Ver módulo de cumpleaños
+                  </Button>
+                </Box>
+              ) : null}
+            </Stack>
+          </CardContent>
+        </Card>
       </Stack>
     </AppPage>
   );

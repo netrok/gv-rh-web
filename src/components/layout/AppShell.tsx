@@ -45,6 +45,7 @@ import EventBusyRoundedIcon from "@mui/icons-material/EventBusyRounded";
 import WorkOutlineRoundedIcon from "@mui/icons-material/WorkOutlineRounded";
 import PersonSearchRoundedIcon from "@mui/icons-material/PersonSearchRounded";
 import BusinessCenterRoundedIcon from "@mui/icons-material/BusinessCenterRounded";
+import CelebrationRoundedIcon from "@mui/icons-material/CelebrationRounded";
 import ExpandLessRoundedIcon from "@mui/icons-material/ExpandLessRounded";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
@@ -166,6 +167,15 @@ function buildNavSections(roles?: string[] | null): NavSection[] {
           },
         },
         {
+          type: "item",
+          item: {
+            label: "Cumpleaños",
+            to: "/cumpleanios",
+            icon: <CelebrationRoundedIcon />,
+            allow: ["ADMIN", "RRHH"],
+          },
+        },
+        {
           type: "recruitment",
           allow: ["ADMIN", "RRHH"],
         },
@@ -241,6 +251,7 @@ function isRouteActive(pathname: string, to: string) {
 function getPageTitle(pathname: string) {
   if (pathname.startsWith("/dashboard")) return "Dashboard";
   if (pathname.startsWith("/audit")) return "Auditoría";
+  if (pathname.startsWith("/cumpleanios")) return "Cumpleaños";
   if (pathname.startsWith("/departamentos")) return "Departamentos";
   if (pathname.startsWith("/empleados")) return "Empleados";
   if (pathname.startsWith("/incidencias")) return "Incidencias";
@@ -257,6 +268,9 @@ function getPageTitle(pathname: string) {
 function getPageSubtitle(pathname: string) {
   if (pathname.startsWith("/dashboard")) return "Vista general del sistema";
   if (pathname.startsWith("/audit")) return "Trazabilidad y control de movimientos";
+  if (pathname.startsWith("/cumpleanios")) {
+    return "Celebraciones y próximos cumpleaños del personal";
+  }
   if (pathname.startsWith("/departamentos")) return "Estructura organizacional";
   if (pathname.startsWith("/empleados")) return "Gestión integral del personal";
   if (pathname.startsWith("/incidencias")) {
@@ -298,6 +312,7 @@ function getPageBreadcrumb(pathname: string) {
     return ["Reclutamiento"];
   }
   if (pathname.startsWith("/audit")) return ["Auditoría"];
+  if (pathname.startsWith("/cumpleanios")) return ["Cumpleaños"];
   if (pathname.startsWith("/departamentos")) return ["Departamentos"];
   if (pathname.startsWith("/empleados")) return ["Empleados"];
   if (pathname.startsWith("/incidencias")) return ["Incidencias"];
@@ -322,6 +337,12 @@ function getPageHeaderMeta(pathname: string): {
     return {
       label: "Auditoría",
       icon: <FactCheckRoundedIcon sx={{ fontSize: 16 }} />,
+    };
+  }
+  if (pathname.startsWith("/cumpleanios")) {
+    return {
+      label: "Cumpleaños",
+      icon: <CelebrationRoundedIcon sx={{ fontSize: 16 }} />,
     };
   }
   if (pathname.startsWith("/departamentos")) {
