@@ -13,6 +13,7 @@ import {
   LinearProgress,
   Stack,
   Typography,
+  type AlertColor,
   type ChipProps,
 } from "@mui/material";
 import { alpha, useTheme, type Theme } from "@mui/material/styles";
@@ -44,6 +45,10 @@ import ManageAccountsRoundedIcon from "@mui/icons-material/ManageAccountsRounded
 import RouteRoundedIcon from "@mui/icons-material/RouteRounded";
 import CelebrationRoundedIcon from "@mui/icons-material/CelebrationRounded";
 import CakeRoundedIcon from "@mui/icons-material/CakeRounded";
+import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
+import ScheduleRoundedIcon from "@mui/icons-material/ScheduleRounded";
+import SendRoundedIcon from "@mui/icons-material/SendRounded";
+import MarkEmailReadRoundedIcon from "@mui/icons-material/MarkEmailReadRounded";
 
 import {
   getDashboardData,
@@ -57,6 +62,12 @@ import {
   getCumpleaniosHoy,
   type CumpleaniosItem,
 } from "../api/cumpleanios.api";
+import {
+  getExpedienteNotificacionesPreview,
+  postExpedienteNotificaciones,
+  type DocumentoVencimientoItem,
+  type DocumentoVencimientoResumen,
+} from "../api/expedienteNotificaciones.api";
 import AppPage from "../components/ui/AppPage";
 
 type KpiTone =
@@ -119,6 +130,18 @@ function formatDateTime(value?: string | null) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
+}
+
+function formatDiasVencimiento(item: DocumentoVencimientoItem) {
+  if (item.estaVencido) {
+    return `Vencido hace ${formatNumber(Math.abs(item.diasParaVencer))} día(s)`;
+  }
+
+  if (item.diasParaVencer === 0) {
+    return "Vence hoy";
+  }
+
+  return `Vence en ${formatNumber(item.diasParaVencer)} día(s)`;
 }
 
 function getIncidenciaTone(estatus?: string | null): ChipProps["color"] {
@@ -495,42 +518,108 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [cumpleaniosHoy, setCumpleaniosHoy] = useState<CumpleaniosItem[]>([]);
+  const [expedientePreview, setExpedientePreview] =
+    useState<DocumentoVencimientoResumen | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [expedienteLoading, setExpedienteLoading] = useState(true);
+  const [expedienteSending, setExpedienteSending] = useState(false);
+
   const [error, setError] = useState<string | null>(null);
+  const [expedienteError, setExpedienteError] = useState<string | null>(null);
+  const [expedienteMessage, setExpedienteMessage] = useState<string | null>(null);
+  const [expedienteMessageSeverity, setExpedienteMessageSeverity] =
+    useState<AlertColor>("success");
 
-  const loadDashboard = useCallback(async (isRefresh = false) => {
+  const loadExpedientePreview = useCallback(async () => {
     try {
-      setError(null);
+      setExpedienteError(null);
+      setExpedienteLoading(true);
 
-      if (isRefresh) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
+      const preview = await getExpedienteNotificacionesPreview({
+        diasAnticipacion: 30,
+        incluirVencidos: true,
+      });
 
-      const [statsResponse, dashboardResponse, cumpleaniosHoyResponse] =
-        await Promise.all([
-          getDashboardStats(),
-          getDashboardData(),
-          getCumpleaniosHoy(),
-        ]);
-
-      setStats(statsResponse);
-      setDashboard(dashboardResponse);
-      setCumpleaniosHoy(cumpleaniosHoyResponse);
+      setExpedientePreview(preview);
     } catch (err) {
       console.error(err);
-      setError("No se pudo cargar el dashboard. Revisa la API o intenta nuevamente.");
+      setExpedienteError(
+        "No se pudo cargar el seguimiento de vencimientos de expediente."
+      );
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      setExpedienteLoading(false);
     }
   }, []);
+
+  const loadDashboard = useCallback(
+    async (isRefresh = false) => {
+      try {
+        setError(null);
+
+        if (isRefresh) {
+          setRefreshing(true);
+        } else {
+          setLoading(true);
+        }
+
+        const [statsResponse, dashboardResponse, cumpleaniosHoyResponse] =
+          await Promise.all([
+            getDashboardStats(),
+            getDashboardData(),
+            getCumpleaniosHoy(),
+          ]);
+
+        setStats(statsResponse);
+        setDashboard(dashboardResponse);
+        setCumpleaniosHoy(cumpleaniosHoyResponse);
+      } catch (err) {
+        console.error(err);
+        setError("No se pudo cargar el dashboard. Revisa la API o intenta nuevamente.");
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+
+      await loadExpedientePreview();
+    },
+    [loadExpedientePreview]
+  );
 
   useEffect(() => {
     void loadDashboard();
   }, [loadDashboard]);
+
+  const handleEnviarRecordatorioExpediente = useCallback(async () => {
+    try {
+      setExpedienteSending(true);
+      setExpedienteMessage(null);
+      setExpedienteError(null);
+
+      const response = await postExpedienteNotificaciones({
+        diasAnticipacion: 30,
+        incluirVencidos: true,
+      });
+
+      setExpedienteMessage(response.mensaje || "Recordatorios enviados correctamente.");
+      setExpedienteMessageSeverity("success");
+
+      await loadExpedientePreview();
+    } catch (err: any) {
+      console.error(err);
+
+      const message =
+        err?.response?.data?.message ||
+        err?.response?.data?.title ||
+        "No se pudo enviar el recordatorio de expediente.";
+
+      setExpedienteMessage(message);
+      setExpedienteMessageSeverity("error");
+    } finally {
+      setExpedienteSending(false);
+    }
+  }, [loadExpedientePreview]);
 
   const quickActions = useMemo<QuickActionItem[]>(
     () => [
@@ -612,6 +701,9 @@ export default function DashboardPage() {
   const incidenciasPorTipo = dashboard?.incidenciasPorTipo ?? [];
   const incidenciasPorEstatus = dashboard?.incidenciasPorEstatus ?? [];
   const cumpleaniosVisibles = cumpleaniosHoy.slice(0, 5);
+
+  const porVencerTop = expedientePreview?.porVencer.slice(0, 5) ?? [];
+  const vencidosTop = expedientePreview?.vencidos.slice(0, 5) ?? [];
 
   if (loading) {
     return (
@@ -714,8 +806,8 @@ export default function DashboardPage() {
                     }}
                   >
                     Consulta rápido el estado general del sistema, catálogos,
-                    incidencias, cumpleaños y actividad reciente, sin volver esto
-                    un tablero triste ni una dona inflada.
+                    incidencias, cumpleaños, expedientes y actividad reciente,
+                    sin volver esto un tablero triste ni una dona inflada.
                   </Typography>
                 </Box>
 
@@ -877,6 +969,303 @@ export default function DashboardPage() {
             tone="error"
           />
         </Box>
+
+        <Card elevation={0} sx={sectionCardSx(theme)}>
+          <CardContent sx={{ p: 1.8 }}>
+            <Stack spacing={1.35}>
+              <Stack
+                direction={{ xs: "column", md: "row" }}
+                alignItems={{ xs: "flex-start", md: "center" }}
+                justifyContent="space-between"
+                spacing={0.9}
+              >
+                <Box>
+                  <Typography variant="h6" fontWeight={900}>
+                    Vencimientos de expediente
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Seguimiento preventivo de documentos próximos a vencer y vencidos.
+                  </Typography>
+                </Box>
+
+                <Stack direction="row" spacing={0.8} flexWrap="wrap" useFlexGap>
+                  <Chip
+                    icon={<MarkEmailReadRoundedIcon />}
+                    label={`Ventana ${formatNumber(
+                      expedientePreview?.diasAnticipacion ?? 30
+                    )} día(s)`}
+                    sx={softChipSx(theme.palette.info.main)}
+                  />
+                  <Button
+                    variant="contained"
+                    startIcon={<SendRoundedIcon />}
+                    onClick={() => void handleEnviarRecordatorioExpediente()}
+                    disabled={expedienteSending || expedienteLoading}
+                    sx={{
+                      borderRadius: "10px",
+                      textTransform: "none",
+                      fontWeight: 800,
+                    }}
+                  >
+                    {expedienteSending ? "Enviando..." : "Enviar recordatorio"}
+                  </Button>
+                </Stack>
+              </Stack>
+
+              <Divider />
+
+              {expedienteMessage ? (
+                <Alert severity={expedienteMessageSeverity}>{expedienteMessage}</Alert>
+              ) : null}
+
+              {expedienteError ? (
+                <Alert severity="warning">{expedienteError}</Alert>
+              ) : null}
+
+              {expedienteLoading ? (
+                <LinearProgress
+                  sx={{
+                    borderRadius: "999px",
+                    bgcolor: alpha(theme.palette.primary.main, 0.08),
+                  }}
+                />
+              ) : null}
+
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+                  gap: 1,
+                }}
+              >
+                <KpiCard
+                  icon={<ScheduleRoundedIcon />}
+                  label="Por vencer"
+                  value={expedientePreview?.totalPorVencer ?? 0}
+                  subtitle="Documentos dentro de la ventana configurada."
+                  tone="warning"
+                />
+                <KpiCard
+                  icon={<WarningAmberRoundedIcon />}
+                  label="Vencidos"
+                  value={expedientePreview?.totalVencidos ?? 0}
+                  subtitle="Documentos que ya requieren atención inmediata."
+                  tone="error"
+                />
+              </Box>
+
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: { xs: "1fr", xl: "1fr 1fr" },
+                  gap: 1.2,
+                }}
+              >
+                <Card elevation={0} sx={innerCardSx(theme)}>
+                  <CardContent sx={{ p: 1.5 }}>
+                    <Stack spacing={1}>
+                      <Stack
+                        direction={{ xs: "column", md: "row" }}
+                        alignItems={{ xs: "flex-start", md: "center" }}
+                        justifyContent="space-between"
+                        spacing={0.8}
+                      >
+                        <Typography fontWeight={900}>Próximos a vencer</Typography>
+                        <Chip
+                          size="small"
+                          color="warning"
+                          label={`${formatNumber(porVencerTop.length)} visibles`}
+                          sx={{ fontWeight: 800 }}
+                        />
+                      </Stack>
+
+                      {porVencerTop.length === 0 ? (
+                        <EmptyState
+                          icon={<ScheduleRoundedIcon />}
+                          title="Sin documentos por vencer"
+                          message="No hay documentos próximos a vencer dentro de la ventana configurada."
+                        />
+                      ) : (
+                        <Stack spacing={0.8}>
+                          {porVencerTop.map((item) => (
+                            <Card
+                              key={`por-vencer-${item.empleadoId}-${item.tipoDocumento}-${item.fechaVencimiento ?? "sin-fecha"}`}
+                              elevation={0}
+                              sx={innerCardSx(theme)}
+                            >
+                              <CardContent sx={{ p: 1.3 }}>
+                                <Stack
+                                  direction={{ xs: "column", md: "row" }}
+                                  spacing={1}
+                                  alignItems={{ xs: "flex-start", md: "center" }}
+                                  justifyContent="space-between"
+                                >
+                                  <Stack direction="row" spacing={1} alignItems="flex-start">
+                                    <Avatar
+                                      variant="rounded"
+                                      sx={{
+                                        width: 38,
+                                        height: 38,
+                                        borderRadius: "10px",
+                                        bgcolor: alpha(theme.palette.warning.main, 0.12),
+                                        color: "warning.main",
+                                      }}
+                                    >
+                                      <ScheduleRoundedIcon />
+                                    </Avatar>
+
+                                    <Box sx={{ minWidth: 0 }}>
+                                      <Typography fontWeight={800}>
+                                        {item.empleadoNombreCompleto}
+                                      </Typography>
+                                      <Typography variant="body2" color="text.secondary">
+                                        {item.numEmpleado || "Sin número"} · {item.tipoDocumento}
+                                      </Typography>
+                                      <Typography
+                                        variant="body2"
+                                        color="text.secondary"
+                                        sx={{ mt: 0.2 }}
+                                      >
+                                        Vence: {formatDate(item.fechaVencimiento)}
+                                      </Typography>
+                                    </Box>
+                                  </Stack>
+
+                                  <Stack
+                                    direction={{ xs: "row", md: "column" }}
+                                    spacing={0.6}
+                                    alignItems={{ xs: "center", md: "flex-end" }}
+                                  >
+                                    <Chip
+                                      size="small"
+                                      color="warning"
+                                      label={formatDiasVencimiento(item)}
+                                      sx={{ fontWeight: 800 }}
+                                    />
+                                    {item.comentario ? (
+                                      <Typography
+                                        variant="caption"
+                                        color="text.secondary"
+                                        sx={{ maxWidth: 260, textAlign: { xs: "left", md: "right" } }}
+                                      >
+                                        {item.comentario}
+                                      </Typography>
+                                    ) : null}
+                                  </Stack>
+                                </Stack>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </Stack>
+                      )}
+                    </Stack>
+                  </CardContent>
+                </Card>
+
+                <Card elevation={0} sx={innerCardSx(theme)}>
+                  <CardContent sx={{ p: 1.5 }}>
+                    <Stack spacing={1}>
+                      <Stack
+                        direction={{ xs: "column", md: "row" }}
+                        alignItems={{ xs: "flex-start", md: "center" }}
+                        justifyContent="space-between"
+                        spacing={0.8}
+                      >
+                        <Typography fontWeight={900}>Vencidos</Typography>
+                        <Chip
+                          size="small"
+                          color="error"
+                          label={`${formatNumber(vencidosTop.length)} visibles`}
+                          sx={{ fontWeight: 800 }}
+                        />
+                      </Stack>
+
+                      {vencidosTop.length === 0 ? (
+                        <EmptyState
+                          icon={<WarningAmberRoundedIcon />}
+                          title="Sin documentos vencidos"
+                          message="Buen síntoma. No hay documentos vencidos en el corte actual."
+                        />
+                      ) : (
+                        <Stack spacing={0.8}>
+                          {vencidosTop.map((item) => (
+                            <Card
+                              key={`vencido-${item.empleadoId}-${item.tipoDocumento}-${item.fechaVencimiento ?? "sin-fecha"}`}
+                              elevation={0}
+                              sx={innerCardSx(theme)}
+                            >
+                              <CardContent sx={{ p: 1.3 }}>
+                                <Stack
+                                  direction={{ xs: "column", md: "row" }}
+                                  spacing={1}
+                                  alignItems={{ xs: "flex-start", md: "center" }}
+                                  justifyContent="space-between"
+                                >
+                                  <Stack direction="row" spacing={1} alignItems="flex-start">
+                                    <Avatar
+                                      variant="rounded"
+                                      sx={{
+                                        width: 38,
+                                        height: 38,
+                                        borderRadius: "10px",
+                                        bgcolor: alpha(theme.palette.error.main, 0.12),
+                                        color: "error.main",
+                                      }}
+                                    >
+                                      <WarningAmberRoundedIcon />
+                                    </Avatar>
+
+                                    <Box sx={{ minWidth: 0 }}>
+                                      <Typography fontWeight={800}>
+                                        {item.empleadoNombreCompleto}
+                                      </Typography>
+                                      <Typography variant="body2" color="text.secondary">
+                                        {item.numEmpleado || "Sin número"} · {item.tipoDocumento}
+                                      </Typography>
+                                      <Typography
+                                        variant="body2"
+                                        color="text.secondary"
+                                        sx={{ mt: 0.2 }}
+                                      >
+                                        Venció: {formatDate(item.fechaVencimiento)}
+                                      </Typography>
+                                    </Box>
+                                  </Stack>
+
+                                  <Stack
+                                    direction={{ xs: "row", md: "column" }}
+                                    spacing={0.6}
+                                    alignItems={{ xs: "center", md: "flex-end" }}
+                                  >
+                                    <Chip
+                                      size="small"
+                                      color="error"
+                                      label={formatDiasVencimiento(item)}
+                                      sx={{ fontWeight: 800 }}
+                                    />
+                                    {item.comentario ? (
+                                      <Typography
+                                        variant="caption"
+                                        color="text.secondary"
+                                        sx={{ maxWidth: 260, textAlign: { xs: "left", md: "right" } }}
+                                      >
+                                        {item.comentario}
+                                      </Typography>
+                                    ) : null}
+                                  </Stack>
+                                </Stack>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </Stack>
+                      )}
+                    </Stack>
+                  </CardContent>
+                </Card>
+              </Box>
+            </Stack>
+          </CardContent>
+        </Card>
 
         <Card elevation={0} sx={sectionCardSx(theme)}>
           <CardContent sx={{ p: 1.8 }}>
