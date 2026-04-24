@@ -23,9 +23,11 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableContainer,
   TableHead,
   TablePagination,
   TableRow,
+  TableSortLabel,
   TextField,
   Tooltip,
   Typography,
@@ -35,7 +37,6 @@ import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import UploadFileRoundedIcon from "@mui/icons-material/UploadFileRounded";
-import ApartmentOutlinedIcon from "@mui/icons-material/ApartmentOutlined";
 import StoreRoundedIcon from "@mui/icons-material/StoreRounded";
 import PersonOffRoundedIcon from "@mui/icons-material/PersonOffRounded";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
@@ -109,6 +110,17 @@ type TipoBajaEmpleado =
 
 type EstadoFiltroEmpleado = "" | "ACTIVO" | "BAJA";
 
+type EmpleadoSortField =
+  | "numEmpleado"
+  | "nombre"
+  | "departamento"
+  | "puesto"
+  | "sucursal"
+  | "fechaIngreso"
+  | "estatus";
+
+type EmpleadoSortDirection = "asc" | "desc";
+
 const EMPLEADO_FORM_STEPS = [
   "Generales",
   "Identificación",
@@ -133,10 +145,7 @@ const ESTADO_CIVIL_OPTIONS: { value: EstadoCivilEmpleado; label: string }[] = [
 ];
 
 const empleadoSchema = z.object({
-  numEmpleado: z
-    .string()
-    .trim()
-    .max(30, "Máximo 30 caracteres"),
+  numEmpleado: z.string().trim().max(30, "Máximo 30 caracteres"),
 
   nombres: z
     .string()
@@ -267,6 +276,23 @@ const TIPOS_BAJA: { value: TipoBajaEmpleado; label: string }[] = [
   { value: "OTRA", label: "Otra" },
 ];
 
+const tableCellTruncateSx = {
+  display: "block",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+  minWidth: 0,
+} as const;
+
+const tableActionGridSx = {
+  display: "grid",
+  gridTemplateColumns: "repeat(5, 34px)",
+  gap: 0.75,
+  justifyContent: "end",
+  alignItems: "center",
+  minWidth: 186,
+} as const;
+
 function getErrorMessage(error: unknown) {
   if (axios.isAxiosError(error)) {
     const apiMessage =
@@ -278,9 +304,8 @@ function getErrorMessage(error: unknown) {
       return apiMessage;
     }
 
-    return `${error.response?.status ?? ""} ${
-      error.response?.statusText ?? error.message
-    }`.trim();
+    return `${error.response?.status ?? ""} ${error.response?.statusText ?? error.message
+      }`.trim();
   }
 
   if (error instanceof Error) return error.message;
@@ -355,6 +380,33 @@ function formatDateTime(value?: string | null) {
   }).format(date);
 }
 
+function normalizeSortText(value?: string | null) {
+  return (value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function compareSortText(a?: string | null, b?: string | null) {
+  return normalizeSortText(a).localeCompare(normalizeSortText(b), "es", {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+
+function compareSortDate(a?: string | null, b?: string | null) {
+  const aValue = a
+    ? new Date(/^\d{4}-\d{2}-\d{2}$/.test(a) ? `${a}T00:00:00` : a).getTime()
+    : 0;
+
+  const bValue = b
+    ? new Date(/^\d{4}-\d{2}-\d{2}$/.test(b) ? `${b}T00:00:00` : b).getTime()
+    : 0;
+
+  return aValue - bValue;
+}
+
 function getPuestoDepartamentoId(puesto: Puesto) {
   const maybeDepartamentoId =
     (puesto as Puesto & {
@@ -381,20 +433,6 @@ function normalizeRoles(roles?: string[] | null): string[] {
 function hasSomeRole(roles?: string[] | null, allowed: string[] = []) {
   const normalized = normalizeRoles(roles);
   return allowed.some((role) => normalized.includes(role.toUpperCase()));
-}
-
-function departmentChipSx() {
-  return {
-    width: "fit-content",
-    borderRadius: "999px",
-    fontWeight: 800,
-    borderColor: alpha("#2563eb", 0.24),
-    color: "#1d4ed8",
-    backgroundColor: alpha("#2563eb", 0.04),
-    "& .MuiChip-icon": {
-      color: "#2563eb",
-    },
-  } as const;
 }
 
 function empleadoStatusChipSx(
@@ -1281,7 +1319,7 @@ function EmpleadoDialog({
                         }
                         sx={empleadoStatusChipSx(
                           initialValues?.estatusLaboralActual ??
-                            (activo ? "ACTIVO" : "BAJA"),
+                          (activo ? "ACTIVO" : "BAJA"),
                           activo
                         )}
                       />
@@ -2144,14 +2182,13 @@ export default function EmpleadosPage() {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Empleado | null>(null);
   const [bajaTarget, setBajaTarget] = useState<Empleado | null>(null);
-  const [reingresoTarget, setReingresoTarget] = useState<Empleado | null>(
-    null
-  );
-  const [movimientosTarget, setMovimientosTarget] = useState<Empleado | null>(
-    null
-  );
+  const [reingresoTarget, setReingresoTarget] = useState<Empleado | null>(null);
+  const [movimientosTarget, setMovimientosTarget] = useState<Empleado | null>(null);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [sortField, setSortField] = useState<EmpleadoSortField>("fechaIngreso");
+  const [sortDirection, setSortDirection] =
+    useState<EmpleadoSortDirection>("desc");
   const [exportingXlsx, setExportingXlsx] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [downloadingFichaId, setDownloadingFichaId] = useState<number | null>(
@@ -2176,6 +2213,7 @@ export default function EmpleadosPage() {
               ? false
               : undefined,
       });
+
       return Array.isArray(data.items) ? data.items : [];
     },
   });
@@ -2210,6 +2248,38 @@ export default function EmpleadosPage() {
   const sucursalesMap = useMemo(() => {
     return new Map(sucursales.map((s) => [Number(s.id), s]));
   }, [sucursales]);
+
+  const getDepartamentoNombre = (row: Empleado) =>
+    row.departamentoNombre ??
+    (row.departamentoId
+      ? departamentosMap.get(Number(row.departamentoId))?.nombre
+      : null) ??
+    "-";
+
+  const getPuestoNombre = (row: Empleado) =>
+    row.puestoNombre ??
+    (row.puestoId ? puestosMap.get(Number(row.puestoId))?.nombre : null) ??
+    "-";
+
+  const getSucursalNombre = (row: Empleado) =>
+    row.sucursalNombre ??
+    (row.sucursalId ? sucursalesMap.get(Number(row.sucursalId))?.nombre : null) ??
+    "-";
+
+  const getEstadoLabel = (row: Empleado) =>
+    row.estatusLaboralActual === "BAJA" || !row.activo ? "Baja" : "Activo";
+
+  const handleSort = (field: EmpleadoSortField) => {
+    setPage(0);
+
+    if (sortField === field) {
+      setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+      return;
+    }
+
+    setSortField(field);
+    setSortDirection(field === "fechaIngreso" ? "desc" : "asc");
+  };
 
   const saveMutation = useMutation({
     mutationFn: async ({
@@ -2296,23 +2366,12 @@ export default function EmpleadosPage() {
     const term = search.trim().toLowerCase();
 
     return rows.filter((row: Empleado) => {
-      const departamento = row.departamentoId
-        ? departamentosMap.get(Number(row.departamentoId))
-        : undefined;
-      const puesto = row.puestoId
-        ? puestosMap.get(Number(row.puestoId))
-        : undefined;
-      const sucursal = row.sucursalId
-        ? sucursalesMap.get(Number(row.sucursalId))
-        : undefined;
-
       const matchesDepartamento =
         !departamentoFilter ||
         String(row.departamentoId ?? "") === String(departamentoFilter);
 
       const matchesSucursal =
-        !sucursalFilter ||
-        String(row.sucursalId ?? "") === String(sucursalFilter);
+        !sucursalFilter || String(row.sucursalId ?? "") === String(sucursalFilter);
 
       const matchesStatus =
         statusFilter === ""
@@ -2323,23 +2382,16 @@ export default function EmpleadosPage() {
 
       const matchesSearch =
         !term ||
-        String(row.id).includes(term) ||
         (row.numEmpleado ?? "").toLowerCase().includes(term) ||
-        (row.nombres ?? "").toLowerCase().includes(term) ||
-        (row.apellidoPaterno ?? "").toLowerCase().includes(term) ||
-        (row.apellidoMaterno ?? "").toLowerCase().includes(term) ||
+        getEmpleadoNombre(row).toLowerCase().includes(term) ||
         (row.email ?? "").toLowerCase().includes(term) ||
         (row.curp ?? "").toLowerCase().includes(term) ||
         (row.rfc ?? "").toLowerCase().includes(term) ||
         (row.nss ?? "").toLowerCase().includes(term) ||
-        (departamento?.nombre ?? "").toLowerCase().includes(term) ||
-        (departamento?.clave ?? "").toLowerCase().includes(term) ||
-        (puesto?.nombre ?? "").toLowerCase().includes(term) ||
-        (puesto?.clave ?? "").toLowerCase().includes(term) ||
-        (sucursal?.nombre ?? "").toLowerCase().includes(term) ||
-        (sucursal?.clave ?? "").toLowerCase().includes(term) ||
-        (row.estatusLaboralActual ?? "").toLowerCase().includes(term) ||
-        (row.activo ? "activo" : "baja").includes(term);
+        getDepartamentoNombre(row).toLowerCase().includes(term) ||
+        getPuestoNombre(row).toLowerCase().includes(term) ||
+        getSucursalNombre(row).toLowerCase().includes(term) ||
+        getEstadoLabel(row).toLowerCase().includes(term);
 
       return (
         matchesDepartamento &&
@@ -2348,31 +2400,60 @@ export default function EmpleadosPage() {
         matchesSearch
       );
     });
-  }, [
-    empleadosQuery.data,
-    search,
-    departamentoFilter,
-    sucursalFilter,
-    statusFilter,
-    departamentosMap,
-    puestosMap,
-    sucursalesMap,
-  ]);
+  }, [empleadosQuery.data, search, departamentoFilter, sucursalFilter, statusFilter]);
+
+  const sortedRows = useMemo(() => {
+    const rows = [...filteredRows];
+
+    rows.sort((a, b) => {
+      let result = 0;
+
+      switch (sortField) {
+        case "numEmpleado":
+          result = compareSortText(a.numEmpleado, b.numEmpleado);
+          break;
+        case "nombre":
+          result = compareSortText(getEmpleadoNombre(a), getEmpleadoNombre(b));
+          break;
+        case "departamento":
+          result = compareSortText(
+            getDepartamentoNombre(a),
+            getDepartamentoNombre(b)
+          );
+          break;
+        case "puesto":
+          result = compareSortText(getPuestoNombre(a), getPuestoNombre(b));
+          break;
+        case "sucursal":
+          result = compareSortText(getSucursalNombre(a), getSucursalNombre(b));
+          break;
+        case "estatus":
+          result = compareSortText(getEstadoLabel(a), getEstadoLabel(b));
+          break;
+        case "fechaIngreso":
+        default:
+          result = compareSortDate(a.fechaIngreso, b.fechaIngreso);
+          break;
+      }
+
+      if (result === 0) {
+        result = compareSortText(a.numEmpleado, b.numEmpleado);
+      }
+
+      return sortDirection === "asc" ? result : -result;
+    });
+
+    return rows;
+  }, [filteredRows, sortDirection, sortField]);
 
   const paginatedRows = useMemo<Empleado[]>(() => {
     const start = page * rowsPerPage;
-    return filteredRows.slice(start, start + rowsPerPage);
-  }, [filteredRows, page, rowsPerPage]);
+    return sortedRows.slice(start, start + rowsPerPage);
+  }, [sortedRows, page, rowsPerPage]);
 
   useEffect(() => {
     setPage(0);
-  }, [
-    search,
-    departamentoFilter,
-    sucursalFilter,
-    statusFilter,
-    filteredRows.length,
-  ]);
+  }, [search, departamentoFilter, sucursalFilter, statusFilter, rowsPerPage]);
 
   const activeCount = useMemo(
     () =>
@@ -2807,9 +2888,8 @@ export default function EmpleadosPage() {
               color={activeFiltersCount > 0 ? "primary" : undefined}
               label={
                 activeFiltersCount > 0
-                  ? `${activeFiltersCount} filtro${
-                      activeFiltersCount > 1 ? "s" : ""
-                    } activo${activeFiltersCount > 1 ? "s" : ""}`
+                  ? `${activeFiltersCount} filtro${activeFiltersCount > 1 ? "s" : ""
+                  } activo${activeFiltersCount > 1 ? "s" : ""}`
                   : "Sin filtros"
               }
             />
@@ -2862,7 +2942,7 @@ export default function EmpleadosPage() {
               <MenuItem value="">Todos</MenuItem>
               {departamentos.map((dep) => (
                 <MenuItem key={dep.id} value={dep.id}>
-                  {dep.clave} - {dep.nombre}
+                  {dep.nombre}
                 </MenuItem>
               ))}
             </TextField>
@@ -2879,7 +2959,7 @@ export default function EmpleadosPage() {
               <MenuItem value="">Todas</MenuItem>
               {sucursales.map((sucursal) => (
                 <MenuItem key={sucursal.id} value={sucursal.id}>
-                  {sucursal.clave} - {sucursal.nombre}
+                  {sucursal.nombre}
                 </MenuItem>
               ))}
             </TextField>
@@ -2906,7 +2986,7 @@ export default function EmpleadosPage() {
         subtitle="Consulta general del catálogo de empleados y su asignación actual."
         actions={
           <Chip
-            label={`${paginatedRows.length} visibles de ${filteredRows.length}`}
+            label={`${paginatedRows.length} visibles de ${sortedRows.length}`}
             size="small"
             variant="outlined"
           />
@@ -2935,7 +3015,7 @@ export default function EmpleadosPage() {
             No se pudo cargar el catálogo de sucursales.{" "}
             {getErrorMessage(sucursalesQuery.error)}
           </Alert>
-        ) : filteredRows.length === 0 ? (
+        ) : sortedRows.length === 0 ? (
           <EmptyState
             icon={<Groups2OutlinedIcon sx={{ fontSize: 52 }} />}
             title="No hay empleados para mostrar"
@@ -2945,41 +3025,103 @@ export default function EmpleadosPage() {
           />
         ) : (
           <>
-            <Box sx={{ overflowX: "auto", maxHeight: 620 }}>
-              <Table stickyHeader size="small">
+            <TableContainer
+              sx={{
+                border: `1px solid ${alpha("#0f172a", 0.06)}`,
+                borderRadius: 3,
+                overflowX: "auto",
+                maxHeight: 620,
+              }}
+            >
+              <Table stickyHeader size="small" sx={{ minWidth: 1180 }}>
                 <TableHead
                   sx={{
                     "& .MuiTableCell-head": {
                       backgroundColor: "#f4f7fc",
                       zIndex: 2,
+                      fontWeight: 800,
                     },
                   }}
                 >
                   <TableRow>
-                    <TableCell>ID</TableCell>
-                    <TableCell>No. Empleado</TableCell>
-                    <TableCell>Nombre</TableCell>
-                    <TableCell>Departamento</TableCell>
-                    <TableCell>Puesto</TableCell>
-                    <TableCell>Sucursal</TableCell>
-                    <TableCell>Ingreso</TableCell>
-                    <TableCell>Estatus</TableCell>
-                    <TableCell align="right">Acciones</TableCell>
+                    <TableCell sx={{ width: 116 }}>
+                      <TableSortLabel
+                        active={sortField === "numEmpleado"}
+                        direction={sortField === "numEmpleado" ? sortDirection : "asc"}
+                        onClick={() => handleSort("numEmpleado")}
+                      >
+                        Num.
+                      </TableSortLabel>
+                    </TableCell>
+
+                    <TableCell sx={{ minWidth: 280 }}>
+                      <TableSortLabel
+                        active={sortField === "nombre"}
+                        direction={sortField === "nombre" ? sortDirection : "asc"}
+                        onClick={() => handleSort("nombre")}
+                      >
+                        Empleado
+                      </TableSortLabel>
+                    </TableCell>
+
+                    <TableCell sx={{ minWidth: 180 }}>
+                      <TableSortLabel
+                        active={sortField === "departamento"}
+                        direction={sortField === "departamento" ? sortDirection : "asc"}
+                        onClick={() => handleSort("departamento")}
+                      >
+                        Departamento
+                      </TableSortLabel>
+                    </TableCell>
+
+                    <TableCell sx={{ minWidth: 220 }}>
+                      <TableSortLabel
+                        active={sortField === "puesto"}
+                        direction={sortField === "puesto" ? sortDirection : "asc"}
+                        onClick={() => handleSort("puesto")}
+                      >
+                        Puesto
+                      </TableSortLabel>
+                    </TableCell>
+
+                    <TableCell sx={{ minWidth: 190 }}>
+                      <TableSortLabel
+                        active={sortField === "sucursal"}
+                        direction={sortField === "sucursal" ? sortDirection : "asc"}
+                        onClick={() => handleSort("sucursal")}
+                      >
+                        Sucursal
+                      </TableSortLabel>
+                    </TableCell>
+
+                    <TableCell sx={{ width: 112 }}>
+                      <TableSortLabel
+                        active={sortField === "fechaIngreso"}
+                        direction={sortField === "fechaIngreso" ? sortDirection : "desc"}
+                        onClick={() => handleSort("fechaIngreso")}
+                      >
+                        Ingreso
+                      </TableSortLabel>
+                    </TableCell>
+
+                    <TableCell sx={{ width: 132 }}>
+                      <TableSortLabel
+                        active={sortField === "estatus"}
+                        direction={sortField === "estatus" ? sortDirection : "asc"}
+                        onClick={() => handleSort("estatus")}
+                      >
+                        Estatus
+                      </TableSortLabel>
+                    </TableCell>
+
+                    <TableCell align="right" sx={{ width: 208 }}>
+                      Acciones
+                    </TableCell>
                   </TableRow>
                 </TableHead>
 
                 <TableBody>
                   {paginatedRows.map((row: Empleado) => {
-                    const departamento = row.departamentoId
-                      ? departamentosMap.get(Number(row.departamentoId))
-                      : undefined;
-                    const puesto = row.puestoId
-                      ? puestosMap.get(Number(row.puestoId))
-                      : undefined;
-                    const sucursal = row.sucursalId
-                      ? sucursalesMap.get(Number(row.sucursalId))
-                      : undefined;
-
                     const isActivo =
                       row.activo && row.estatusLaboralActual === "ACTIVO";
 
@@ -2993,20 +3135,16 @@ export default function EmpleadosPage() {
                             : "rgba(0,0,0,0.02)",
                         }}
                       >
-                        <TableCell>{row.id}</TableCell>
-
                         <TableCell>
-                          <Typography fontWeight={700}>
-                            {row.numEmpleado}
-                          </Typography>
+                          <Typography fontWeight={800}>{row.numEmpleado}</Typography>
                         </TableCell>
 
                         <TableCell>
                           <Stack direction="row" spacing={1.25} alignItems="center">
                             <Box
                               sx={{
-                                width: 34,
-                                height: 34,
+                                width: 36,
+                                height: 36,
                                 borderRadius: "12px",
                                 overflow: "hidden",
                                 border: `1px solid ${alpha("#0f172a", 0.08)}`,
@@ -3036,93 +3174,71 @@ export default function EmpleadosPage() {
                             </Box>
 
                             <Stack spacing={0.25} sx={{ minWidth: 0 }}>
-                              <Typography fontWeight={700}>
-                                {getEmpleadoNombre(row)}
-                              </Typography>
-                              <Typography
-                                variant="caption"
-                                color="text.secondary"
-                                sx={{
-                                  display: "block",
-                                  maxWidth: 240,
-                                  whiteSpace: "nowrap",
-                                  overflow: "hidden",
-                                  textOverflow: "ellipsis",
-                                }}
-                              >
-                                {row.email || "Sin correo"}
-                              </Typography>
+                              <Tooltip title={getEmpleadoNombre(row)} arrow>
+                                <Typography
+                                  fontWeight={800}
+                                  sx={{ ...tableCellTruncateSx, maxWidth: 240 }}
+                                >
+                                  {getEmpleadoNombre(row)}
+                                </Typography>
+                              </Tooltip>
+
+                              <Tooltip title={row.email || "Sin correo"} arrow>
+                                <Typography
+                                  variant="caption"
+                                  color="text.secondary"
+                                  sx={{ ...tableCellTruncateSx, maxWidth: 240 }}
+                                >
+                                  {row.email || "Sin correo"}
+                                </Typography>
+                              </Tooltip>
                             </Stack>
                           </Stack>
                         </TableCell>
 
                         <TableCell>
-                          {departamento ? (
-                            <Tooltip
-                              arrow
-                              title={`${departamento.clave} - ${departamento.nombre}`}
-                            >
-                              <Stack spacing={0.35} sx={{ minWidth: 0 }}>
-                                <Chip
-                                  size="small"
-                                  variant="outlined"
-                                  icon={<ApartmentOutlinedIcon />}
-                                  label={departamento.clave}
-                                  sx={departmentChipSx()}
-                                />
-                                <Typography
-                                  variant="caption"
-                                  color="text.secondary"
-                                  sx={{
-                                    display: "block",
-                                    maxWidth: 180,
-                                    whiteSpace: "nowrap",
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                  }}
-                                >
-                                  {departamento.nombre}
-                                </Typography>
-                              </Stack>
-                            </Tooltip>
-                          ) : (
-                            "-"
-                          )}
+                          <Tooltip title={getDepartamentoNombre(row)} arrow>
+                            <Typography sx={{ ...tableCellTruncateSx, maxWidth: 170 }}>
+                              {getDepartamentoNombre(row)}
+                            </Typography>
+                          </Tooltip>
                         </TableCell>
 
                         <TableCell>
-                          {puesto ? `${puesto.clave} - ${puesto.nombre}` : "-"}
+                          <Tooltip title={getPuestoNombre(row)} arrow>
+                            <Typography sx={{ ...tableCellTruncateSx, maxWidth: 210 }}>
+                              {getPuestoNombre(row)}
+                            </Typography>
+                          </Tooltip>
                         </TableCell>
 
                         <TableCell>
-                          {sucursal
-                            ? `${sucursal.clave} - ${sucursal.nombre}`
-                            : row.sucursalNombre ?? "-"}
+                          <Tooltip title={getSucursalNombre(row)} arrow>
+                            <Typography sx={{ ...tableCellTruncateSx, maxWidth: 180 }}>
+                              {getSucursalNombre(row)}
+                            </Typography>
+                          </Tooltip>
                         </TableCell>
 
                         <TableCell>{formatDate(row.fechaIngreso)}</TableCell>
 
                         <TableCell>
-                          <Stack spacing={0.4}>
+                          <Stack spacing={0.35} alignItems="flex-start" sx={{ minWidth: 0 }}>
                             <Chip
                               size="small"
                               variant="outlined"
-                              label={
-                                row.estatusLaboralActual === "ACTIVO"
-                                  ? "Activo"
-                                  : "Baja"
-                              }
+                              label={getEstadoLabel(row)}
                               sx={empleadoStatusChipSx(
                                 row.estatusLaboralActual,
                                 row.activo
                               )}
                             />
 
-                            {row.estatusLaboralActual === "BAJA" &&
-                            row.fechaBajaActual ? (
+                            {row.estatusLaboralActual === "BAJA" && row.fechaBajaActual ? (
                               <Typography
                                 variant="caption"
                                 color="text.secondary"
+                                sx={{ ...tableCellTruncateSx, maxWidth: 110 }}
                               >
                                 Baja: {formatDate(row.fechaBajaActual)}
                               </Typography>
@@ -3130,6 +3246,7 @@ export default function EmpleadosPage() {
                               <Typography
                                 variant="caption"
                                 color="text.secondary"
+                                sx={{ ...tableCellTruncateSx, maxWidth: 110 }}
                               >
                                 Reingreso: {formatDate(row.fechaReingresoActual)}
                               </Typography>
@@ -3138,13 +3255,7 @@ export default function EmpleadosPage() {
                         </TableCell>
 
                         <TableCell align="right">
-                          <Stack
-                            direction="row"
-                            spacing={0.75}
-                            justifyContent="flex-end"
-                            flexWrap="wrap"
-                            useFlexGap
-                          >
+                          <Box sx={tableActionGridSx}>
                             <Tooltip title="Descargar ficha">
                               <span>
                                 <IconButton
@@ -3186,7 +3297,7 @@ export default function EmpleadosPage() {
                               </span>
                             </Tooltip>
 
-                            {canManageEmpleados && (
+                            {canManageEmpleados ? (
                               <Tooltip title="Editar">
                                 <span>
                                   <IconButton
@@ -3198,9 +3309,11 @@ export default function EmpleadosPage() {
                                   </IconButton>
                                 </span>
                               </Tooltip>
+                            ) : (
+                              <Box />
                             )}
 
-                            {canManageEmpleados && isActivo && (
+                            {canManageEmpleados && isActivo ? (
                               <Tooltip title="Dar baja">
                                 <span>
                                   <IconButton
@@ -3212,34 +3325,34 @@ export default function EmpleadosPage() {
                                   </IconButton>
                                 </span>
                               </Tooltip>
+                            ) : canManageEmpleados &&
+                              row.estatusLaboralActual === "BAJA" ? (
+                              <Tooltip title="Reingresar">
+                                <span>
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => openReingresoDialog(row)}
+                                    sx={actionIconButtonSx("reingreso")}
+                                  >
+                                    <PersonAddAlt1RoundedIcon fontSize="small" />
+                                  </IconButton>
+                                </span>
+                              </Tooltip>
+                            ) : (
+                              <Box />
                             )}
-
-                            {canManageEmpleados &&
-                              row.estatusLaboralActual === "BAJA" && (
-                                <Tooltip title="Reingresar">
-                                  <span>
-                                    <IconButton
-                                      size="small"
-                                      onClick={() => openReingresoDialog(row)}
-                                      sx={actionIconButtonSx("reingreso")}
-                                    >
-                                      <PersonAddAlt1RoundedIcon fontSize="small" />
-                                    </IconButton>
-                                  </span>
-                                </Tooltip>
-                              )}
-                          </Stack>
+                          </Box>
                         </TableCell>
                       </TableRow>
                     );
                   })}
                 </TableBody>
               </Table>
-            </Box>
+            </TableContainer>
 
             <TablePagination
               component="div"
-              count={filteredRows.length}
+              count={sortedRows.length}
               page={page}
               onPageChange={(_, newPage) => setPage(newPage)}
               rowsPerPage={rowsPerPage}
@@ -3252,8 +3365,7 @@ export default function EmpleadosPage() {
               rowsPerPageOptions={[5, 10, 25, 50]}
               labelRowsPerPage="Filas por página"
               labelDisplayedRows={({ from, to, count }) =>
-                `${from}-${to} de ${
-                  count !== -1 ? count : `más de ${to}`
+                `${from}-${to} de ${count !== -1 ? count : `más de ${to}`
                 }`
               }
             />
