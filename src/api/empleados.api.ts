@@ -14,6 +14,18 @@ export type EstadoCivilEmpleado =
   | "Viudo"
   | "UnionLibre";
 
+export type EstatusLaboralEmpleado = "ACTIVO" | "BAJA";
+
+export type TipoMovimientoLaboral =
+  | "ALTA"
+  | "BAJA"
+  | "REINGRESO"
+  | "CAMBIO_PUESTO"
+  | "CAMBIO_DEPARTAMENTO"
+  | "CAMBIO_SUCURSAL"
+  | "CAMBIO_SALARIO"
+  | "CAMBIO_ESTATUS";
+
 export type Empleado = {
   id: number;
   numEmpleado: string;
@@ -26,7 +38,7 @@ export type Empleado = {
   fechaIngreso: string;
   activo: boolean;
 
-  estatusLaboralActual: string;
+  estatusLaboralActual: EstatusLaboralEmpleado;
   fechaBajaActual?: string | null;
   tipoBajaActual?: string | null;
   fechaReingresoActual?: string | null;
@@ -204,7 +216,7 @@ export type ReingresarEmpleadoInput = {
 export type EmpleadoMovimientoLaboral = {
   id: number;
   empleadoId: number;
-  tipoMovimiento: string;
+  tipoMovimiento: TipoMovimientoLaboral;
   fechaMovimiento: string;
   tipoBaja?: string | null;
   motivo?: string | null;
@@ -231,7 +243,7 @@ export type EmpleadosReporteParams = {
   departamentoId?: number | null;
   puestoId?: number | null;
   activo?: boolean | null;
-  estatusLaboral?: string | null;
+  estatusLaboral?: EstatusLaboralEmpleado | null;
   fechaIngresoDesde?: string | null;
   fechaIngresoHasta?: string | null;
   search?: string | null;

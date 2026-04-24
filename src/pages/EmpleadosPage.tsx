@@ -107,6 +107,8 @@ type TipoBajaEmpleado =
   | "DEFUNCION"
   | "OTRA";
 
+type EstadoFiltroEmpleado = "" | "ACTIVO" | "BAJA";
+
 const EMPLEADO_FORM_STEPS = [
   "Generales",
   "Identificación",
@@ -131,7 +133,6 @@ const ESTADO_CIVIL_OPTIONS: { value: EstadoCivilEmpleado; label: string }[] = [
 ];
 
 const empleadoSchema = z.object({
-  // Generales
   numEmpleado: z
     .string()
     .trim()
@@ -168,7 +169,6 @@ const empleadoSchema = z.object({
   puestoId: z.coerce.number().min(1, "Debes seleccionar un puesto"),
   sucursalId: z.coerce.number().min(0),
 
-  // Identificación
   curp: z
     .string()
     .trim()
@@ -210,7 +210,6 @@ const empleadoSchema = z.object({
   ]),
   nacionalidad: z.string().trim().max(80, "Máximo 80 caracteres"),
 
-  // Domicilio
   direccionCalle: z.string().trim().max(150, "Máximo 150 caracteres"),
   direccionNumeroExterior: z.string().trim().max(20, "Máximo 20 caracteres"),
   direccionNumeroInterior: z.string().trim().max(20, "Máximo 20 caracteres"),
@@ -225,7 +224,6 @@ const empleadoSchema = z.object({
       message: "El código postal debe contener exactamente 5 dígitos",
     }),
 
-  // Fiscales
   codigoPostalFiscal: z
     .string()
     .trim()
@@ -236,7 +234,6 @@ const empleadoSchema = z.object({
 
   entidadFiscal: z.string().trim().max(120, "Máximo 120 caracteres"),
 
-  // Emergencia
   contactoEmergenciaNombre: z
     .string()
     .trim()
@@ -498,6 +495,8 @@ function getMovimientoLabel(tipo: EmpleadoMovimientoLaboral["tipoMovimiento"]) {
       return "Cambio de sucursal";
     case "CAMBIO_SALARIO":
       return "Cambio de salario";
+    case "CAMBIO_ESTATUS":
+      return "Cambio de estatus";
     default:
       return tipo;
   }
@@ -1249,19 +1248,49 @@ function EmpleadoDialog({
                   ))}
                 </TextField>
 
-                <Box sx={{ display: "flex", alignItems: "center" }}>
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={activo}
-                        onChange={(_, checked) =>
-                          setValue("activo", checked, { shouldDirty: true })
+                {!isEdit ? (
+                  <Box sx={{ display: "flex", alignItems: "center" }}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={activo}
+                          onChange={(_, checked) =>
+                            setValue("activo", checked, { shouldDirty: true })
+                          }
+                        />
+                      }
+                      label={activo ? "Activo" : "Inactivo"}
+                    />
+                  </Box>
+                ) : (
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      minHeight: 56,
+                    }}
+                  >
+                    <Stack spacing={0.75}>
+                      <Chip
+                        size="small"
+                        variant="outlined"
+                        label={
+                          initialValues?.estatusLaboralActual === "BAJA" || !activo
+                            ? "Baja"
+                            : "Activo"
                         }
+                        sx={empleadoStatusChipSx(
+                          initialValues?.estatusLaboralActual ??
+                            (activo ? "ACTIVO" : "BAJA"),
+                          activo
+                        )}
                       />
-                    }
-                    label={activo ? "Activo" : "Inactivo"}
-                  />
-                </Box>
+                      <Typography variant="caption" color="text.secondary">
+                        El estado laboral se gestiona desde las acciones Dar baja y Reingresar.
+                      </Typography>
+                    </Stack>
+                  </Box>
+                )}
               </Box>
             </Box>
 
@@ -2070,7 +2099,9 @@ function MovimientosDialog({
                               ? "warning"
                               : item.tipoMovimiento === "REINGRESO"
                                 ? "success"
-                                : "default"
+                                : item.tipoMovimiento === "CAMBIO_ESTATUS"
+                                  ? "info"
+                                  : "default"
                           }
                         />
                       </TableCell>
@@ -2108,7 +2139,7 @@ export default function EmpleadosPage() {
   const [search, setSearch] = useState("");
   const [departamentoFilter, setDepartamentoFilter] = useState("");
   const [sucursalFilter, setSucursalFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState<EstadoFiltroEmpleado>("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Empleado | null>(null);
@@ -2131,13 +2162,19 @@ export default function EmpleadosPage() {
   const canManageEmpleados = hasSomeRole(roles, ["ADMIN", "RRHH"]);
 
   const empleadosQuery = useQuery<Empleado[], Error>({
-    queryKey: ["empleados"],
+    queryKey: ["empleados", statusFilter],
     queryFn: async () => {
       const data = await getEmpleados({
         page: 1,
         pageSize: 500,
         sort: "id",
         dir: "desc",
+        activo:
+          statusFilter === "ACTIVO"
+            ? true
+            : statusFilter === "BAJA"
+              ? false
+              : undefined,
       });
       return Array.isArray(data.items) ? data.items : [];
     },
@@ -2278,9 +2315,11 @@ export default function EmpleadosPage() {
         String(row.sucursalId ?? "") === String(sucursalFilter);
 
       const matchesStatus =
-        !statusFilter ||
-        row.estatusLaboralActual === statusFilter ||
-        (statusFilter === "INACTIVO" && !row.activo);
+        statusFilter === ""
+          ? true
+          : statusFilter === "ACTIVO"
+            ? row.activo && row.estatusLaboralActual === "ACTIVO"
+            : row.estatusLaboralActual === "BAJA" || !row.activo;
 
       const matchesSearch =
         !term ||
@@ -2300,7 +2339,7 @@ export default function EmpleadosPage() {
         (sucursal?.nombre ?? "").toLowerCase().includes(term) ||
         (sucursal?.clave ?? "").toLowerCase().includes(term) ||
         (row.estatusLaboralActual ?? "").toLowerCase().includes(term) ||
-        (row.activo ? "activo" : "inactivo").includes(term);
+        (row.activo ? "activo" : "baja").includes(term);
 
       return (
         matchesDepartamento &&
@@ -2469,7 +2508,7 @@ export default function EmpleadosPage() {
         activo:
           statusFilter === "ACTIVO"
             ? true
-            : statusFilter === "INACTIVO"
+            : statusFilter === "BAJA"
               ? false
               : null,
         estatusLaboral:
@@ -2503,7 +2542,7 @@ export default function EmpleadosPage() {
         activo:
           statusFilter === "ACTIVO"
             ? true
-            : statusFilter === "INACTIVO"
+            : statusFilter === "BAJA"
               ? false
               : null,
         estatusLaboral:
@@ -2684,13 +2723,13 @@ export default function EmpleadosPage() {
                   variant="h4"
                   sx={{ fontWeight: 900, lineHeight: 1 }}
                 >
-                  {activeFiltersCount}
+                  {bajaCount}
                 </Typography>
                 <Typography
                   variant="caption"
                   sx={{ color: alpha("#ffffff", 0.8) }}
                 >
-                  filtros
+                  bajas
                 </Typography>
               </Box>
             </Stack>
@@ -2759,7 +2798,7 @@ export default function EmpleadosPage() {
 
       <SectionCard
         title="Filtros"
-        subtitle="Busca por empleado, correo, puesto, sucursal o estatus."
+        subtitle="Busca por empleado, correo, puesto, sucursal o estado laboral."
         actions={
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
             <Chip
@@ -2850,14 +2889,13 @@ export default function EmpleadosPage() {
             <TextField
               select
               fullWidth
-              label="Estatus"
+              label="Estado"
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(e) => setStatusFilter(e.target.value as EstadoFiltroEmpleado)}
             >
               <MenuItem value="">Todos</MenuItem>
               <MenuItem value="ACTIVO">Activos</MenuItem>
               <MenuItem value="BAJA">Bajas</MenuItem>
-              <MenuItem value="INACTIVO">Inactivos</MenuItem>
             </TextField>
           </Box>
         </Box>
