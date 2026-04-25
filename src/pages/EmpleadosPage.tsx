@@ -45,7 +45,6 @@ import PersonAddAlt1RoundedIcon from "@mui/icons-material/PersonAddAlt1Rounded";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import BlockRoundedIcon from "@mui/icons-material/BlockRounded";
 import FolderOpenRoundedIcon from "@mui/icons-material/FolderOpenRounded";
-import HistoryRoundedIcon from "@mui/icons-material/HistoryRounded";
 import ReplayRoundedIcon from "@mui/icons-material/ReplayRounded";
 import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded";
 import TableViewRoundedIcon from "@mui/icons-material/TableViewRounded";
@@ -66,7 +65,6 @@ import {
   exportEmpleadoFichaPdf,
   exportEmpleadosPdf,
   exportEmpleadosXlsx,
-  getEmpleadoMovimientos,
   getEmpleados,
   getSiguienteNumeroEmpleadoSugerido,
   reingresarEmpleado,
@@ -77,7 +75,6 @@ import {
   type Empleado,
   type EmpleadoCreateInput,
   type EmpleadoImportExecuteResult,
-  type EmpleadoMovimientoLaboral,
   type ReingresarEmpleadoInput,
   type SexoEmpleado,
   type EstadoCivilEmpleado,
@@ -286,11 +283,11 @@ const tableCellTruncateSx = {
 
 const tableActionGridSx = {
   display: "grid",
-  gridTemplateColumns: "repeat(5, 34px)",
+  gridTemplateColumns: "repeat(4, 34px)",
   gap: 0.75,
   justifyContent: "end",
   alignItems: "center",
-  minWidth: 186,
+  minWidth: 150,
 } as const;
 
 function getErrorMessage(error: unknown) {
@@ -304,8 +301,9 @@ function getErrorMessage(error: unknown) {
       return apiMessage;
     }
 
-    return `${error.response?.status ?? ""} ${error.response?.statusText ?? error.message
-      }`.trim();
+    return `${error.response?.status ?? ""} ${
+      error.response?.statusText ?? error.message
+    }`.trim();
   }
 
   if (error instanceof Error) return error.message;
@@ -365,18 +363,6 @@ function formatDate(value?: string | null) {
 
   return new Intl.DateTimeFormat("es-MX", {
     dateStyle: "short",
-  }).format(date);
-}
-
-function formatDateTime(value?: string | null) {
-  if (!value) return "-";
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-
-  return new Intl.DateTimeFormat("es-MX", {
-    dateStyle: "short",
-    timeStyle: "short",
   }).format(date);
 }
 
@@ -444,6 +430,15 @@ function empleadoStatusChipSx(
   return {
     fontWeight: 800,
     borderRadius: "999px",
+    height: 24,
+    width: "fit-content",
+    maxWidth: "100%",
+    alignSelf: "flex-start",
+    "& .MuiChip-label": {
+      px: 1.1,
+      fontSize: "0.76rem",
+      lineHeight: 1,
+    },
     color: isActivo ? "#166534" : "#991b1b",
     borderColor: isActivo
       ? alpha("#16a34a", 0.22)
@@ -455,7 +450,7 @@ function empleadoStatusChipSx(
 }
 
 function actionIconButtonSx(
-  variant: "view" | "edit" | "baja" | "reingreso" | "history" | "pdf"
+  variant: "view" | "edit" | "baja" | "reingreso" | "pdf"
 ) {
   const map = {
     view: {
@@ -481,12 +476,6 @@ function actionIconButtonSx(
       border: alpha("#15803d", 0.18),
       bg: alpha("#15803d", 0.05),
       hover: alpha("#15803d", 0.1),
-    },
-    history: {
-      color: "#4338ca",
-      border: alpha("#4338ca", 0.18),
-      bg: alpha("#4338ca", 0.05),
-      hover: alpha("#4338ca", 0.1),
     },
     pdf: {
       color: "#b91c1c",
@@ -515,34 +504,6 @@ function getEmpleadoNombre(
   return [empleado.nombres, empleado.apellidoPaterno, empleado.apellidoMaterno ?? ""]
     .filter(Boolean)
     .join(" ");
-}
-
-function getMovimientoLabel(tipo: EmpleadoMovimientoLaboral["tipoMovimiento"]) {
-  switch (tipo) {
-    case "ALTA":
-      return "Alta";
-    case "BAJA":
-      return "Baja";
-    case "REINGRESO":
-      return "Reingreso";
-    case "CAMBIO_PUESTO":
-      return "Cambio de puesto";
-    case "CAMBIO_DEPARTAMENTO":
-      return "Cambio de departamento";
-    case "CAMBIO_SUCURSAL":
-      return "Cambio de sucursal";
-    case "CAMBIO_SALARIO":
-      return "Cambio de salario";
-    case "CAMBIO_ESTATUS":
-      return "Cambio de estatus";
-    default:
-      return tipo;
-  }
-}
-
-function getTipoBajaLabel(tipo?: TipoBajaEmpleado | null) {
-  const found = TIPOS_BAJA.find((item) => item.value === tipo);
-  return found?.label ?? tipo ?? "-";
 }
 
 function toUpperInput(value: string) {
@@ -1053,8 +1014,8 @@ function EmpleadoDialog({
                     {uploadingPhoto
                       ? "Subiendo..."
                       : effectivePhotoUrl
-                        ? "Reemplazar foto"
-                        : "Subir foto"}
+                      ? "Reemplazar foto"
+                      : "Subir foto"}
                   </Button>
 
                   <Button
@@ -1268,8 +1229,8 @@ function EmpleadoDialog({
                     (departamentoId <= 0
                       ? "Primero selecciona un departamento"
                       : puestosDisponibles.length === 0
-                        ? "No hay puestos para este departamento"
-                        : "")
+                      ? "No hay puestos para este departamento"
+                      : "")
                   }
                   disabled={departamentoId <= 0 || puestosDisponibles.length === 0}
                   fullWidth
@@ -1319,7 +1280,7 @@ function EmpleadoDialog({
                         }
                         sx={empleadoStatusChipSx(
                           initialValues?.estatusLaboralActual ??
-                          (activo ? "ACTIVO" : "BAJA"),
+                            (activo ? "ACTIVO" : "BAJA"),
                           activo
                         )}
                       />
@@ -2010,8 +1971,8 @@ function ReingresoEmpleadoDialog({
               departamentoId <= 0
                 ? "Primero selecciona un departamento"
                 : puestosDisponibles.length === 0
-                  ? "No hay puestos para este departamento"
-                  : ""
+                ? "No hay puestos para este departamento"
+                : ""
             }
             fullWidth
           >
@@ -2070,104 +2031,6 @@ function ReingresoEmpleadoDialog({
   );
 }
 
-function MovimientosDialog({
-  open,
-  empleado,
-  onClose,
-}: {
-  open: boolean;
-  empleado: Empleado | null;
-  onClose: () => void;
-}) {
-  const movimientosQuery = useQuery<EmpleadoMovimientoLaboral[], Error>({
-    queryKey: ["empleados", "movimientos", empleado?.id],
-    queryFn: () => getEmpleadoMovimientos(Number(empleado?.id)),
-    enabled: open && !!empleado?.id,
-  });
-
-  return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
-      <DialogTitle>Historial laboral</DialogTitle>
-      <DialogContent dividers>
-        <Stack spacing={2}>
-          <Box>
-            <Typography fontWeight={800}>
-              {empleado ? getEmpleadoNombre(empleado) : "-"}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {empleado?.numEmpleado ?? "-"}
-            </Typography>
-          </Box>
-
-          {movimientosQuery.isLoading ? (
-            <Box sx={{ py: 5, display: "flex", justifyContent: "center" }}>
-              <CircularProgress />
-            </Box>
-          ) : movimientosQuery.isError ? (
-            <Alert severity="error">
-              No se pudo cargar el historial. {getErrorMessage(movimientosQuery.error)}
-            </Alert>
-          ) : (movimientosQuery.data ?? []).length === 0 ? (
-            <Alert severity="info">
-              Este empleado aún no tiene movimientos laborales registrados.
-            </Alert>
-          ) : (
-            <Box sx={{ overflowX: "auto" }}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Movimiento</TableCell>
-                    <TableCell>Fecha</TableCell>
-                    <TableCell>Tipo baja</TableCell>
-                    <TableCell>Motivo</TableCell>
-                    <TableCell>Comentario</TableCell>
-                    <TableCell>Responsable</TableCell>
-                    <TableCell>Registro</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {(movimientosQuery.data ?? []).map((item) => (
-                    <TableRow key={item.id} hover>
-                      <TableCell>
-                        <Chip
-                          size="small"
-                          label={getMovimientoLabel(item.tipoMovimiento)}
-                          color={
-                            item.tipoMovimiento === "BAJA"
-                              ? "warning"
-                              : item.tipoMovimiento === "REINGRESO"
-                                ? "success"
-                                : item.tipoMovimiento === "CAMBIO_ESTATUS"
-                                  ? "info"
-                                  : "default"
-                          }
-                        />
-                      </TableCell>
-                      <TableCell>{formatDate(item.fechaMovimiento)}</TableCell>
-                      <TableCell>
-                        {getTipoBajaLabel(
-                          item.tipoBaja as TipoBajaEmpleado | null
-                        )}
-                      </TableCell>
-                      <TableCell>{item.motivo || "-"}</TableCell>
-                      <TableCell>{item.comentario || "-"}</TableCell>
-                      <TableCell>{item.usuarioResponsableId ?? "-"}</TableCell>
-                      <TableCell>{formatDateTime(item.createdAtUtc)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </Box>
-          )}
-        </Stack>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cerrar</Button>
-      </DialogActions>
-    </Dialog>
-  );
-}
-
 export default function EmpleadosPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -2182,11 +2045,13 @@ export default function EmpleadosPage() {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Empleado | null>(null);
   const [bajaTarget, setBajaTarget] = useState<Empleado | null>(null);
-  const [reingresoTarget, setReingresoTarget] = useState<Empleado | null>(null);
-  const [movimientosTarget, setMovimientosTarget] = useState<Empleado | null>(null);
+  const [reingresoTarget, setReingresoTarget] = useState<Empleado | null>(
+    null
+  );
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [sortField, setSortField] = useState<EmpleadoSortField>("fechaIngreso");
+  const [sortField, setSortField] =
+    useState<EmpleadoSortField>("fechaIngreso");
   const [sortDirection, setSortDirection] =
     useState<EmpleadoSortDirection>("desc");
   const [exportingXlsx, setExportingXlsx] = useState(false);
@@ -2210,8 +2075,8 @@ export default function EmpleadosPage() {
           statusFilter === "ACTIVO"
             ? true
             : statusFilter === "BAJA"
-              ? false
-              : undefined,
+            ? false
+            : undefined,
       });
 
       return Array.isArray(data.items) ? data.items : [];
@@ -2309,8 +2174,8 @@ export default function EmpleadosPage() {
         editing
           ? "Empleado actualizado."
           : variables.photoFile
-            ? "Empleado creado y foto cargada."
-            : "Empleado creado.",
+          ? "Empleado creado y foto cargada."
+          : "Empleado creado.",
         "success"
       );
     },
@@ -2327,11 +2192,8 @@ export default function EmpleadosPage() {
       empleado: Empleado;
       payload: DarBajaEmpleadoInput;
     }) => darBajaEmpleado(empleado.id, payload),
-    onSuccess: (_, vars) => {
+    onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["empleados"] });
-      void queryClient.invalidateQueries({
-        queryKey: ["empleados", "movimientos", vars.empleado.id],
-      });
       setBajaTarget(null);
       showSnackbar("Baja registrada correctamente.", "success");
     },
@@ -2348,11 +2210,8 @@ export default function EmpleadosPage() {
       empleado: Empleado;
       payload: ReingresarEmpleadoInput;
     }) => reingresarEmpleado(empleado.id, payload),
-    onSuccess: (_, vars) => {
+    onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["empleados"] });
-      void queryClient.invalidateQueries({
-        queryKey: ["empleados", "movimientos", vars.empleado.id],
-      });
       setReingresoTarget(null);
       showSnackbar("Reingreso registrado correctamente.", "success");
     },
@@ -2377,8 +2236,8 @@ export default function EmpleadosPage() {
         statusFilter === ""
           ? true
           : statusFilter === "ACTIVO"
-            ? row.activo && row.estatusLaboralActual === "ACTIVO"
-            : row.estatusLaboralActual === "BAJA" || !row.activo;
+          ? row.activo && row.estatusLaboralActual === "ACTIVO"
+          : row.estatusLaboralActual === "BAJA" || !row.activo;
 
       const matchesSearch =
         !term ||
@@ -2400,7 +2259,13 @@ export default function EmpleadosPage() {
         matchesSearch
       );
     });
-  }, [empleadosQuery.data, search, departamentoFilter, sucursalFilter, statusFilter]);
+  }, [
+    empleadosQuery.data,
+    search,
+    departamentoFilter,
+    sucursalFilter,
+    statusFilter,
+  ]);
 
   const sortedRows = useMemo(() => {
     const rows = [...filteredRows];
@@ -2512,10 +2377,6 @@ export default function EmpleadosPage() {
     setReingresoTarget(row);
   };
 
-  const openMovimientosDialog = (row: Empleado) => {
-    setMovimientosTarget(row);
-  };
-
   const handleImported = async (result: EmpleadoImportExecuteResult) => {
     setImportDialogOpen(false);
     await empleadosQuery.refetch();
@@ -2590,8 +2451,8 @@ export default function EmpleadosPage() {
           statusFilter === "ACTIVO"
             ? true
             : statusFilter === "BAJA"
-              ? false
-              : null,
+            ? false
+            : null,
         estatusLaboral:
           statusFilter === "ACTIVO" || statusFilter === "BAJA"
             ? statusFilter
@@ -2624,8 +2485,8 @@ export default function EmpleadosPage() {
           statusFilter === "ACTIVO"
             ? true
             : statusFilter === "BAJA"
-              ? false
-              : null,
+            ? false
+            : null,
         estatusLaboral:
           statusFilter === "ACTIVO" || statusFilter === "BAJA"
             ? statusFilter
@@ -2819,8 +2680,8 @@ export default function EmpleadosPage() {
               {canOpenDialog
                 ? "Catálogos base disponibles para alta y edición."
                 : canManageEmpleados
-                  ? "Faltan catálogos base para permitir nuevas altas."
-                  : "Consulta disponible según tu rol actual."}
+                ? "Faltan catálogos base para permitir nuevas altas."
+                : "Consulta disponible según tu rol actual."}
             </Typography>
           </Stack>
         }
@@ -2888,8 +2749,9 @@ export default function EmpleadosPage() {
               color={activeFiltersCount > 0 ? "primary" : undefined}
               label={
                 activeFiltersCount > 0
-                  ? `${activeFiltersCount} filtro${activeFiltersCount > 1 ? "s" : ""
-                  } activo${activeFiltersCount > 1 ? "s" : ""}`
+                  ? `${activeFiltersCount} filtro${
+                      activeFiltersCount > 1 ? "s" : ""
+                    } activo${activeFiltersCount > 1 ? "s" : ""}`
                   : "Sin filtros"
               }
             />
@@ -3033,7 +2895,7 @@ export default function EmpleadosPage() {
                 maxHeight: 620,
               }}
             >
-              <Table stickyHeader size="small" sx={{ minWidth: 1180 }}>
+              <Table stickyHeader size="small" sx={{ minWidth: 1120 }}>
                 <TableHead
                   sx={{
                     "& .MuiTableCell-head": {
@@ -3114,7 +2976,7 @@ export default function EmpleadosPage() {
                       </TableSortLabel>
                     </TableCell>
 
-                    <TableCell align="right" sx={{ width: 208 }}>
+                    <TableCell align="right" sx={{ width: 180 }}>
                       Acciones
                     </TableCell>
                   </TableRow>
@@ -3285,18 +3147,6 @@ export default function EmpleadosPage() {
                               </span>
                             </Tooltip>
 
-                            <Tooltip title="Historial laboral">
-                              <span>
-                                <IconButton
-                                  size="small"
-                                  onClick={() => openMovimientosDialog(row)}
-                                  sx={actionIconButtonSx("history")}
-                                >
-                                  <HistoryRoundedIcon fontSize="small" />
-                                </IconButton>
-                              </span>
-                            </Tooltip>
-
                             {canManageEmpleados ? (
                               <Tooltip title="Editar">
                                 <span>
@@ -3365,7 +3215,8 @@ export default function EmpleadosPage() {
               rowsPerPageOptions={[5, 10, 25, 50]}
               labelRowsPerPage="Filas por página"
               labelDisplayedRows={({ from, to, count }) =>
-                `${from}-${to} de ${count !== -1 ? count : `más de ${to}`
+                `${from}-${to} de ${
+                  count !== -1 ? count : `más de ${to}`
                 }`
               }
             />
@@ -3431,12 +3282,6 @@ export default function EmpleadosPage() {
         departamentos={departamentos}
         puestos={puestos}
         sucursales={sucursales}
-      />
-
-      <MovimientosDialog
-        open={!!movimientosTarget}
-        empleado={movimientosTarget}
-        onClose={() => setMovimientosTarget(null)}
       />
     </AppPage>
   );

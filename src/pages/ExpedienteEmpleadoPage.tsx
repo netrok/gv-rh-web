@@ -39,13 +39,17 @@ import DescriptionRoundedIcon from "@mui/icons-material/DescriptionRounded";
 import DownloadRoundedIcon from "@mui/icons-material/DownloadRounded";
 import DriveFolderUploadRoundedIcon from "@mui/icons-material/DriveFolderUploadRounded";
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
+import EventAvailableRoundedIcon from "@mui/icons-material/EventAvailableRounded";
 import FilterAltRoundedIcon from "@mui/icons-material/FilterAltRounded";
 import FolderOpenRoundedIcon from "@mui/icons-material/FolderOpenRounded";
 import HourglassBottomRoundedIcon from "@mui/icons-material/HourglassBottomRounded";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
+import RestartAltRoundedIcon from "@mui/icons-material/RestartAltRounded";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import SwapHorizRoundedIcon from "@mui/icons-material/SwapHorizRounded";
 import TaskAltRoundedIcon from "@mui/icons-material/TaskAltRounded";
+import TimelineRoundedIcon from "@mui/icons-material/TimelineRounded";
+import CompareArrowsRoundedIcon from "@mui/icons-material/CompareArrowsRounded";
 import VisibilityRoundedIcon from "@mui/icons-material/VisibilityRounded";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import WorkOutlineRoundedIcon from "@mui/icons-material/WorkOutlineRounded";
@@ -68,8 +72,10 @@ import {
 } from "../api/empleadoDocumentos.api";
 import {
   getEmpleadoById,
+  getEmpleadoMovimientos,
   getEmpleadoNombreCompleto,
   type Empleado,
+  type EmpleadoMovimientoLaboral,
 } from "../api/empleados.api";
 
 type SnackbarState = {
@@ -134,6 +140,8 @@ const emptyReplaceForm: ReplaceFormState = {
   archivo: null,
 };
 
+const TIPOS_DOCUMENTO_OPTIONS = [...TIPOS_DOCUMENTO_EMPLEADO];
+
 function formatDate(value?: string | null) {
   if (!value) return "—";
 
@@ -149,6 +157,18 @@ function formatDate(value?: string | null) {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
+  }).format(date);
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return "—";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return new Intl.DateTimeFormat("es-MX", {
+    dateStyle: "short",
+    timeStyle: "short",
   }).format(date);
 }
 
@@ -211,6 +231,79 @@ function validateSelectedFile(file: File | null): string | null {
 function normalizeNullableText(value: string): string | null {
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function getMovimientoTone(
+  tipo: EmpleadoMovimientoLaboral["tipoMovimiento"]
+): "success" | "warning" | "info" | "default" {
+  switch (tipo) {
+    case "ALTA":
+    case "REINGRESO":
+      return "success";
+    case "BAJA":
+      return "warning";
+    case "CAMBIO_ESTATUS":
+      return "info";
+    default:
+      return "default";
+  }
+}
+
+function getMovimientoIcon(tipo: EmpleadoMovimientoLaboral["tipoMovimiento"]) {
+  switch (tipo) {
+    case "ALTA":
+      return <EventAvailableRoundedIcon color="success" />;
+    case "REINGRESO":
+      return <RestartAltRoundedIcon color="success" />;
+    case "BAJA":
+      return <WarningAmberRoundedIcon color="warning" />;
+    default:
+      return <CompareArrowsRoundedIcon color="primary" />;
+  }
+}
+
+function getMovimientoLabel(tipo: EmpleadoMovimientoLaboral["tipoMovimiento"]) {
+  switch (tipo) {
+    case "ALTA":
+      return "Alta";
+    case "BAJA":
+      return "Baja";
+    case "REINGRESO":
+      return "Reingreso";
+    case "CAMBIO_PUESTO":
+      return "Cambio de puesto";
+    case "CAMBIO_DEPARTAMENTO":
+      return "Cambio de departamento";
+    case "CAMBIO_SUCURSAL":
+      return "Cambio de sucursal";
+    case "CAMBIO_SALARIO":
+      return "Cambio de salario";
+    case "CAMBIO_ESTATUS":
+      return "Cambio de estatus";
+    default:
+      return tipo;
+  }
+}
+
+function getTipoBajaLabel(tipo?: string | null) {
+  switch (tipo) {
+    case "VOLUNTARIA":
+      return "Voluntaria";
+    case "INVOLUNTARIA":
+      return "Involuntaria";
+    case "TERMINO_CONTRATO":
+      return "Término de contrato";
+    case "ABANDONO":
+      return "Abandono";
+    case "JUBILACION":
+      return "Jubilación";
+    case "DEFUNCION":
+      return "Defunción";
+    case "OTRA":
+      return "Otra";
+    default:
+      return tipo ?? "—";
+  }
 }
 
 function SectionPanel({
@@ -371,6 +464,7 @@ export default function ExpedienteEmpleadoPage() {
   const [empleado, setEmpleado] = useState<Empleado | null>(null);
   const [documentos, setDocumentos] = useState<EmpleadoDocumento[]>([]);
   const [checklist, setChecklist] = useState<EmpleadoDocumentoChecklist | null>(null);
+  const [movimientos, setMovimientos] = useState<EmpleadoMovimientoLaboral[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -433,15 +527,18 @@ export default function ExpedienteEmpleadoPage() {
       }
 
       try {
-        const [empleadoData, documentosData, checklistData] = await Promise.all([
-          getEmpleadoById(empleadoId),
-          getEmpleadoDocumentos(empleadoId),
-          getEmpleadoDocumentosChecklist(empleadoId),
-        ]);
+        const [empleadoData, documentosData, checklistData, movimientosData] =
+          await Promise.all([
+            getEmpleadoById(empleadoId),
+            getEmpleadoDocumentos(empleadoId),
+            getEmpleadoDocumentosChecklist(empleadoId),
+            getEmpleadoMovimientos(empleadoId),
+          ]);
 
         setEmpleado(empleadoData);
         setDocumentos(documentosData);
         setChecklist(checklistData);
+        setMovimientos(movimientosData);
       } catch (error: any) {
         const message =
           error?.response?.data?.message ||
@@ -502,6 +599,22 @@ export default function ExpedienteEmpleadoPage() {
     return { total, vigentes, porVencer, vencidos };
   }, [documentosEnriquecidos]);
 
+  const movimientosMetrics = useMemo(() => {
+    const total = movimientos.length;
+    const ultimo = movimientos[0] ?? null;
+    const bajas = movimientos.filter((m) => m.tipoMovimiento === "BAJA").length;
+    const reingresos = movimientos.filter(
+      (m) => m.tipoMovimiento === "REINGRESO"
+    ).length;
+
+    return {
+      total,
+      ultimo,
+      bajas,
+      reingresos,
+    };
+  }, [movimientos]);
+
   const filteredDocuments = useMemo(() => {
     const term = search.trim().toLowerCase();
 
@@ -515,11 +628,7 @@ export default function ExpedienteEmpleadoPage() {
       const matchesSearch =
         term.length === 0
           ? true
-          : [
-              item.nombreArchivoOriginal,
-              item.tipoLabel,
-              item.comentario ?? "",
-            ]
+          : [item.nombreArchivoOriginal, item.tipoLabel, item.comentario ?? ""]
               .join(" ")
               .toLowerCase()
               .includes(term);
@@ -658,8 +767,7 @@ export default function ExpedienteEmpleadoPage() {
       await loadPageData(true);
     } catch (error: any) {
       const message =
-        error?.response?.data?.message ||
-        "No se pudo cargar el documento.";
+        error?.response?.data?.message || "No se pudo cargar el documento.";
       showSnackbar("error", message);
     } finally {
       setSavingCreate(false);
@@ -1179,6 +1287,197 @@ export default function ExpedienteEmpleadoPage() {
           </SectionPanel>
 
           <SectionPanel
+            title="Historial laboral"
+            subtitle="Trazabilidad de movimientos del empleado dentro del sistema."
+            actions={
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                <Chip
+                  icon={<TimelineRoundedIcon />}
+                  label={`Movimientos: ${movimientosMetrics.total}`}
+                  variant="outlined"
+                  color="primary"
+                />
+                <Chip
+                  label={`Bajas: ${movimientosMetrics.bajas}`}
+                  variant="outlined"
+                  color="warning"
+                />
+                <Chip
+                  label={`Reingresos: ${movimientosMetrics.reingresos}`}
+                  variant="outlined"
+                  color="success"
+                />
+              </Stack>
+            }
+          >
+            {movimientos.length === 0 ? (
+              <EmptyPanel
+                title="Sin historial laboral"
+                description="Este empleado todavía no tiene movimientos laborales registrados."
+              />
+            ) : (
+              <Stack spacing={1.5}>
+                {movimientosMetrics.ultimo ? (
+                  <Box
+                    sx={{
+                      p: 2,
+                      borderRadius: "18px",
+                      bgcolor: (theme) => alpha(theme.palette.primary.main, 0.03),
+                      border: "1px solid",
+                      borderColor: (theme) => alpha(theme.palette.primary.main, 0.08),
+                    }}
+                  >
+                    <Stack
+                      direction={{ xs: "column", md: "row" }}
+                      spacing={1.5}
+                      justifyContent="space-between"
+                      alignItems={{ xs: "flex-start", md: "center" }}
+                    >
+                      <Box>
+                        <Typography variant="body2" color="text.secondary">
+                          Último movimiento registrado
+                        </Typography>
+                        <Typography variant="h6" fontWeight={800}>
+                          {getMovimientoLabel(movimientosMetrics.ultimo.tipoMovimiento)}
+                        </Typography>
+                      </Box>
+
+                      <Chip
+                        label={formatDate(movimientosMetrics.ultimo.fechaMovimiento)}
+                        variant="outlined"
+                        size="small"
+                      />
+                    </Stack>
+                  </Box>
+                ) : null}
+
+                <Stack spacing={1.25}>
+                  {movimientos.map((item) => (
+                    <Card
+                      key={item.id}
+                      elevation={0}
+                      sx={{
+                        borderRadius: "20px",
+                        border: "1px solid",
+                        borderColor: "divider",
+                        boxShadow: "0 8px 20px rgba(15,23,42,0.04)",
+                      }}
+                    >
+                      <CardContent sx={{ p: 2.25 }}>
+                        <Stack spacing={1.25}>
+                          <Stack
+                            direction={{ xs: "column", md: "row" }}
+                            spacing={1.25}
+                            justifyContent="space-between"
+                            alignItems={{ xs: "flex-start", md: "center" }}
+                          >
+                            <Stack direction="row" spacing={1.25} alignItems="center">
+                              <Box
+                                sx={{
+                                  width: 40,
+                                  height: 40,
+                                  borderRadius: "14px",
+                                  display: "grid",
+                                  placeItems: "center",
+                                  bgcolor: (theme) =>
+                                    alpha(theme.palette.primary.main, 0.08),
+                                  flexShrink: 0,
+                                }}
+                              >
+                                {getMovimientoIcon(item.tipoMovimiento)}
+                              </Box>
+
+                              <Box>
+                                <Typography variant="body2" color="text.secondary">
+                                  Movimiento
+                                </Typography>
+                                <Typography variant="subtitle1" fontWeight={800}>
+                                  {getMovimientoLabel(item.tipoMovimiento)}
+                                </Typography>
+                              </Box>
+                            </Stack>
+
+                            <Stack
+                              direction="row"
+                              spacing={1}
+                              flexWrap="wrap"
+                              useFlexGap
+                              alignItems="center"
+                            >
+                              <Chip
+                                size="small"
+                                label={formatDate(item.fechaMovimiento)}
+                                variant="outlined"
+                              />
+                              <Chip
+                                size="small"
+                                label={formatDateTime(item.createdAtUtc)}
+                                color={getMovimientoTone(item.tipoMovimiento)}
+                                variant="outlined"
+                              />
+                            </Stack>
+                          </Stack>
+
+                          <Box
+                            sx={{
+                              display: "grid",
+                              gridTemplateColumns: {
+                                xs: "1fr",
+                                md: "repeat(2, minmax(0, 1fr))",
+                              },
+                              gap: 1.25,
+                            }}
+                          >
+                            {item.tipoMovimiento === "BAJA" && item.tipoBaja ? (
+                              <Box>
+                                <Typography variant="caption" color="text.secondary">
+                                  Tipo de baja
+                                </Typography>
+                                <Typography variant="body2" fontWeight={600}>
+                                  {getTipoBajaLabel(item.tipoBaja)}
+                                </Typography>
+                              </Box>
+                            ) : null}
+
+                            <Box>
+                              <Typography variant="caption" color="text.secondary">
+                                Motivo
+                              </Typography>
+                              <Typography variant="body2" fontWeight={600}>
+                                {item.motivo || "—"}
+                              </Typography>
+                            </Box>
+
+                            {item.comentario ? (
+                              <Box sx={{ gridColumn: { xs: "span 1", md: "span 2" } }}>
+                                <Typography variant="caption" color="text.secondary">
+                                  Comentario
+                                </Typography>
+                                <Typography variant="body2">
+                                  {item.comentario}
+                                </Typography>
+                              </Box>
+                            ) : null}
+
+                            <Box>
+                              <Typography variant="caption" color="text.secondary">
+                                Responsable
+                              </Typography>
+                              <Typography variant="body2" fontWeight={600}>
+                                {item.usuarioResponsableId ?? "—"}
+                              </Typography>
+                            </Box>
+                          </Box>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </Stack>
+              </Stack>
+            )}
+          </SectionPanel>
+
+          <SectionPanel
             title="Documentos cargados"
             subtitle="Administra archivos, metadatos y vigencias."
           >
@@ -1212,10 +1511,10 @@ export default function ExpedienteEmpleadoPage() {
                       : Number(e.target.value)
                   )
                 }
-                sx={{ minWidth: 220 }}
+                sx={{ minWidth: { xs: "100%", lg: 240 } }}
               >
                 <MenuItem value="TODOS">Todos</MenuItem>
-                {TIPOS_DOCUMENTO_EMPLEADO.map((item) => (
+                {TIPOS_DOCUMENTO_OPTIONS.map((item) => (
                   <MenuItem key={item.value} value={item.value}>
                     {item.label}
                   </MenuItem>
@@ -1226,10 +1525,8 @@ export default function ExpedienteEmpleadoPage() {
                 select
                 label="Estatus"
                 value={statusFilter}
-                onChange={(e) =>
-                  setStatusFilter(e.target.value as DocumentoStatusFilter)
-                }
-                sx={{ minWidth: 220 }}
+                onChange={(e) => setStatusFilter(e.target.value as DocumentoStatusFilter)}
+                sx={{ minWidth: { xs: "100%", lg: 210 } }}
               >
                 <MenuItem value="TODOS">Todos</MenuItem>
                 <MenuItem value="Vigente">Vigente</MenuItem>
@@ -1428,14 +1725,14 @@ export default function ExpedienteEmpleadoPage() {
               label="Tipo de documento"
               value={createForm.tipo}
               onChange={(e) =>
-                setCreateForm((prev) => ({
-                  ...prev,
+                setCreateForm((current) => ({
+                  ...current,
                   tipo: Number(e.target.value),
                 }))
               }
               fullWidth
             >
-              {TIPOS_DOCUMENTO_EMPLEADO.map((item) => (
+              {TIPOS_DOCUMENTO_OPTIONS.map((item) => (
                 <MenuItem key={item.value} value={item.value}>
                   {item.label}
                 </MenuItem>
@@ -1447,8 +1744,8 @@ export default function ExpedienteEmpleadoPage() {
               type="date"
               value={createForm.fechaDocumento}
               onChange={(e) =>
-                setCreateForm((prev) => ({
-                  ...prev,
+                setCreateForm((current) => ({
+                  ...current,
                   fechaDocumento: e.target.value,
                 }))
               }
@@ -1461,8 +1758,8 @@ export default function ExpedienteEmpleadoPage() {
               type="date"
               value={createForm.fechaVencimiento}
               onChange={(e) =>
-                setCreateForm((prev) => ({
-                  ...prev,
+                setCreateForm((current) => ({
+                  ...current,
                   fechaVencimiento: e.target.value,
                 }))
               }
@@ -1474,38 +1771,30 @@ export default function ExpedienteEmpleadoPage() {
               label="Comentario"
               value={createForm.comentario}
               onChange={(e) =>
-                setCreateForm((prev) => ({
-                  ...prev,
+                setCreateForm((current) => ({
+                  ...current,
                   comentario: e.target.value,
                 }))
               }
+              fullWidth
               multiline
               minRows={3}
-              fullWidth
             />
 
-            <Button
-              component="label"
-              variant="outlined"
-              startIcon={<DriveFolderUploadRoundedIcon />}
-            >
+            <Button variant="outlined" component="label">
               {createForm.archivo ? createForm.archivo.name : "Seleccionar archivo"}
               <input
                 hidden
                 type="file"
-                accept=".pdf,.jpg,.jpeg,.png,.webp"
+                accept={ALLOWED_FILE_EXTENSIONS.join(",")}
                 onChange={(e) =>
-                  setCreateForm((prev) => ({
-                    ...prev,
+                  setCreateForm((current) => ({
+                    ...current,
                     archivo: e.target.files?.[0] ?? null,
                   }))
                 }
               />
             </Button>
-
-            <Alert severity="info">
-              Se permiten archivos PDF, JPG, JPEG, PNG o WEBP. Tamaño máximo: 10 MB.
-            </Alert>
           </Stack>
         </DialogContent>
         <DialogActions>
@@ -1540,14 +1829,14 @@ export default function ExpedienteEmpleadoPage() {
               label="Tipo de documento"
               value={editForm.tipo}
               onChange={(e) =>
-                setEditForm((prev) => ({
-                  ...prev,
+                setEditForm((current) => ({
+                  ...current,
                   tipo: Number(e.target.value),
                 }))
               }
               fullWidth
             >
-              {TIPOS_DOCUMENTO_EMPLEADO.map((item) => (
+              {TIPOS_DOCUMENTO_OPTIONS.map((item) => (
                 <MenuItem key={item.value} value={item.value}>
                   {item.label}
                 </MenuItem>
@@ -1559,8 +1848,8 @@ export default function ExpedienteEmpleadoPage() {
               type="date"
               value={editForm.fechaDocumento}
               onChange={(e) =>
-                setEditForm((prev) => ({
-                  ...prev,
+                setEditForm((current) => ({
+                  ...current,
                   fechaDocumento: e.target.value,
                 }))
               }
@@ -1573,8 +1862,8 @@ export default function ExpedienteEmpleadoPage() {
               type="date"
               value={editForm.fechaVencimiento}
               onChange={(e) =>
-                setEditForm((prev) => ({
-                  ...prev,
+                setEditForm((current) => ({
+                  ...current,
                   fechaVencimiento: e.target.value,
                 }))
               }
@@ -1586,19 +1875,15 @@ export default function ExpedienteEmpleadoPage() {
               label="Comentario"
               value={editForm.comentario}
               onChange={(e) =>
-                setEditForm((prev) => ({
-                  ...prev,
+                setEditForm((current) => ({
+                  ...current,
                   comentario: e.target.value,
                 }))
               }
+              fullWidth
               multiline
               minRows={3}
-              fullWidth
             />
-
-            <Alert severity="info">
-              Aquí solo actualizas metadatos. Para cambiar el archivo usa “Reemplazar archivo”.
-            </Alert>
           </Stack>
         </DialogContent>
         <DialogActions>
@@ -1628,13 +1913,17 @@ export default function ExpedienteEmpleadoPage() {
         <DialogTitle>Reemplazar archivo</DialogTitle>
         <DialogContent dividers>
           <Stack spacing={2} sx={{ pt: 1 }}>
+            <Alert severity="info">
+              Se conservará el registro del documento, pero se actualizará el archivo y sus metadatos.
+            </Alert>
+
             <TextField
               label="Fecha del documento"
               type="date"
               value={replaceForm.fechaDocumento}
               onChange={(e) =>
-                setReplaceForm((prev) => ({
-                  ...prev,
+                setReplaceForm((current) => ({
+                  ...current,
                   fechaDocumento: e.target.value,
                 }))
               }
@@ -1647,8 +1936,8 @@ export default function ExpedienteEmpleadoPage() {
               type="date"
               value={replaceForm.fechaVencimiento}
               onChange={(e) =>
-                setReplaceForm((prev) => ({
-                  ...prev,
+                setReplaceForm((current) => ({
+                  ...current,
                   fechaVencimiento: e.target.value,
                 }))
               }
@@ -1660,40 +1949,30 @@ export default function ExpedienteEmpleadoPage() {
               label="Comentario"
               value={replaceForm.comentario}
               onChange={(e) =>
-                setReplaceForm((prev) => ({
-                  ...prev,
+                setReplaceForm((current) => ({
+                  ...current,
                   comentario: e.target.value,
                 }))
               }
+              fullWidth
               multiline
               minRows={3}
-              fullWidth
             />
 
-            <Button
-              component="label"
-              variant="outlined"
-              startIcon={<SwapHorizRoundedIcon />}
-            >
-              {replaceForm.archivo
-                ? replaceForm.archivo.name
-                : "Seleccionar nuevo archivo"}
+            <Button variant="outlined" component="label">
+              {replaceForm.archivo ? replaceForm.archivo.name : "Seleccionar nuevo archivo"}
               <input
                 hidden
                 type="file"
-                accept=".pdf,.jpg,.jpeg,.png,.webp"
+                accept={ALLOWED_FILE_EXTENSIONS.join(",")}
                 onChange={(e) =>
-                  setReplaceForm((prev) => ({
-                    ...prev,
+                  setReplaceForm((current) => ({
+                    ...current,
                     archivo: e.target.files?.[0] ?? null,
                   }))
                 }
               />
             </Button>
-
-            <Alert severity="warning">
-              El archivo actual será sustituido por el nuevo.
-            </Alert>
           </Stack>
         </DialogContent>
         <DialogActions>
@@ -1709,7 +1988,7 @@ export default function ExpedienteEmpleadoPage() {
             variant="contained"
             disabled={savingReplace}
           >
-            {savingReplace ? "Guardando..." : "Reemplazar"}
+            {savingReplace ? "Reemplazando..." : "Reemplazar"}
           </Button>
         </DialogActions>
       </Dialog>
@@ -1722,13 +2001,14 @@ export default function ExpedienteEmpleadoPage() {
       >
         <DialogTitle>Eliminar documento</DialogTitle>
         <DialogContent dividers>
-          <Typography>
-            ¿Seguro que deseas eliminar{" "}
-            <strong>{selectedDocumento?.nombreArchivoOriginal ?? "este documento"}</strong>?
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
-            La baja es lógica en base de datos y además se intentará eliminar el archivo físico.
-          </Typography>
+          <Stack spacing={1}>
+            <Typography>
+              Esta acción marcará como eliminado el documento seleccionado.
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {selectedDocumento?.nombreArchivoOriginal ?? "—"}
+            </Typography>
+          </Stack>
         </DialogContent>
         <DialogActions>
           <Button
@@ -1755,43 +2035,45 @@ export default function ExpedienteEmpleadoPage() {
         fullWidth
         maxWidth="lg"
       >
-        <DialogTitle>
-          Vista previa {selectedDocumento ? `· ${selectedDocumento.nombreArchivoOriginal}` : ""}
-        </DialogTitle>
-        <DialogContent dividers sx={{ minHeight: 520 }}>
-          {!previewUrl ? (
-            <Stack alignItems="center" justifyContent="center" sx={{ minHeight: 420 }}>
-              <CircularProgress />
-            </Stack>
-          ) : previewKind === "image" ? (
-            <Box
-              component="img"
-              src={previewUrl}
-              alt={selectedDocumento?.nombreArchivoOriginal ?? "Vista previa"}
-              sx={{
-                width: "100%",
-                maxHeight: "75vh",
-                objectFit: "contain",
-                display: "block",
-                mx: "auto",
-              }}
-            />
-          ) : previewKind === "pdf" ? (
-            <Box
-              component="iframe"
-              src={previewUrl}
-              title="Vista previa PDF"
-              sx={{
-                width: "100%",
-                height: "75vh",
-                border: 0,
-              }}
-            />
+        <DialogTitle>Vista previa</DialogTitle>
+        <DialogContent dividers sx={{ p: 0 }}>
+          {previewUrl ? (
+            previewKind === "image" ? (
+              <Box
+                component="img"
+                src={previewUrl}
+                alt={selectedDocumento?.nombreArchivoOriginal ?? "Vista previa"}
+                sx={{
+                  width: "100%",
+                  maxHeight: "80vh",
+                  objectFit: "contain",
+                  display: "block",
+                  bgcolor: "#111827",
+                }}
+              />
+            ) : previewKind === "pdf" ? (
+              <Box
+                component="iframe"
+                src={previewUrl}
+                title={selectedDocumento?.nombreArchivoOriginal ?? "Vista previa PDF"}
+                sx={{
+                  width: "100%",
+                  height: "80vh",
+                  border: 0,
+                  display: "block",
+                }}
+              />
+            ) : (
+              <Box sx={{ p: 4 }}>
+                <Alert severity="info">
+                  Este tipo de archivo no soporta vista previa embebida. Puedes descargarlo.
+                </Alert>
+              </Box>
+            )
           ) : (
-            <EmptyPanel
-              title="Vista previa no disponible"
-              description="Este tipo de archivo no se puede previsualizar directamente. Puedes descargarlo para revisarlo."
-            />
+            <Box sx={{ p: 4, display: "flex", justifyContent: "center" }}>
+              <CircularProgress />
+            </Box>
           )}
         </DialogContent>
         <DialogActions>
@@ -1800,9 +2082,9 @@ export default function ExpedienteEmpleadoPage() {
           </Button>
           {selectedDocumento ? (
             <Button
-              variant="contained"
-              startIcon={<DownloadRoundedIcon />}
               onClick={() => void handleDownload(selectedDocumento)}
+              startIcon={<DownloadRoundedIcon />}
+              variant="contained"
             >
               Descargar
             </Button>
@@ -1813,22 +2095,13 @@ export default function ExpedienteEmpleadoPage() {
       <Snackbar
         open={snackbar.open}
         autoHideDuration={4500}
-        onClose={() =>
-          setSnackbar((prev) => ({
-            ...prev,
-            open: false,
-          }))
-        }
+        onClose={() => setSnackbar((current) => ({ ...current, open: false }))}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
       >
         <Alert
           severity={snackbar.severity}
           variant="filled"
-          onClose={() =>
-            setSnackbar((prev) => ({
-              ...prev,
-              open: false,
-            }))
-          }
+          onClose={() => setSnackbar((current) => ({ ...current, open: false }))}
           sx={{ width: "100%" }}
         >
           {snackbar.message}
