@@ -7,6 +7,7 @@ import {
 } from "react";
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   Chip,
@@ -85,6 +86,13 @@ import { getSucursales } from "../api/sucursales.api";
 type SucursalLite = {
   id: number;
   nombre: string;
+};
+
+type EmpleadoOption = {
+  id: number;
+  label: string;
+  nombreCompleto: string;
+  numEmpleado: string;
 };
 
 type FormState = {
@@ -511,15 +519,33 @@ export default function IncidenciasPage() {
   const canManageEvidence = hasSomeRole(userRoles, ["ADMIN", "RRHH"]);
   const canDownloadEvidence = canViewIncidencias;
 
-  const empleadoOptions = useMemo(
+  const empleadoOptions = useMemo<EmpleadoOption[]>(
     () =>
-      empleados.map((e) => ({
-        id: e.id,
-        nombreCompleto: `${e.nombres} ${e.apellidoPaterno}${
+      empleados.map((e) => {
+        const nombreCompleto = `${e.nombres} ${e.apellidoPaterno}${
           e.apellidoMaterno ? ` ${e.apellidoMaterno}` : ""
-        }`.trim(),
-      })),
+        }`.trim();
+
+        return {
+          id: e.id,
+          label: `${e.numEmpleado} · ${nombreCompleto}`,
+          nombreCompleto,
+          numEmpleado: e.numEmpleado,
+        };
+      }),
     [empleados]
+  );
+
+  const selectedEmpleadoOption = useMemo(
+    () =>
+      empleadoOptions.find((x) => String(x.id) === form.empleadoId) ?? null,
+    [empleadoOptions, form.empleadoId]
+  );
+
+  const selectedEmpleadoFilterOption = useMemo(
+    () =>
+      empleadoOptions.find((x) => String(x.id) === filters.empleadoId) ?? null,
+    [empleadoOptions, filters.empleadoId]
   );
 
   const summary = useMemo(() => {
@@ -950,17 +976,13 @@ export default function IncidenciasPage() {
     try {
       const blob = await downloadIncidenciaEvidencia(item.id);
       const fallbackName =
-        item.evidenciaNombreOriginal ||
-        `incidencia-${item.id}-evidencia`;
+        item.evidenciaNombreOriginal || `incidencia-${item.id}-evidencia`;
 
       downloadBlobFile(blob, fallbackName);
     } catch (error) {
       notify(
         "error",
-        getIncidenciaErrorMessage(
-          error,
-          "No se pudo descargar la evidencia."
-        )
+        getIncidenciaErrorMessage(error, "No se pudo descargar la evidencia.")
       );
     }
   }
@@ -1320,26 +1342,36 @@ export default function IncidenciasPage() {
           }}
         >
           <Box sx={{ gridColumn: { xs: "span 1", md: "span 4" } }}>
-            <FormControl fullWidth>
-              <InputLabel>Empleado</InputLabel>
-              <Select
-                label="Empleado"
-                value={filters.empleadoId}
-                onChange={(e) =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    empleadoId: e.target.value,
-                  }))
-                }
-              >
-                <MenuItem value="">Todos</MenuItem>
-                {empleadoOptions.map((e) => (
-                  <MenuItem key={e.id} value={String(e.id)}>
-                    {e.nombreCompleto}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+            <Autocomplete
+              options={empleadoOptions}
+              value={selectedEmpleadoFilterOption}
+              onChange={(_, option) =>
+                setFilters((prev) => ({
+                  ...prev,
+                  empleadoId: option ? String(option.id) : "",
+                }))
+              }
+              getOptionLabel={(option) => option.label}
+              isOptionEqualToValue={(option, value) => option.id === value.id}
+              filterOptions={(options, state) => {
+                const term = state.inputValue.trim().toLowerCase();
+                if (!term) return options;
+
+                return options.filter(
+                  (option) =>
+                    option.label.toLowerCase().includes(term) ||
+                    option.nombreCompleto.toLowerCase().includes(term) ||
+                    option.numEmpleado.toLowerCase().includes(term)
+                );
+              }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Empleado"
+                  placeholder="Todos / buscar por número o nombre"
+                />
+              )}
+            />
           </Box>
 
           <Box sx={{ gridColumn: { xs: "span 1", md: "span 4" } }}>
@@ -1852,20 +1884,33 @@ export default function IncidenciasPage() {
             }}
           >
             <Box sx={{ gridColumn: { xs: "span 1", md: "span 6" } }}>
-              <FormControl fullWidth>
-                <InputLabel>Empleado</InputLabel>
-                <Select
-                  label="Empleado"
-                  value={form.empleadoId}
-                  onChange={(e) => updateForm("empleadoId", e.target.value)}
-                >
-                  {empleadoOptions.map((e) => (
-                    <MenuItem key={e.id} value={String(e.id)}>
-                      {e.nombreCompleto}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+              <Autocomplete
+                options={empleadoOptions}
+                value={selectedEmpleadoOption}
+                onChange={(_, option) =>
+                  updateForm("empleadoId", option ? String(option.id) : "")
+                }
+                getOptionLabel={(option) => option.label}
+                isOptionEqualToValue={(option, value) => option.id === value.id}
+                filterOptions={(options, state) => {
+                  const term = state.inputValue.trim().toLowerCase();
+                  if (!term) return options;
+
+                  return options.filter(
+                    (option) =>
+                      option.label.toLowerCase().includes(term) ||
+                      option.nombreCompleto.toLowerCase().includes(term) ||
+                      option.numEmpleado.toLowerCase().includes(term)
+                  );
+                }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Empleado"
+                    placeholder="Busca por número o nombre"
+                  />
+                )}
+              />
             </Box>
 
             <Box sx={{ gridColumn: { xs: "span 1", md: "span 6" } }}>
