@@ -1,4 +1,3 @@
-import type { AxiosResponse } from "axios";
 import { api } from "./axios";
 
 export type CatalogoOption = {
@@ -7,23 +6,37 @@ export type CatalogoOption = {
   nombre: string;
 };
 
+export type TipoIncidencia =
+  | "FALTA"
+  | "RETARDO"
+  | "PERMISO"
+  | "VACACIONES"
+  | "INCAPACIDAD"
+  | "OMISION_CHECADA";
+
+export type EstatusIncidencia = "PENDIENTE" | "APROBADA" | "RECHAZADA";
+
 export type Incidencia = {
   id: number;
   empleadoId: number;
   empleadoNombre: string;
   sucursalId?: number | null;
   sucursalNombre?: string | null;
-  tipo: string;
+  tipo: TipoIncidencia | string;
   fechaInicio: string;
   fechaFin: string;
   comentario?: string | null;
-  estatus: string;
+  estatus: EstatusIncidencia | string;
   tieneEvidencia: boolean;
   evidenciaNombreOriginal?: string | null;
   evidenciaContentType?: string | null;
   evidenciaTamanoBytes?: number | null;
   createdAtUtc: string;
   updatedAtUtc: string;
+  resueltaPorUsuarioId?: number | null;
+  resueltaPorEmpleadoId?: number | null;
+  fechaResolucionUtc?: string | null;
+  comentarioResolucion?: string | null;
 };
 
 export type IncidenciaEvidencia = {
@@ -34,21 +47,25 @@ export type IncidenciaEvidencia = {
 };
 
 export type IncidenciaQuery = {
-  empleadoId?: number;
-  sucursalId?: number;
-  tipo?: string;
-  estatus?: string;
-  fechaDesde?: string;
-  fechaHasta?: string;
+  empleadoId?: number | null;
+  sucursalId?: number | null;
+  tipo?: TipoIncidencia | string | null;
+  estatus?: EstatusIncidencia | string | null;
+  fechaDesde?: string | null;
+  fechaHasta?: string | null;
   soloPendientes?: boolean;
 };
 
 export type SaveIncidenciaInput = {
   empleadoId: number;
   sucursalId?: number | null;
-  tipo: string;
+  tipo: TipoIncidencia | string;
   fechaInicio: string;
   fechaFin: string;
+  comentario?: string | null;
+};
+
+export type ResolverIncidenciaInput = {
   comentario?: string | null;
 };
 
@@ -75,12 +92,30 @@ function buildExportParams(filters?: IncidenciaQuery) {
   return params.toString();
 }
 
+function getApiErrorMessage(error: unknown, fallback: string) {
+  const maybeAxiosError = error as {
+    response?: {
+      data?: {
+        message?: string;
+      };
+    };
+    message?: string;
+  };
+
+  return (
+    maybeAxiosError?.response?.data?.message ||
+    maybeAxiosError?.message ||
+    fallback
+  );
+}
+
 export async function getIncidencias(
   query?: IncidenciaQuery
 ): Promise<Incidencia[]> {
   const { data } = await api.get<Incidencia[]>("/api/Incidencias", {
     params: cleanQuery(query),
   });
+
   return data;
 }
 
@@ -104,12 +139,28 @@ export async function updateIncidencia(
   return data;
 }
 
-export async function aprobarIncidencia(id: number): Promise<void> {
-  await api.post(`/api/Incidencias/${id}/aprobar`);
+export async function aprobarIncidencia(
+  id: number,
+  input?: ResolverIncidenciaInput
+): Promise<{ message: string }> {
+  const { data } = await api.post<{ message: string }>(
+    `/api/Incidencias/${id}/aprobar`,
+    input ?? {}
+  );
+
+  return data;
 }
 
-export async function rechazarIncidencia(id: number): Promise<void> {
-  await api.post(`/api/Incidencias/${id}/rechazar`);
+export async function rechazarIncidencia(
+  id: number,
+  input?: ResolverIncidenciaInput
+): Promise<{ message: string }> {
+  const { data } = await api.post<{ message: string }>(
+    `/api/Incidencias/${id}/rechazar`,
+    input ?? {}
+  );
+
+  return data;
 }
 
 export async function getTiposIncidencia(): Promise<CatalogoOption[]> {
@@ -168,22 +219,32 @@ export async function saveIncidenciaEvidenciaToDisk(
 
 export async function exportIncidenciasXlsx(
   filters?: IncidenciaQuery
-): Promise<AxiosResponse<Blob>> {
+): Promise<Blob> {
   const query = buildExportParams(filters);
 
-  return api.get(`/api/Incidencias/export/xlsx${query ? `?${query}` : ""}`, {
-    responseType: "blob",
-  });
+  const { data } = await api.get(
+    `/api/Incidencias/export/xlsx${query ? `?${query}` : ""}`,
+    {
+      responseType: "blob",
+    }
+  );
+
+  return data;
 }
 
 export async function exportIncidenciasPdf(
   filters?: IncidenciaQuery
-): Promise<AxiosResponse<Blob>> {
+): Promise<Blob> {
   const query = buildExportParams(filters);
 
-  return api.get(`/api/Incidencias/export/pdf${query ? `?${query}` : ""}`, {
-    responseType: "blob",
-  });
+  const { data } = await api.get(
+    `/api/Incidencias/export/pdf${query ? `?${query}` : ""}`,
+    {
+      responseType: "blob",
+    }
+  );
+
+  return data;
 }
 
 export function getFileNameFromDisposition(
@@ -214,4 +275,11 @@ export function downloadBlobFile(blob: Blob, fileName: string) {
   a.click();
   a.remove();
   window.URL.revokeObjectURL(url);
+}
+
+export function getIncidenciaErrorMessage(
+  error: unknown,
+  fallback = "No se pudo completar la operación."
+) {
+  return getApiErrorMessage(error, fallback);
 }

@@ -39,6 +39,7 @@ import AddIcon from "@mui/icons-material/Add";
 import AttachFileRoundedIcon from "@mui/icons-material/AttachFileRounded";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import CloseIcon from "@mui/icons-material/Close";
+import DownloadRoundedIcon from "@mui/icons-material/DownloadRounded";
 import EditIcon from "@mui/icons-material/Edit";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import PendingActionsRoundedIcon from "@mui/icons-material/PendingActionsRounded";
@@ -50,7 +51,6 @@ import ImageRoundedIcon from "@mui/icons-material/ImageRounded";
 import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded";
 
 import IncidenciaEvidenciaDialog from "../components/IncidenciaEvidenciaDialog";
-import ConfirmActionDialog from "../components/ui/ConfirmActionDialog";
 import AppPage from "../components/ui/AppPage";
 import EmptyState from "../components/ui/EmptyState";
 import HeroBanner from "../components/ui/HeroBanner";
@@ -62,16 +62,18 @@ import type {
   Incidencia,
   IncidenciaEvidencia,
   IncidenciaQuery,
+  ResolverIncidenciaInput,
   SaveIncidenciaInput,
 } from "../api/incidencias.api";
 import {
   aprobarIncidencia,
   createIncidencia,
   downloadBlobFile,
+  downloadIncidenciaEvidencia,
   exportIncidenciasPdf,
   exportIncidenciasXlsx,
   getEstatusIncidencia,
-  getFileNameFromDisposition,
+  getIncidenciaErrorMessage,
   getIncidencias,
   getTiposIncidencia,
   rechazarIncidencia,
@@ -142,7 +144,7 @@ const DEFAULT_TIPOS: CatalogoOption[] = [
   { id: 3, clave: "PERMISO", nombre: "PERMISO" },
   { id: 4, clave: "VACACIONES", nombre: "VACACIONES" },
   { id: 5, clave: "INCAPACIDAD", nombre: "INCAPACIDAD" },
-  { id: 6, clave: "OMISION_DE_CHECADA", nombre: "OMISION DE CHECADA" },
+  { id: 6, clave: "OMISION_CHECADA", nombre: "OMISIÓN DE CHECADA" },
 ];
 
 const DEFAULT_ESTATUS: CatalogoOption[] = [
@@ -159,7 +161,10 @@ function normalizeRoles(roles?: string[] | null): string[] {
   return (roles ?? []).map((role) => String(role).trim().toUpperCase());
 }
 
-function hasSomeRole(userRoles: string[] | null | undefined, allowed: string[]) {
+function hasSomeRole(
+  userRoles: string[] | null | undefined,
+  allowed: string[]
+): boolean {
   const normalizedUserRoles = normalizeRoles(userRoles);
   const normalizedAllowed = normalizeRoles(allowed);
   return normalizedAllowed.some((role) => normalizedUserRoles.includes(role));
@@ -185,6 +190,21 @@ function formatDate(value?: string | null): string {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
+  }).format(date);
+}
+
+function formatDateTime(value?: string | null): string {
+  if (!value) return "—";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return new Intl.DateTimeFormat("es-MX", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   }).format(date);
 }
 
@@ -375,8 +395,8 @@ function tableActionIconSx(tone: "primary" | "success" | "error" = "primary") {
     bgcolor: (theme: any) => alpha(theme.palette.primary.main, 0.05),
     color: "primary.main",
     "&:hover": {
-      bgcolor: (theme: any) => alpha(theme.palette.primary.main, 0.1),
-      borderColor: (theme: any) => alpha(theme.palette.primary.main, 0.3),
+      bgcolor: (theme: any) => alpha(theme.palette.primary.main, 0.10),
+      borderColor: (theme: any) => alpha(theme.palette.primary.main, 0.30),
     },
   };
 }
@@ -427,25 +447,6 @@ function toForm(item: Incidencia, tipos: CatalogoOption[]): FormState {
   };
 }
 
-function getErrorMessage(error: unknown, fallback: string) {
-  const typed = error as {
-    message?: string;
-    response?: {
-      data?: {
-        message?: string;
-        title?: string;
-      };
-    };
-  };
-
-  return (
-    typed?.response?.data?.message ||
-    typed?.response?.data?.title ||
-    typed?.message ||
-    fallback
-  );
-}
-
 function normalizeIncidenciasResponse(data: unknown): Incidencia[] {
   if (Array.isArray(data)) return data;
 
@@ -481,7 +482,9 @@ export default function IncidenciasPage() {
   const [selectedIncidencia, setSelectedIncidencia] = useState<Incidencia | null>(
     null
   );
+
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
+  const [resolutionComment, setResolutionComment] = useState("");
 
   const [filters, setFilters] = useState<FiltersState>(initialFilters);
 
@@ -496,11 +499,17 @@ export default function IncidenciasPage() {
 
   const normalizedRoles = useMemo(() => normalizeRoles(userRoles), [userRoles]);
 
-  const canViewIncidencias = hasSomeRole(userRoles, ["ADMIN", "RRHH"]);
+  const canViewIncidencias = hasSomeRole(userRoles, [
+    "ADMIN",
+    "RRHH",
+    "JEFE",
+    "EMPLEADO",
+  ]);
   const canManageIncidencias = hasSomeRole(userRoles, ["ADMIN", "RRHH"]);
-  const canApproveReject = hasSomeRole(userRoles, ["ADMIN", "RRHH"]);
+  const canApproveReject = hasSomeRole(userRoles, ["ADMIN", "RRHH", "JEFE"]);
   const canExport = hasSomeRole(userRoles, ["ADMIN", "RRHH"]);
   const canManageEvidence = hasSomeRole(userRoles, ["ADMIN", "RRHH"]);
+  const canDownloadEvidence = canViewIncidencias;
 
   const empleadoOptions = useMemo(
     () =>
@@ -579,7 +588,7 @@ export default function IncidenciasPage() {
 
   const refreshBusy = loadingList && !bootstrapping;
   const exportBusy = exportingXlsx || exportingPdf;
-  const mutationBusy = saving || confirmLoading;
+  const mutationBusy = saving || confirmLoading || !!pendingAction;
   const toolbarBusy = bootstrapping || mutationBusy || exportBusy;
 
   function notify(severity: SnackbarState["severity"], message: string) {
@@ -696,7 +705,10 @@ export default function IncidenciasPage() {
       console.error("Error cargando incidencias:", error);
       notify(
         "error",
-        getErrorMessage(error, "No se pudieron cargar las incidencias.")
+        getIncidenciaErrorMessage(
+          error,
+          "No se pudieron cargar las incidencias."
+        )
       );
     } finally {
       setLoadingList(false);
@@ -867,7 +879,7 @@ export default function IncidenciasPage() {
     } catch (error) {
       notify(
         "error",
-        getErrorMessage(error, "No se pudo guardar la incidencia.")
+        getIncidenciaErrorMessage(error, "No se pudo guardar la incidencia.")
       );
     } finally {
       setSaving(false);
@@ -880,6 +892,7 @@ export default function IncidenciasPage() {
       return;
     }
 
+    setResolutionComment("");
     setPendingAction({ type: "approve", item });
   }
 
@@ -889,6 +902,7 @@ export default function IncidenciasPage() {
       return;
     }
 
+    setResolutionComment("");
     setPendingAction({ type: "reject", item });
   }
 
@@ -897,21 +911,26 @@ export default function IncidenciasPage() {
 
     setConfirmLoading(true);
 
+    const payload: ResolverIncidenciaInput = {
+      comentario: resolutionComment.trim() || null,
+    };
+
     try {
       if (pendingAction.type === "approve") {
-        await aprobarIncidencia(pendingAction.item.id);
+        await aprobarIncidencia(pendingAction.item.id, payload);
         notify("success", "Incidencia aprobada correctamente.");
       } else {
-        await rechazarIncidencia(pendingAction.item.id);
+        await rechazarIncidencia(pendingAction.item.id, payload);
         notify("success", "Incidencia rechazada correctamente.");
       }
 
       setPendingAction(null);
+      setResolutionComment("");
       await loadItems(filters);
     } catch (error) {
       notify(
         "error",
-        getErrorMessage(
+        getIncidenciaErrorMessage(
           error,
           pendingAction.type === "approve"
             ? "No se pudo aprobar la incidencia."
@@ -920,6 +939,30 @@ export default function IncidenciasPage() {
       );
     } finally {
       setConfirmLoading(false);
+    }
+  }
+
+  async function handleDownloadEvidence(item: Incidencia) {
+    if (!canDownloadEvidence) {
+      notify("warning", "No tienes permisos para descargar evidencia.");
+      return;
+    }
+
+    try {
+      const blob = await downloadIncidenciaEvidencia(item.id);
+      const fallbackName =
+        item.evidenciaNombreOriginal ||
+        `incidencia-${item.id}-evidencia`;
+
+      downloadBlobFile(blob, fallbackName);
+    } catch (error) {
+      notify(
+        "error",
+        getIncidenciaErrorMessage(
+          error,
+          "No se pudo descargar la evidencia."
+        )
+      );
     }
   }
 
@@ -960,20 +1003,18 @@ export default function IncidenciasPage() {
       setExportingXlsx(true);
 
       const query = buildQueryFromFilters(filters);
-      const response = await exportIncidenciasXlsx(query);
+      const blob = await exportIncidenciasXlsx(query);
 
-      const fileName = getFileNameFromDisposition(
-        response.headers["content-disposition"],
-        "incidencias.xlsx"
-      );
-
-      downloadBlobFile(response.data, fileName);
+      downloadBlobFile(blob, "incidencias.xlsx");
       notify("success", "Excel exportado correctamente.");
     } catch (error) {
       console.error("Error exportando Excel:", error);
       notify(
         "error",
-        getErrorMessage(error, "No se pudo exportar el Excel de incidencias.")
+        getIncidenciaErrorMessage(
+          error,
+          "No se pudo exportar el Excel de incidencias."
+        )
       );
     } finally {
       setExportingXlsx(false);
@@ -990,20 +1031,18 @@ export default function IncidenciasPage() {
       setExportingPdf(true);
 
       const query = buildQueryFromFilters(filters);
-      const response = await exportIncidenciasPdf(query);
+      const blob = await exportIncidenciasPdf(query);
 
-      const fileName = getFileNameFromDisposition(
-        response.headers["content-disposition"],
-        "incidencias.pdf"
-      );
-
-      downloadBlobFile(response.data, fileName);
+      downloadBlobFile(blob, "incidencias.pdf");
       notify("success", "PDF exportado correctamente.");
     } catch (error) {
       console.error("Error exportando PDF:", error);
       notify(
         "error",
-        getErrorMessage(error, "No se pudo exportar el PDF de incidencias.")
+        getIncidenciaErrorMessage(
+          error,
+          "No se pudo exportar el PDF de incidencias."
+        )
       );
     } finally {
       setExportingPdf(false);
@@ -1146,7 +1185,13 @@ export default function IncidenciasPage() {
         eyebrow="Módulo operativo"
         title="Seguimiento de incidencias"
         subtitle="Registra, revisa, aprueba y documenta incidencias del personal con control por estatus, fechas y evidencia adjunta."
-        badge={canManageIncidencias ? "Gestión habilitada" : "Consulta"}
+        badge={
+          canManageIncidencias
+            ? "Gestión habilitada"
+            : canApproveReject
+            ? "Aprobación habilitada"
+            : "Consulta"
+        }
         actions={
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
             {normalizedRoles.length > 0 ? (
@@ -1217,6 +1262,8 @@ export default function IncidenciasPage() {
             <Typography variant="body2" sx={{ color: alpha("#ffffff", 0.84) }}>
               {canExport
                 ? "Exportación habilitada para tu sesión actual."
+                : canApproveReject
+                ? "Puedes revisar y resolver incidencias según tu jerarquía."
                 : "Consulta disponible según tu rol actual."}
             </Typography>
           </Stack>
@@ -1367,6 +1414,7 @@ export default function IncidenciasPage() {
 
           <Box sx={{ gridColumn: { xs: "span 1", md: "span 3" } }}>
             <TextField
+              fullWidth
               label="Fecha desde"
               type="date"
               InputLabelProps={{ shrink: true }}
@@ -1382,6 +1430,7 @@ export default function IncidenciasPage() {
 
           <Box sx={{ gridColumn: { xs: "span 1", md: "span 3" } }}>
             <TextField
+              fullWidth
               label="Fecha hasta"
               type="date"
               InputLabelProps={{ shrink: true }}
@@ -1543,12 +1592,19 @@ export default function IncidenciasPage() {
                         </TableCell>
 
                         <TableCell>
-                          <Chip
-                            size="small"
-                            variant="outlined"
-                            label={getEstatusNombre(item.estatus, estatuses)}
-                            sx={estatusChipSx(item.estatus)}
-                          />
+                          <Stack spacing={0.5}>
+                            <Chip
+                              size="small"
+                              variant="outlined"
+                              label={getEstatusNombre(item.estatus, estatuses)}
+                              sx={estatusChipSx(item.estatus)}
+                            />
+                            {item.fechaResolucionUtc ? (
+                              <Typography variant="caption" color="text.secondary">
+                                Resuelta: {formatDateTime(item.fechaResolucionUtc)}
+                              </Typography>
+                            ) : null}
+                          </Stack>
                         </TableCell>
 
                         <TableCell>
@@ -1570,7 +1626,6 @@ export default function IncidenciasPage() {
                               }
                             >
                               <Box
-                                onClick={() => handleOpenEvidencia(item)}
                                 sx={{
                                   maxWidth: 220,
                                   width: "fit-content",
@@ -1580,14 +1635,6 @@ export default function IncidenciasPage() {
                                   px: 1,
                                   py: 0.75,
                                   bgcolor: "action.hover",
-                                  cursor: canManageEvidence ? "pointer" : "default",
-                                  transition: "all .15s ease",
-                                  "&:hover": canManageEvidence
-                                    ? {
-                                        borderColor: "success.main",
-                                        boxShadow: "0 2px 10px rgba(0,0,0,0.06)",
-                                      }
-                                    : undefined,
                                 }}
                               >
                                 <Stack direction="row" spacing={1} alignItems="center">
@@ -1648,6 +1695,21 @@ export default function IncidenciasPage() {
                           >
                             {item.comentario || "—"}
                           </Typography>
+                          {item.comentarioResolucion ? (
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                              sx={{
+                                mt: 0.5,
+                                display: "-webkit-box",
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: "vertical",
+                                overflow: "hidden",
+                              }}
+                            >
+                              Resolución: {item.comentarioResolucion}
+                            </Typography>
+                          ) : null}
                         </TableCell>
 
                         <TableCell align="right">
@@ -1658,6 +1720,20 @@ export default function IncidenciasPage() {
                             flexWrap="wrap"
                             useFlexGap
                           >
+                            {item.tieneEvidencia && canDownloadEvidence && (
+                              <Tooltip title="Descargar evidencia" arrow>
+                                <span>
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => void handleDownloadEvidence(item)}
+                                    sx={tableActionIconSx("primary")}
+                                  >
+                                    <DownloadRoundedIcon fontSize="small" />
+                                  </IconButton>
+                                </span>
+                              </Tooltip>
+                            )}
+
                             {canManageEvidence && (
                               <Tooltip
                                 title={
@@ -1830,6 +1906,7 @@ export default function IncidenciasPage() {
 
             <Box sx={{ gridColumn: { xs: "span 1", md: "span 3" } }}>
               <TextField
+                fullWidth
                 label="Fecha inicio"
                 type="date"
                 InputLabelProps={{ shrink: true }}
@@ -1840,6 +1917,7 @@ export default function IncidenciasPage() {
 
             <Box sx={{ gridColumn: { xs: "span 1", md: "span 3" } }}>
               <TextField
+                fullWidth
                 label="Fecha fin"
                 type="date"
                 InputLabelProps={{ shrink: true }}
@@ -1850,6 +1928,7 @@ export default function IncidenciasPage() {
 
             <Box sx={{ gridColumn: { xs: "span 1", md: "span 12" } }}>
               <TextField
+                fullWidth
                 label="Comentario"
                 multiline
                 minRows={3}
@@ -1874,36 +1953,78 @@ export default function IncidenciasPage() {
         </DialogActions>
       </Dialog>
 
+      <Dialog
+        open={!!pendingAction}
+        onClose={() => {
+          if (!confirmLoading) {
+            setPendingAction(null);
+            setResolutionComment("");
+          }
+        }}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>
+          {pendingAction?.type === "approve"
+            ? "Aprobar incidencia"
+            : "Rechazar incidencia"}
+        </DialogTitle>
+
+        <DialogContent dividers>
+          {pendingAction ? (
+            <Stack spacing={2}>
+              <Alert severity={pendingAction.type === "approve" ? "success" : "warning"}>
+                Vas a{" "}
+                {pendingAction.type === "approve" ? "aprobar" : "rechazar"} la
+                incidencia #{pendingAction.item.id} de{" "}
+                <strong>{pendingAction.item.empleadoNombre}</strong>.
+              </Alert>
+
+              <TextField
+                fullWidth
+                label="Comentario de resolución"
+                multiline
+                minRows={3}
+                value={resolutionComment}
+                onChange={(e) => setResolutionComment(e.target.value)}
+                placeholder="Opcional"
+              />
+            </Stack>
+          ) : null}
+        </DialogContent>
+
+        <DialogActions>
+          <Button
+            onClick={() => {
+              if (!confirmLoading) {
+                setPendingAction(null);
+                setResolutionComment("");
+              }
+            }}
+            disabled={confirmLoading}
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={handleConfirmAction}
+            variant="contained"
+            color={pendingAction?.type === "approve" ? "success" : "error"}
+            disabled={confirmLoading}
+          >
+            {confirmLoading
+              ? "Procesando..."
+              : pendingAction?.type === "approve"
+              ? "Aprobar"
+              : "Rechazar"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       <IncidenciaEvidenciaDialog
         open={evidenciaOpen}
         incidencia={selectedIncidencia}
         onClose={handleCloseEvidencia}
         onChanged={handleEvidenciaChanged}
-      />
-
-      <ConfirmActionDialog
-        open={!!pendingAction}
-        title={
-          pendingAction?.type === "approve"
-            ? "Aprobar incidencia"
-            : "Rechazar incidencia"
-        }
-        message={
-          pendingAction
-            ? `Vas a ${
-                pendingAction.type === "approve" ? "aprobar" : "rechazar"
-              } la incidencia #${pendingAction.item.id} de ${
-                pendingAction.item.empleadoNombre
-              }. Esta acción cambiará su estatus.`
-            : ""
-        }
-        confirmText={pendingAction?.type === "approve" ? "Aprobar" : "Rechazar"}
-        confirmColor={pendingAction?.type === "approve" ? "success" : "error"}
-        loading={confirmLoading}
-        onClose={() => {
-          if (!confirmLoading) setPendingAction(null);
-        }}
-        onConfirm={handleConfirmAction}
       />
 
       <Snackbar
