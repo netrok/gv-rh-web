@@ -644,7 +644,13 @@ export default function IncidenciasPage() {
       await Promise.allSettled([
         getTiposIncidencia(),
         getEstatusIncidencia(),
-        getEmpleados(),
+        getEmpleados({
+          page: 1,
+          pageSize: 1000,
+          activo: true,
+          sort: "nombre",
+          dir: "asc",
+        }),
         getSucursales(),
       ]);
 
@@ -664,14 +670,7 @@ export default function IncidenciasPage() {
     }
 
     if (empleadosResult.status === "fulfilled") {
-      const empleadosData = empleadosResult.value as unknown;
-      const empleadosList = Array.isArray(empleadosData)
-        ? (empleadosData as Empleado[])
-        : Array.isArray((empleadosData as { items?: unknown[] })?.items)
-        ? ((empleadosData as { items: Empleado[] }).items ?? [])
-        : [];
-
-      setEmpleados(empleadosList);
+      setEmpleados(empleadosResult.value.items ?? []);
     } else {
       console.error("Error cargando empleados:", empleadosResult.reason);
       setEmpleados([]);
