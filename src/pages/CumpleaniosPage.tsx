@@ -4,6 +4,7 @@ import {
   Alert,
   Avatar,
   Box,
+  Button,
   Chip,
   CircularProgress,
   Grid,
@@ -19,18 +20,27 @@ import TodayRoundedIcon from "@mui/icons-material/TodayRounded";
 import CalendarMonthRoundedIcon from "@mui/icons-material/CalendarMonthRounded";
 import ApartmentRoundedIcon from "@mui/icons-material/ApartmentRounded";
 import StoreRoundedIcon from "@mui/icons-material/StoreRounded";
+import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
+import TableViewRoundedIcon from "@mui/icons-material/TableViewRounded";
+import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded";
+import FilterAltRoundedIcon from "@mui/icons-material/FilterAltRounded";
 
 import AppPage from "../components/ui/AppPage";
 import HeroBanner from "../components/ui/HeroBanner";
 import MetricCard from "../components/ui/MetricCard";
 import SectionCard from "../components/ui/SectionCard";
+import { useAppSnackbar } from "../features/ui/AppSnackbarContext";
 
 import {
+  exportCumpleaniosPdf,
+  exportCumpleaniosXlsx,
   getCumpleaniosHoy,
   getCumpleaniosMes,
   getCumpleaniosProximos,
   getCumpleaniosResumen,
   type CumpleaniosItem,
+  type CumpleaniosReporteQuery,
+  type CumpleaniosReporteScope,
 } from "../api/cumpleanios.api";
 import { getSucursales } from "../api/sucursales.api";
 import { getDepartamentos } from "../api/departamentos.api";
@@ -39,7 +49,9 @@ type SucursalListItem =
   Awaited<ReturnType<typeof getSucursales>> extends Array<infer T> ? T : never;
 
 type DepartamentoListItem =
-  Awaited<ReturnType<typeof getDepartamentos>> extends Array<infer T> ? T : never;
+  Awaited<ReturnType<typeof getDepartamentos>> extends Array<infer T>
+    ? T
+    : never;
 
 function getMesNombre(mes: number) {
   return new Intl.DateTimeFormat("es-MX", { month: "long" }).format(
@@ -68,6 +80,31 @@ function getInitials(nombre: string) {
     .slice(0, 2)
     .map((x) => x[0]?.toUpperCase())
     .join("");
+}
+
+function getPeriodoReporteLabel(scope: CumpleaniosReporteScope) {
+  switch (scope) {
+    case "hoy":
+      return "Hoy";
+    case "7dias":
+      return "Próximos 7 días";
+    case "30dias":
+      return "Próximos 30 días";
+    case "mes":
+      return "Mes actual";
+    case "custom":
+      return "Personalizado";
+    default:
+      return "Próximos 30 días";
+  }
+}
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+
+  return "Ocurrió un error inesperado.";
 }
 
 function BirthdayPersonCard({ item }: { item: CumpleaniosItem }) {
@@ -108,7 +145,8 @@ function BirthdayPersonCard({ item }: { item: CumpleaniosItem }) {
         </Stack>
 
         <Typography variant="body2" color="text.secondary" noWrap>
-          {item.puestoNombre || "Sin puesto"} · {item.sucursalNombre || "Sin sucursal"}
+          {item.puestoNombre || "Sin puesto"} ·{" "}
+          {item.sucursalNombre || "Sin sucursal"}
         </Typography>
 
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
@@ -130,10 +168,19 @@ function BirthdayPersonCard({ item }: { item: CumpleaniosItem }) {
 
 export default function CumpleaniosPage() {
   const today = new Date();
+  const { showSnackbar } = useAppSnackbar();
+
   const [sucursalId, setSucursalId] = useState<number | "">("");
   const [departamentoId, setDepartamentoId] = useState<number | "">("");
   const [mesActual] = useState<number>(today.getMonth() + 1);
   const [anioActual] = useState<number>(today.getFullYear());
+
+  const [scopeReporte, setScopeReporte] =
+    useState<CumpleaniosReporteScope>("30dias");
+  const [fechaDesde, setFechaDesde] = useState("");
+  const [fechaHasta, setFechaHasta] = useState("");
+  const [exportingXlsx, setExportingXlsx] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   const filtros = useMemo(
     () => ({
@@ -141,6 +188,17 @@ export default function CumpleaniosPage() {
       departamentoId: departamentoId === "" ? null : departamentoId,
     }),
     [sucursalId, departamentoId]
+  );
+
+  const reporteQuery = useMemo<CumpleaniosReporteQuery>(
+    () => ({
+      sucursalId: filtros.sucursalId,
+      departamentoId: filtros.departamentoId,
+      scope: scopeReporte,
+      fechaDesde: scopeReporte === "custom" ? fechaDesde || null : null,
+      fechaHasta: scopeReporte === "custom" ? fechaHasta || null : null,
+    }),
+    [filtros, scopeReporte, fechaDesde, fechaHasta]
   );
 
   const resumenQuery = useQuery({
@@ -185,6 +243,15 @@ export default function CumpleaniosPage() {
     proximosQuery.isError ||
     mesQuery.isError;
 
+  const isRefreshing =
+    (resumenQuery.isFetching ||
+      hoyQuery.isFetching ||
+      proximosQuery.isFetching ||
+      mesQuery.isFetching ||
+      sucursalesQuery.isFetching ||
+      departamentosQuery.isFetching) &&
+    !isLoading;
+
   const resumen = resumenQuery.data;
   const hoy = hoyQuery.data ?? [];
   const proximos = proximosQuery.data ?? [];
@@ -193,14 +260,131 @@ export default function CumpleaniosPage() {
   const sucursales = (sucursalesQuery.data ?? []) as SucursalListItem[];
   const departamentos = (departamentosQuery.data ?? []) as DepartamentoListItem[];
 
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (sucursalId !== "") count += 1;
+    if (departamentoId !== "") count += 1;
+    return count;
+  }, [sucursalId, departamentoId]);
+
+  const canExport =
+    !isLoading &&
+    !hasError &&
+    !exportingXlsx &&
+    !exportingPdf &&
+    !(scopeReporte === "custom" && (!fechaDesde || !fechaHasta));
+
+  const handleRefresh = () => {
+    void resumenQuery.refetch();
+    void hoyQuery.refetch();
+    void proximosQuery.refetch();
+    void mesQuery.refetch();
+    void sucursalesQuery.refetch();
+    void departamentosQuery.refetch();
+  };
+
+  const clearFilters = () => {
+    setSucursalId("");
+    setDepartamentoId("");
+  };
+
+  async function handleExportXlsx() {
+    if (scopeReporte === "custom" && (!fechaDesde || !fechaHasta)) {
+      showSnackbar(
+        "Captura fecha desde y fecha hasta para el reporte personalizado.",
+        "error"
+      );
+      return;
+    }
+
+    try {
+      setExportingXlsx(true);
+      await exportCumpleaniosXlsx(reporteQuery);
+      showSnackbar("Reporte Excel generado correctamente.", "success");
+    } catch (error) {
+      showSnackbar(
+        getErrorMessage(error) || "No se pudo exportar el reporte en Excel.",
+        "error"
+      );
+    } finally {
+      setExportingXlsx(false);
+    }
+  }
+
+  async function handleExportPdf() {
+    if (scopeReporte === "custom" && (!fechaDesde || !fechaHasta)) {
+      showSnackbar(
+        "Captura fecha desde y fecha hasta para el reporte personalizado.",
+        "error"
+      );
+      return;
+    }
+
+    try {
+      setExportingPdf(true);
+      await exportCumpleaniosPdf(reporteQuery);
+      showSnackbar("Reporte PDF generado correctamente.", "success");
+    } catch (error) {
+      showSnackbar(
+        getErrorMessage(error) || "No se pudo exportar el reporte en PDF.",
+        "error"
+      );
+    } finally {
+      setExportingPdf(false);
+    }
+  }
+
   return (
-    <AppPage>
+    <AppPage
+      actions={
+        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+          <Button
+            variant="outlined"
+            startIcon={
+              isRefreshing ? <CircularProgress size={18} /> : <RefreshRoundedIcon />
+            }
+            onClick={handleRefresh}
+            disabled={isLoading || exportingXlsx || exportingPdf}
+          >
+            {isRefreshing ? "Actualizando..." : "Actualizar"}
+          </Button>
+        </Stack>
+      }
+    >
       <Stack spacing={2.5}>
         <HeroBanner
           title="Cumpleaños"
           subtitle="Consulta celebraciones del día, próximos cumpleaños y calendario del mes por sucursal o departamento."
           eyebrow="Capital humano"
           icon={<CelebrationRoundedIcon />}
+          actions={
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              <Chip
+                size="small"
+                variant="outlined"
+                label={
+                  activeFiltersCount > 0
+                    ? `${activeFiltersCount} filtro${activeFiltersCount > 1 ? "s" : ""} activo${activeFiltersCount > 1 ? "s" : ""}`
+                    : "Sin filtros"
+                }
+                sx={{
+                  color: "#fff",
+                  borderColor: "rgba(255,255,255,0.24)",
+                  backgroundColor: "rgba(255,255,255,0.08)",
+                }}
+              />
+              <Chip
+                size="small"
+                variant="outlined"
+                label={`Reporte: ${getPeriodoReporteLabel(scopeReporte)}`}
+                sx={{
+                  color: "#fff",
+                  borderColor: "rgba(255,255,255,0.24)",
+                  backgroundColor: "rgba(255,255,255,0.08)",
+                }}
+              />
+            </Stack>
+          }
         />
 
         <Grid container spacing={2.5}>
@@ -234,7 +418,29 @@ export default function CumpleaniosPage() {
           <Grid size={12}>
             <SectionCard
               title="Filtros"
-              subtitle="Acota la vista por estructura organizacional."
+              subtitle="Acota la vista por sucursal o departamento."
+              actions={
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  <Chip
+                    size="small"
+                    variant="outlined"
+                    label={
+                      activeFiltersCount > 0
+                        ? `${activeFiltersCount} filtro${activeFiltersCount > 1 ? "s" : ""}`
+                        : "Sin filtros"
+                    }
+                  />
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<FilterAltRoundedIcon />}
+                    onClick={clearFilters}
+                    disabled={activeFiltersCount === 0}
+                  >
+                    Limpiar
+                  </Button>
+                </Stack>
+              }
             >
               <Grid container spacing={2}>
                 <Grid size={{ xs: 12, md: 6 }}>
@@ -298,9 +504,106 @@ export default function CumpleaniosPage() {
             </SectionCard>
           </Grid>
 
+          <Grid size={12}>
+            <SectionCard
+              title="Exportación"
+              subtitle="Define el periodo del reporte y descarga Excel o PDF."
+              actions={
+                <Chip
+                  size="small"
+                  variant="outlined"
+                  label={`Periodo: ${getPeriodoReporteLabel(scopeReporte)}`}
+                />
+              }
+            >
+              <Grid container spacing={2}>
+                <Grid size={{ xs: 12, md: 4 }}>
+                  <TextField
+                    select
+                    fullWidth
+                    label="Periodo del reporte"
+                    value={scopeReporte}
+                    onChange={(e) =>
+                      setScopeReporte(e.target.value as CumpleaniosReporteScope)
+                    }
+                  >
+                    <MenuItem value="hoy">Hoy</MenuItem>
+                    <MenuItem value="7dias">Próximos 7 días</MenuItem>
+                    <MenuItem value="30dias">Próximos 30 días</MenuItem>
+                    <MenuItem value="mes">Mes actual</MenuItem>
+                    <MenuItem value="custom">Personalizado</MenuItem>
+                  </TextField>
+                </Grid>
+
+                {scopeReporte === "custom" ? (
+                  <>
+                    <Grid size={{ xs: 12, md: 4 }}>
+                      <TextField
+                        fullWidth
+                        type="date"
+                        label="Fecha desde"
+                        value={fechaDesde}
+                        onChange={(e) => setFechaDesde(e.target.value)}
+                        InputLabelProps={{ shrink: true }}
+                      />
+                    </Grid>
+
+                    <Grid size={{ xs: 12, md: 4 }}>
+                      <TextField
+                        fullWidth
+                        type="date"
+                        label="Fecha hasta"
+                        value={fechaHasta}
+                        onChange={(e) => setFechaHasta(e.target.value)}
+                        InputLabelProps={{ shrink: true }}
+                      />
+                    </Grid>
+                  </>
+                ) : null}
+
+                <Grid size={12}>
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                    <Button
+                      variant="outlined"
+                      startIcon={
+                        exportingXlsx ? (
+                          <CircularProgress size={18} />
+                        ) : (
+                          <TableViewRoundedIcon />
+                        )
+                      }
+                      onClick={handleExportXlsx}
+                      disabled={!canExport}
+                    >
+                      {exportingXlsx ? "Exportando Excel..." : "Exportar Excel"}
+                    </Button>
+
+                    <Button
+                      variant="outlined"
+                      startIcon={
+                        exportingPdf ? (
+                          <CircularProgress size={18} />
+                        ) : (
+                          <PictureAsPdfRoundedIcon />
+                        )
+                      }
+                      onClick={handleExportPdf}
+                      disabled={!canExport}
+                    >
+                      {exportingPdf ? "Exportando PDF..." : "Exportar PDF"}
+                    </Button>
+                  </Stack>
+                </Grid>
+              </Grid>
+            </SectionCard>
+          </Grid>
+
           {isLoading ? (
             <Grid size={12}>
-              <SectionCard title="Cargando" subtitle="Preparando información de cumpleaños.">
+              <SectionCard
+                title="Cargando"
+                subtitle="Preparando información de cumpleaños."
+              >
                 <Stack alignItems="center" justifyContent="center" sx={{ py: 6 }}>
                   <CircularProgress />
                 </Stack>
@@ -355,7 +658,10 @@ export default function CumpleaniosPage() {
                   ) : (
                     <Stack spacing={1.5}>
                       {proximos.map((item) => (
-                        <BirthdayPersonCard key={`proximo-${item.empleadoId}`} item={item} />
+                        <BirthdayPersonCard
+                          key={`proximo-${item.empleadoId}`}
+                          item={item}
+                        />
                       ))}
                     </Stack>
                   )}
