@@ -71,13 +71,13 @@ type NavItem = {
 
 type NavEntry =
   | {
-      type: "item";
-      item: NavItem;
-    }
+    type: "item";
+    item: NavItem;
+  }
   | {
-      type: "recruitment";
-      allow?: string[];
-    };
+    type: "recruitment";
+    allow?: string[];
+  };
 
 type NavSection = {
   title: string;
@@ -132,6 +132,7 @@ function buildNavSections(roles?: string[] | null): NavSection[] {
             label: "Dashboard",
             to: "/dashboard",
             icon: <DashboardRoundedIcon />,
+            allow: ["ADMIN", "RRHH", "JEFE", "CONSULTA", "EMPLEADO"],
           },
         },
       ],
@@ -154,7 +155,7 @@ function buildNavSections(roles?: string[] | null): NavSection[] {
             label: "Empleados",
             to: "/empleados",
             icon: <Groups2RoundedIcon />,
-            allow: ["ADMIN", "RRHH"],
+            allow: ["ADMIN", "RRHH", "JEFE", "CONSULTA"],
           },
         },
         {
@@ -163,7 +164,7 @@ function buildNavSections(roles?: string[] | null): NavSection[] {
             label: "Incidencias",
             to: "/incidencias",
             icon: <EventBusyRoundedIcon />,
-            allow: ["ADMIN", "RRHH"],
+            allow: ["ADMIN", "RRHH", "JEFE", "EMPLEADO"],
           },
         },
         {
@@ -172,7 +173,7 @@ function buildNavSections(roles?: string[] | null): NavSection[] {
             label: "Cumpleaños",
             to: "/cumpleanios",
             icon: <CelebrationRoundedIcon />,
-            allow: ["ADMIN", "RRHH"],
+            allow: ["ADMIN", "RRHH", "JEFE", "CONSULTA", "EMPLEADO"],
           },
         },
         {
@@ -458,9 +459,9 @@ function SidebarContent({
     border: `1px solid ${active ? alpha("#ffffff", 0.16) : "transparent"}`,
     background: active
       ? `linear-gradient(90deg, ${alpha("#1e3a8a", 0.36)} 0%, ${alpha(
-          "#1e40af",
-          0.16
-        )} 100%)`
+        "#1e40af",
+        0.16
+      )} 100%)`
       : "transparent",
     "&:hover": {
       backgroundColor: alpha("#ffffff", 0.06),
@@ -487,9 +488,9 @@ function SidebarContent({
     border: `1px solid ${active ? alpha("#ffffff", 0.12) : "transparent"}`,
     background: active
       ? `linear-gradient(90deg, ${alpha("#1e3a8a", 0.28)} 0%, ${alpha(
-          "#1e40af",
-          0.12
-        )} 100%)`
+        "#1e40af",
+        0.12
+      )} 100%)`
       : "transparent",
     "&:hover": {
       backgroundColor: alpha("#ffffff", 0.05),
@@ -898,7 +899,7 @@ export default function AppShell({ children }: AppShellProps) {
   const auth = useAuth() as any;
   const user = auth?.user ?? null;
   const roles = auth?.roles ?? [];
-  const logout = auth?.logout ?? (() => {});
+  const logout = auth?.logout ?? (() => { });
   const primaryRole = normalizeRoles(roles)[0] ?? "USUARIO";
 
   const displayName = useMemo(() => getDisplayName(user), [user]);

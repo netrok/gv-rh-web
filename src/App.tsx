@@ -23,6 +23,12 @@ import RequireAuth from "./features/auth/RequireAuth";
 import RoleGuard from "./features/auth/RoleGuard";
 import { useAuth } from "./features/auth/AuthContext";
 
+const DASHBOARD_ROLES = ["ADMIN", "RRHH", "JEFE", "CONSULTA", "EMPLEADO"];
+const EMPLEADOS_ROLES = ["ADMIN", "RRHH", "JEFE", "CONSULTA"];
+const INCIDENCIAS_ROLES = ["ADMIN", "RRHH", "JEFE", "EMPLEADO"];
+const CUMPLEANIOS_ROLES = ["ADMIN", "RRHH", "JEFE", "CONSULTA", "EMPLEADO"];
+const RECLUTAMIENTO_ROLES = ["ADMIN", "RRHH"];
+
 export default function App() {
   const { isAuthenticated, roles = [], mustChangePassword } = useAuth();
 
@@ -72,7 +78,7 @@ export default function App() {
             <RoleGuard
               isAuthenticated={isAuthenticated}
               userRoles={roles}
-              allow={["ADMIN", "RRHH"]}
+              allow={DASHBOARD_ROLES}
             >
               <DashboardPage />
             </RoleGuard>
@@ -150,7 +156,7 @@ export default function App() {
             <RoleGuard
               isAuthenticated={isAuthenticated}
               userRoles={roles}
-              allow={["ADMIN", "RRHH"]}
+              allow={EMPLEADOS_ROLES}
             >
               <EmpleadosPage />
             </RoleGuard>
@@ -176,7 +182,7 @@ export default function App() {
             <RoleGuard
               isAuthenticated={isAuthenticated}
               userRoles={roles}
-              allow={["ADMIN", "RRHH"]}
+              allow={INCIDENCIAS_ROLES}
             >
               <IncidenciasPage />
             </RoleGuard>
@@ -189,7 +195,7 @@ export default function App() {
             <RoleGuard
               isAuthenticated={isAuthenticated}
               userRoles={roles}
-              allow={["ADMIN", "RRHH"]}
+              allow={CUMPLEANIOS_ROLES}
             >
               <CumpleaniosPage />
             </RoleGuard>
@@ -202,7 +208,7 @@ export default function App() {
             <RoleGuard
               isAuthenticated={isAuthenticated}
               userRoles={roles}
-              allow={["ADMIN", "RRHH"]}
+              allow={RECLUTAMIENTO_ROLES}
             >
               <ReclutamientoDashboardPage />
             </RoleGuard>
@@ -215,7 +221,7 @@ export default function App() {
             <RoleGuard
               isAuthenticated={isAuthenticated}
               userRoles={roles}
-              allow={["ADMIN", "RRHH"]}
+              allow={RECLUTAMIENTO_ROLES}
             >
               <VacantesPage />
             </RoleGuard>
@@ -228,7 +234,7 @@ export default function App() {
             <RoleGuard
               isAuthenticated={isAuthenticated}
               userRoles={roles}
-              allow={["ADMIN", "RRHH"]}
+              allow={RECLUTAMIENTO_ROLES}
             >
               <VacanteDetallePage />
             </RoleGuard>
@@ -241,7 +247,7 @@ export default function App() {
             <RoleGuard
               isAuthenticated={isAuthenticated}
               userRoles={roles}
-              allow={["ADMIN", "RRHH"]}
+              allow={RECLUTAMIENTO_ROLES}
             >
               <CandidatosPage />
             </RoleGuard>
