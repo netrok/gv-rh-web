@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+﻿import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Alert,
   Box,
@@ -54,6 +54,7 @@ import VisibilityRoundedIcon from "@mui/icons-material/VisibilityRounded";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import WorkOutlineRoundedIcon from "@mui/icons-material/WorkOutlineRounded";
 import { useNavigate, useParams } from "react-router-dom";
+import { useAuth } from "../features/auth/AuthContext";
 import {
   createEmpleadoDocumento,
   deleteEmpleadoDocumento,
@@ -458,8 +459,31 @@ function EmptyPanel({
 export default function ExpedienteEmpleadoPage() {
   const navigate = useNavigate();
   const { id } = useParams();
+  const { roles } = useAuth();
 
   const empleadoId = Number(id);
+
+  const normalizedRoles = useMemo(
+    () =>
+      (roles ?? [])
+        .map((role) => String(role).trim().toUpperCase())
+        .filter(Boolean),
+    [roles]
+  );
+
+  const canManageEmpleados =
+    normalizedRoles.includes("ADMIN") || normalizedRoles.includes("RRHH");
+
+  const backPath = canManageEmpleados ? "/empleados" : "/dashboard";
+  const backLabel = canManageEmpleados
+    ? "Volver a empleados"
+    : "Volver a mi panel";
+  const pageTitle = canManageEmpleados
+    ? "Expediente digital"
+    : "Mi expediente digital";
+  const pageSubtitle = canManageEmpleados
+    ? "Consulta documental del empleado y trazabilidad laboral."
+    : "Consulta y carga de tus documentos personales.";
 
   const [empleado, setEmpleado] = useState<Empleado | null>(null);
   const [documentos, setDocumentos] = useState<EmpleadoDocumento[]>([]);
@@ -664,7 +688,7 @@ export default function ExpedienteEmpleadoPage() {
   };
 
   const handleBack = () => {
-    navigate("/empleados");
+    navigate(backPath);
   };
 
   const resetCreateForm = () => {
@@ -945,7 +969,7 @@ export default function ExpedienteEmpleadoPage() {
           variant="outlined"
           onClick={handleBack}
         >
-          Volver a empleados
+          {backLabel}
         </Button>
       </Box>
     );
@@ -991,7 +1015,7 @@ export default function ExpedienteEmpleadoPage() {
                       variant="overline"
                       sx={{ color: "text.secondary", fontWeight: 800 }}
                     >
-                      Expediente digital
+                      {pageTitle}
                     </Typography>
                   </Stack>
 
@@ -1000,6 +1024,10 @@ export default function ExpedienteEmpleadoPage() {
                     sx={{ fontWeight: 800, lineHeight: 1.1 }}
                   >
                     {empleadoNombre}
+                  </Typography>
+
+                  <Typography variant="body2" color="text.secondary">
+                    {pageSubtitle}
                   </Typography>
 
                   <Stack
@@ -1041,7 +1069,7 @@ export default function ExpedienteEmpleadoPage() {
                     startIcon={<ArrowBackRoundedIcon />}
                     onClick={handleBack}
                   >
-                    Volver
+                    {backLabel}
                   </Button>
                   <Button
                     variant="outlined"

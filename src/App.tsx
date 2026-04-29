@@ -169,7 +169,7 @@ export default function App() {
             <RoleGuard
               isAuthenticated={isAuthenticated}
               userRoles={roles}
-              allow={["ADMIN", "RRHH"]}
+              allow={["ADMIN", "RRHH", "EMPLEADO"]}
             >
               <ExpedienteEmpleadoPage />
             </RoleGuard>
