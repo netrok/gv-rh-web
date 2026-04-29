@@ -114,10 +114,8 @@ type EstadoFiltroEmpleado = "" | "ACTIVO" | "BAJA";
 type EmpleadoSortField =
   | "numEmpleado"
   | "nombre"
-  | "departamento"
   | "puesto"
   | "sucursal"
-  | "fechaIngreso"
   | "estatus";
 
 type EmpleadoSortDirection = "asc" | "desc";
@@ -400,18 +398,6 @@ function compareSortText(a?: string | null, b?: string | null) {
     numeric: true,
     sensitivity: "base",
   });
-}
-
-function compareSortDate(a?: string | null, b?: string | null) {
-  const aValue = a
-    ? new Date(/^\d{4}-\d{2}-\d{2}$/.test(a) ? `${a}T00:00:00` : a).getTime()
-    : 0;
-
-  const bValue = b
-    ? new Date(/^\d{4}-\d{2}-\d{2}$/.test(b) ? `${b}T00:00:00` : b).getTime()
-    : 0;
-
-  return aValue - bValue;
 }
 
 function getPuestoDepartamentoId(puesto: Puesto) {
@@ -2359,9 +2345,9 @@ export default function EmpleadosPage() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [sortField, setSortField] =
-    useState<EmpleadoSortField>("fechaIngreso");
+    useState<EmpleadoSortField>("numEmpleado");
   const [sortDirection, setSortDirection] =
-    useState<EmpleadoSortDirection>("desc");
+    useState<EmpleadoSortDirection>("asc");
   const [exportingXlsx, setExportingXlsx] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [downloadingFichaId, setDownloadingFichaId] = useState<number | null>(
@@ -2451,7 +2437,7 @@ export default function EmpleadosPage() {
     }
 
     setSortField(field);
-    setSortDirection(field === "fechaIngreso" ? "desc" : "asc");
+    setSortDirection("asc");
   };
 
   const saveMutation = useMutation({
@@ -2627,12 +2613,7 @@ export default function EmpleadosPage() {
         case "nombre":
           result = compareSortText(getEmpleadoNombre(a), getEmpleadoNombre(b));
           break;
-        case "departamento":
-          result = compareSortText(
-            getDepartamentoNombre(a),
-            getDepartamentoNombre(b)
-          );
-          break;
+
         case "puesto":
           result = compareSortText(getPuestoNombre(a), getPuestoNombre(b));
           break;
@@ -2642,9 +2623,8 @@ export default function EmpleadosPage() {
         case "estatus":
           result = compareSortText(getEstadoLabel(a), getEstadoLabel(b));
           break;
-        case "fechaIngreso":
         default:
-          result = compareSortDate(a.fechaIngreso, b.fechaIngreso);
+          result = compareSortText(a.numEmpleado, b.numEmpleado);
           break;
       }
 
@@ -3254,7 +3234,7 @@ export default function EmpleadosPage() {
                 maxHeight: 620,
               }}
             >
-              <Table stickyHeader size="small" sx={{ minWidth: 1280 }}>
+              <Table stickyHeader size="small" sx={{ minWidth: 1000 }}>
                 <TableHead
                   sx={{
                     "& .MuiTableCell-head": {
@@ -3285,16 +3265,6 @@ export default function EmpleadosPage() {
                       </TableSortLabel>
                     </TableCell>
 
-                    <TableCell sx={{ minWidth: 180 }}>
-                      <TableSortLabel
-                        active={sortField === "departamento"}
-                        direction={sortField === "departamento" ? sortDirection : "asc"}
-                        onClick={() => handleSort("departamento")}
-                      >
-                        Departamento
-                      </TableSortLabel>
-                    </TableCell>
-
                     <TableCell sx={{ minWidth: 220 }}>
                       <TableSortLabel
                         active={sortField === "puesto"}
@@ -3312,16 +3282,6 @@ export default function EmpleadosPage() {
                         onClick={() => handleSort("sucursal")}
                       >
                         Sucursal
-                      </TableSortLabel>
-                    </TableCell>
-
-                    <TableCell sx={{ width: 112 }}>
-                      <TableSortLabel
-                        active={sortField === "fechaIngreso"}
-                        direction={sortField === "fechaIngreso" ? sortDirection : "desc"}
-                        onClick={() => handleSort("fechaIngreso")}
-                      >
-                        Ingreso
                       </TableSortLabel>
                     </TableCell>
 
@@ -3424,14 +3384,6 @@ export default function EmpleadosPage() {
                         </TableCell>
 
                         <TableCell>
-                          <Tooltip title={getDepartamentoNombre(row)} arrow>
-                            <Typography sx={{ ...tableCellTruncateSx, maxWidth: 170 }}>
-                              {getDepartamentoNombre(row)}
-                            </Typography>
-                          </Tooltip>
-                        </TableCell>
-
-                        <TableCell>
                           <Tooltip title={getPuestoNombre(row)} arrow>
                             <Typography sx={{ ...tableCellTruncateSx, maxWidth: 210 }}>
                               {getPuestoNombre(row)}
@@ -3446,8 +3398,6 @@ export default function EmpleadosPage() {
                             </Typography>
                           </Tooltip>
                         </TableCell>
-
-                        <TableCell>{formatDate(row.fechaIngreso)}</TableCell>
 
                         <TableCell>
                           <Stack spacing={0.35} alignItems="flex-start" sx={{ minWidth: 0 }}>
