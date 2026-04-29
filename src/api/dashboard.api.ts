@@ -278,3 +278,40 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     documentos,
   };
 }
+
+export type MyDashboardEmpleado = {
+  id: number;
+  numEmpleado: string;
+  nombreCompleto: string;
+  puestoNombre?: string | null;
+  departamentoNombre?: string | null;
+  sucursalNombre?: string | null;
+  activo: boolean;
+};
+
+export type MyDashboardDocumentos = {
+  requeridos: number;
+  cargados: number;
+  faltantes: number;
+  porVencer: number;
+  vencidos: number;
+  completo: boolean;
+};
+
+export type MyDashboardIncidencias = {
+  total: number;
+  pendientes: number;
+  aprobadas: number;
+  rechazadas: number;
+};
+
+export type MyDashboardData = {
+  empleado: MyDashboardEmpleado;
+  documentos: MyDashboardDocumentos;
+  incidencias: MyDashboardIncidencias;
+};
+
+export async function getMyDashboard(): Promise<MyDashboardData> {
+  const { data } = await api.get<MyDashboardData>("/api/me/dashboard");
+  return data;
+}

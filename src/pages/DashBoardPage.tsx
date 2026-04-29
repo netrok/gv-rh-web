@@ -50,6 +50,9 @@ import ScheduleRoundedIcon from "@mui/icons-material/ScheduleRounded";
 import SendRoundedIcon from "@mui/icons-material/SendRounded";
 import MarkEmailReadRoundedIcon from "@mui/icons-material/MarkEmailReadRounded";
 
+import EmpleadoDashboardView from "../components/dashboard/EmpleadoDashboardView";
+import { useAuth } from "../features/auth/AuthContext";
+
 import {
   getDashboardData,
   getDashboardStats,
@@ -99,6 +102,14 @@ type SafeAuditItem = AuditItem & {
   occurredAtUtc?: string;
   fecha?: string;
 };
+
+function normalizeRoles(roles?: string[] | null) {
+  return [...new Set((roles ?? []).map((r) => String(r).trim().toUpperCase()))];
+}
+
+function hasRole(roles: string[] | null | undefined, role: string) {
+  return normalizeRoles(roles).includes(role.toUpperCase());
+}
 
 function formatNumber(value?: number | null) {
   return new Intl.NumberFormat("es-MX").format(value ?? 0);
@@ -514,6 +525,13 @@ function EmptyState({
 export default function DashboardPage() {
   const theme = useTheme();
   const navigate = useNavigate();
+  const { roles } = useAuth();
+
+  const isAdmin = hasRole(roles, "ADMIN");
+  const isRrhh = hasRole(roles, "RRHH");
+  const isEmpleado = hasRole(roles, "EMPLEADO");
+
+  const shouldRenderEmpleadoDashboard = isEmpleado && !isAdmin && !isRrhh;
 
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
@@ -588,8 +606,14 @@ export default function DashboardPage() {
   );
 
   useEffect(() => {
+    if (shouldRenderEmpleadoDashboard) {
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
+
     void loadDashboard();
-  }, [loadDashboard]);
+  }, [loadDashboard, shouldRenderEmpleadoDashboard]);
 
   const handleEnviarRecordatorioExpediente = useCallback(async () => {
     try {
@@ -704,6 +728,14 @@ export default function DashboardPage() {
 
   const porVencerTop = expedientePreview?.porVencer.slice(0, 5) ?? [];
   const vencidosTop = expedientePreview?.vencidos.slice(0, 5) ?? [];
+
+  if (shouldRenderEmpleadoDashboard) {
+    return (
+      <AppPage>
+        <EmpleadoDashboardView />
+      </AppPage>
+    );
+  }
 
   if (loading) {
     return (

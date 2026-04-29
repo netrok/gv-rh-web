@@ -37,7 +37,6 @@ import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import UploadFileRoundedIcon from "@mui/icons-material/UploadFileRounded";
-import StoreRoundedIcon from "@mui/icons-material/StoreRounded";
 import PersonOffRoundedIcon from "@mui/icons-material/PersonOffRounded";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import Groups2OutlinedIcon from "@mui/icons-material/Groups2Outlined";
@@ -51,6 +50,9 @@ import TableViewRoundedIcon from "@mui/icons-material/TableViewRounded";
 import BadgeOutlinedIcon from "@mui/icons-material/BadgeOutlined";
 import HomeWorkOutlinedIcon from "@mui/icons-material/HomeWorkOutlined";
 import ContactPhoneOutlinedIcon from "@mui/icons-material/ContactPhoneOutlined";
+import ManageAccountsRoundedIcon from "@mui/icons-material/ManageAccountsRounded";
+import LinkRoundedIcon from "@mui/icons-material/LinkRounded";
+import MarkEmailReadRoundedIcon from "@mui/icons-material/MarkEmailReadRounded";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -59,6 +61,7 @@ import { useNavigate } from "react-router-dom";
 
 import {
   cambiarNumeroEmpleado,
+  createAccountForEmpleado,
   createEmpleado,
   darBajaEmpleado,
   deleteEmpleadoPhoto,
@@ -67,6 +70,7 @@ import {
   exportEmpleadosXlsx,
   getEmpleados,
   getSiguienteNumeroEmpleadoSugerido,
+  linkUserByEmail,
   reingresarEmpleado,
   resolveEmpleadoPhotoUrl,
   updateEmpleado,
@@ -117,6 +121,23 @@ type EmpleadoSortField =
   | "estatus";
 
 type EmpleadoSortDirection = "asc" | "desc";
+
+type AppUserRole = "ADMIN" | "RRHH" | "JEFE" | "CONSULTA" | "EMPLEADO";
+
+type EmpleadoCuentaInfo = Empleado & {
+  tieneCuenta?: boolean | null;
+  usuarioId?: number | null;
+  usuarioEmail?: string | null;
+  usuarioRole?: string | null;
+};
+
+const ACCOUNT_ROLE_OPTIONS: Array<{ value: AppUserRole; label: string }> = [
+  { value: "ADMIN", label: "ADMIN" },
+  { value: "RRHH", label: "RRHH" },
+  { value: "JEFE", label: "JEFE" },
+  { value: "CONSULTA", label: "CONSULTA" },
+  { value: "EMPLEADO", label: "EMPLEADO" },
+];
 
 const EMPLEADO_FORM_STEPS = [
   "Generales",
@@ -283,11 +304,11 @@ const tableCellTruncateSx = {
 
 const tableActionGridSx = {
   display: "grid",
-  gridTemplateColumns: "repeat(4, 34px)",
+  gridTemplateColumns: "repeat(6, 34px)",
   gap: 0.75,
   justifyContent: "end",
   alignItems: "center",
-  minWidth: 150,
+  minWidth: 236,
 } as const;
 
 function getErrorMessage(error: unknown) {
@@ -449,8 +470,72 @@ function empleadoStatusChipSx(
   } as const;
 }
 
+function cuentaStatusChipSx(hasAccount: boolean, hasEmail: boolean) {
+  if (hasAccount) {
+    return {
+      fontWeight: 800,
+      borderRadius: "999px",
+      height: 24,
+      width: "fit-content",
+      maxWidth: "100%",
+      alignSelf: "flex-start",
+      "& .MuiChip-label": {
+        px: 1.1,
+        fontSize: "0.76rem",
+        lineHeight: 1,
+      },
+      color: "#166534",
+      borderColor: alpha("#16a34a", 0.22),
+      backgroundColor: alpha("#16a34a", 0.05),
+    } as const;
+  }
+
+  if (hasEmail) {
+    return {
+      fontWeight: 800,
+      borderRadius: "999px",
+      height: 24,
+      width: "fit-content",
+      maxWidth: "100%",
+      alignSelf: "flex-start",
+      "& .MuiChip-label": {
+        px: 1.1,
+        fontSize: "0.76rem",
+        lineHeight: 1,
+      },
+      color: "#b45309",
+      borderColor: alpha("#b45309", 0.22),
+      backgroundColor: alpha("#b45309", 0.05),
+    } as const;
+  }
+
+  return {
+    fontWeight: 800,
+    borderRadius: "999px",
+    height: 24,
+    width: "fit-content",
+    maxWidth: "100%",
+    alignSelf: "flex-start",
+    "& .MuiChip-label": {
+      px: 1.1,
+      fontSize: "0.76rem",
+      lineHeight: 1,
+    },
+    color: "#475569",
+    borderColor: alpha("#475569", 0.18),
+    backgroundColor: alpha("#475569", 0.05),
+  } as const;
+}
+
 function actionIconButtonSx(
-  variant: "view" | "edit" | "baja" | "reingreso" | "pdf"
+  variant:
+    | "view"
+    | "edit"
+    | "baja"
+    | "reingreso"
+    | "pdf"
+    | "createAccount"
+    | "linkAccount"
 ) {
   const map = {
     view: {
@@ -482,6 +567,18 @@ function actionIconButtonSx(
       border: alpha("#b91c1c", 0.18),
       bg: alpha("#b91c1c", 0.05),
       hover: alpha("#b91c1c", 0.1),
+    },
+    createAccount: {
+      color: "#4338ca",
+      border: alpha("#4338ca", 0.18),
+      bg: alpha("#4338ca", 0.05),
+      hover: alpha("#4338ca", 0.1),
+    },
+    linkAccount: {
+      color: "#0369a1",
+      border: alpha("#0369a1", 0.18),
+      bg: alpha("#0369a1", 0.05),
+      hover: alpha("#0369a1", 0.1),
     },
   }[variant];
 
@@ -516,6 +613,18 @@ function digitsOnlyInput(value: string) {
 
 function normalizeNumEmpleadoInput(value: string) {
   return value.toUpperCase().replace(/\s+/g, "");
+}
+
+function getEmpleadoTieneCuenta(row: Empleado) {
+  return Boolean((row as EmpleadoCuentaInfo).tieneCuenta);
+}
+
+function getEmpleadoUsuarioEmail(row: Empleado) {
+  return (row as EmpleadoCuentaInfo).usuarioEmail ?? null;
+}
+
+function getEmpleadoUsuarioRole(row: Empleado) {
+  return (row as EmpleadoCuentaInfo).usuarioRole ?? null;
 }
 
 function EmpleadoDialog({
@@ -2031,6 +2140,203 @@ function ReingresoEmpleadoDialog({
   );
 }
 
+function CreateAccountDialog({
+  open,
+  empleado,
+  saving,
+  onClose,
+  onSubmit,
+}: {
+  open: boolean;
+  empleado: Empleado | null;
+  saving: boolean;
+  onClose: () => void;
+  onSubmit: (payload: {
+    email: string;
+    role: AppUserRole;
+    password: string;
+    isActive: boolean;
+  }) => Promise<void>;
+}) {
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState<AppUserRole>("EMPLEADO");
+  const [password, setPassword] = useState("");
+  const [isActive, setIsActive] = useState(true);
+
+  useEffect(() => {
+    if (!open) return;
+    setEmail(empleado?.email ?? "");
+    setRole("EMPLEADO");
+    setPassword("");
+    setIsActive(true);
+  }, [open, empleado]);
+
+  const submit = async () => {
+    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedPassword = password.trim();
+
+    if (!normalizedEmail) return;
+    if (!/\S+@\S+\.\S+/.test(normalizedEmail)) return;
+    if (!normalizedPassword) return;
+
+    await onSubmit({
+      email: normalizedEmail,
+      role,
+      password: normalizedPassword,
+      isActive,
+    });
+  };
+
+  const canSubmit =
+    email.trim() !== "" &&
+    /\S+@\S+\.\S+/.test(email.trim()) &&
+    password.trim() !== "";
+
+  return (
+    <Dialog open={open} onClose={saving ? undefined : onClose} fullWidth maxWidth="sm">
+      <DialogTitle>Crear cuenta para empleado</DialogTitle>
+
+      <DialogContent dividers>
+        <Stack spacing={2} sx={{ pt: 1 }}>
+          <Alert severity="info">
+            Se creará una cuenta nueva y quedará ligada automáticamente al empleado.
+          </Alert>
+
+          <Box>
+            <Typography fontWeight={800}>
+              {empleado ? getEmpleadoNombre(empleado) : "-"}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {empleado?.numEmpleado ?? "-"}
+            </Typography>
+          </Box>
+
+          <TextField
+            label="Correo de acceso"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            type="email"
+            fullWidth
+            helperText="Será el usuario con el que iniciará sesión."
+          />
+
+          <TextField
+            select
+            label="Rol"
+            value={role}
+            onChange={(e) => setRole(e.target.value as AppUserRole)}
+            fullWidth
+          >
+            {ACCOUNT_ROLE_OPTIONS.map((item) => (
+              <MenuItem key={item.value} value={item.value}>
+                {item.label}
+              </MenuItem>
+            ))}
+          </TextField>
+
+          <TextField
+            label="Contraseña temporal"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            type="text"
+            fullWidth
+            helperText="El usuario tendrá que cambiarla al entrar."
+          />
+
+          <FormControlLabel
+            control={
+              <Switch
+                checked={isActive}
+                onChange={(_, checked) => setIsActive(checked)}
+              />
+            }
+            label={isActive ? "Cuenta activa" : "Cuenta inactiva"}
+          />
+        </Stack>
+      </DialogContent>
+
+      <DialogActions>
+        <Button onClick={onClose} disabled={saving} color="inherit">
+          Cancelar
+        </Button>
+
+        <Button
+          onClick={() => void submit()}
+          variant="contained"
+          disabled={saving || !canSubmit}
+          startIcon={<ManageAccountsRoundedIcon />}
+        >
+          {saving ? "Creando..." : "Crear cuenta"}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+function LinkUserByEmailDialog({
+  open,
+  empleado,
+  saving,
+  onClose,
+  onSubmit,
+}: {
+  open: boolean;
+  empleado: Empleado | null;
+  saving: boolean;
+  onClose: () => void;
+  onSubmit: () => Promise<void>;
+}) {
+  const email = empleado?.email?.trim() ?? "";
+  const canLink = email !== "";
+
+  return (
+    <Dialog open={open} onClose={saving ? undefined : onClose} fullWidth maxWidth="sm">
+      <DialogTitle>Vincular usuario por email</DialogTitle>
+
+      <DialogContent dividers>
+        <Stack spacing={2} sx={{ pt: 1 }}>
+          <Alert severity={canLink ? "info" : "warning"}>
+            {canLink
+              ? "Se buscará una cuenta existente con el mismo correo del empleado y se ligará automáticamente."
+              : "Este empleado no tiene correo capturado. Primero guarda un email en el empleado."}
+          </Alert>
+
+          <Box>
+            <Typography fontWeight={800}>
+              {empleado ? getEmpleadoNombre(empleado) : "-"}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {empleado?.numEmpleado ?? "-"}
+            </Typography>
+          </Box>
+
+          <TextField
+            label="Correo del empleado"
+            value={email}
+            fullWidth
+            InputProps={{ readOnly: true }}
+          />
+        </Stack>
+      </DialogContent>
+
+      <DialogActions>
+        <Button onClick={onClose} disabled={saving} color="inherit">
+          Cancelar
+        </Button>
+
+        <Button
+          onClick={() => void onSubmit()}
+          variant="contained"
+          disabled={saving || !canLink}
+          startIcon={<LinkRoundedIcon />}
+        >
+          {saving ? "Vinculando..." : "Vincular"}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 export default function EmpleadosPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -2041,13 +2347,15 @@ export default function EmpleadosPage() {
   const [departamentoFilter, setDepartamentoFilter] = useState("");
   const [sucursalFilter, setSucursalFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<EstadoFiltroEmpleado>("");
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Empleado | null>(null);
   const [bajaTarget, setBajaTarget] = useState<Empleado | null>(null);
-  const [reingresoTarget, setReingresoTarget] = useState<Empleado | null>(
-    null
-  );
+  const [reingresoTarget, setReingresoTarget] = useState<Empleado | null>(null);
+  const [createAccountTarget, setCreateAccountTarget] = useState<Empleado | null>(null);
+  const [linkAccountTarget, setLinkAccountTarget] = useState<Empleado | null>(null);
+
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [sortField, setSortField] =
@@ -2220,6 +2528,43 @@ export default function EmpleadosPage() {
     },
   });
 
+  const createAccountMutation = useMutation({
+    mutationFn: async ({
+      empleado,
+      payload,
+    }: {
+      empleado: Empleado;
+      payload: {
+        email: string;
+        role: AppUserRole;
+        password: string;
+        isActive: boolean;
+      };
+    }) => createAccountForEmpleado(empleado.id, payload),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["empleados"] });
+      void queryClient.invalidateQueries({ queryKey: ["users"] });
+      setCreateAccountTarget(null);
+      showSnackbar("Cuenta creada y ligada correctamente.", "success");
+    },
+    onError: (error) => {
+      showSnackbar(getErrorMessage(error), "error");
+    },
+  });
+
+  const linkAccountMutation = useMutation({
+    mutationFn: async (empleado: Empleado) => linkUserByEmail(empleado.id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["empleados"] });
+      void queryClient.invalidateQueries({ queryKey: ["users"] });
+      setLinkAccountTarget(null);
+      showSnackbar("Usuario ligado correctamente por email.", "success");
+    },
+    onError: (error) => {
+      showSnackbar(getErrorMessage(error), "error");
+    },
+  });
+
   const filteredRows = useMemo<Empleado[]>(() => {
     const rows = empleadosQuery.data ?? [];
     const term = search.trim().toLowerCase();
@@ -2250,7 +2595,9 @@ export default function EmpleadosPage() {
         getDepartamentoNombre(row).toLowerCase().includes(term) ||
         getPuestoNombre(row).toLowerCase().includes(term) ||
         getSucursalNombre(row).toLowerCase().includes(term) ||
-        getEstadoLabel(row).toLowerCase().includes(term);
+        getEstadoLabel(row).toLowerCase().includes(term) ||
+        (getEmpleadoUsuarioEmail(row) ?? "").toLowerCase().includes(term) ||
+        (getEmpleadoUsuarioRole(row) ?? "").toLowerCase().includes(term);
 
       return (
         matchesDepartamento &&
@@ -2338,13 +2685,15 @@ export default function EmpleadosPage() {
     [filteredRows]
   );
 
-  const assignedBranchCount = useMemo(() => {
-    return new Set(
-      filteredRows
-        .map((row: Empleado) => row.sucursalId)
-        .filter((value): value is number => Number(value) > 0)
-    ).size;
-  }, [filteredRows]);
+  const linkedAccountCount = useMemo(
+    () => filteredRows.filter((row) => getEmpleadoTieneCuenta(row)).length,
+    [filteredRows]
+  );
+
+  const withoutAccountCount = useMemo(
+    () => filteredRows.filter((row) => !getEmpleadoTieneCuenta(row)).length,
+    [filteredRows]
+  );
 
   const activeFiltersCount = useMemo(() => {
     let count = 0;
@@ -2375,6 +2724,14 @@ export default function EmpleadosPage() {
 
   const openReingresoDialog = (row: Empleado) => {
     setReingresoTarget(row);
+  };
+
+  const openCreateAccountDialog = (row: Empleado) => {
+    setCreateAccountTarget(row);
+  };
+
+  const openLinkAccountDialog = (row: Empleado) => {
+    setLinkAccountTarget(row);
   };
 
   const handleImported = async (result: EmpleadoImportExecuteResult) => {
@@ -2525,6 +2882,8 @@ export default function EmpleadosPage() {
               saveMutation.isPending ||
               bajaMutation.isPending ||
               reingresoMutation.isPending ||
+              createAccountMutation.isPending ||
+              linkAccountMutation.isPending ||
               exportingXlsx ||
               exportingPdf
             }
@@ -2589,7 +2948,7 @@ export default function EmpleadosPage() {
       <HeroBanner
         eyebrow="Catálogo RH"
         title="Gestión de empleados"
-        subtitle="Consulta general del personal, su asignación organizacional y su estado operativo actual dentro del sistema."
+        subtitle="Consulta general del personal, su asignación organizacional, su estatus operativo y el vínculo de cuenta de acceso."
         badge="RH"
         actions={
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
@@ -2650,13 +3009,13 @@ export default function EmpleadosPage() {
                   variant="h4"
                   sx={{ fontWeight: 900, lineHeight: 1 }}
                 >
-                  {activeCount}
+                  {linkedAccountCount}
                 </Typography>
                 <Typography
                   variant="caption"
                   sx={{ color: alpha("#ffffff", 0.8) }}
                 >
-                  activos
+                  con cuenta
                 </Typography>
               </Box>
 
@@ -2665,20 +3024,20 @@ export default function EmpleadosPage() {
                   variant="h4"
                   sx={{ fontWeight: 900, lineHeight: 1 }}
                 >
-                  {bajaCount}
+                  {withoutAccountCount}
                 </Typography>
                 <Typography
                   variant="caption"
                   sx={{ color: alpha("#ffffff", 0.8) }}
                 >
-                  bajas
+                  sin cuenta
                 </Typography>
               </Box>
             </Stack>
 
             <Typography variant="body2" sx={{ color: alpha("#ffffff", 0.84) }}>
               {canOpenDialog
-                ? "Catálogos base disponibles para alta y edición."
+                ? "Catálogos base disponibles para alta, edición y vinculación de cuentas."
                 : canManageEmpleados
                 ? "Faltan catálogos base para permitir nuevas altas."
                 : "Consulta disponible según tu rol actual."}
@@ -2719,20 +3078,20 @@ export default function EmpleadosPage() {
 
         <Box sx={{ gridColumn: { xs: "span 1", md: "span 3" } }}>
           <MetricCard
-            title="Sucursales"
-            value={assignedBranchCount}
-            subtitle="Con personal asignado"
-            icon={<StoreRoundedIcon fontSize="small" />}
+            title="Con cuenta"
+            value={linkedAccountCount}
+            subtitle="Acceso ligado a empleado"
+            icon={<ManageAccountsRoundedIcon fontSize="small" />}
             badge="RH"
           />
         </Box>
 
         <Box sx={{ gridColumn: { xs: "span 1", md: "span 3" } }}>
           <MetricCard
-            title="Visibles"
-            value={filteredRows.length}
-            subtitle="Empleados visibles"
-            icon={<Groups2OutlinedIcon fontSize="small" />}
+            title="Sin cuenta"
+            value={withoutAccountCount}
+            subtitle="Pendientes por crear o ligar"
+            icon={<MarkEmailReadRoundedIcon fontSize="small" />}
             badge="RH"
           />
         </Box>
@@ -2740,7 +3099,7 @@ export default function EmpleadosPage() {
 
       <SectionCard
         title="Filtros"
-        subtitle="Busca por empleado, correo, puesto, sucursal o estado laboral."
+        subtitle="Busca por empleado, correo, puesto, sucursal, estado laboral o estado de cuenta."
         actions={
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
             <Chip
@@ -2780,7 +3139,7 @@ export default function EmpleadosPage() {
             <TextField
               fullWidth
               label="Buscar"
-              placeholder="No. empleado, nombre, correo, CURP, RFC, NSS..."
+              placeholder="No. empleado, nombre, correo, cuenta ligada..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               InputProps={{
@@ -2845,7 +3204,7 @@ export default function EmpleadosPage() {
 
       <SectionCard
         title="Listado"
-        subtitle="Consulta general del catálogo de empleados y su asignación actual."
+        subtitle="Consulta general del catálogo de empleados, su asignación actual y el estado de su cuenta."
         actions={
           <Chip
             label={`${paginatedRows.length} visibles de ${sortedRows.length}`}
@@ -2895,7 +3254,7 @@ export default function EmpleadosPage() {
                 maxHeight: 620,
               }}
             >
-              <Table stickyHeader size="small" sx={{ minWidth: 1120 }}>
+              <Table stickyHeader size="small" sx={{ minWidth: 1280 }}>
                 <TableHead
                   sx={{
                     "& .MuiTableCell-head": {
@@ -2976,7 +3335,11 @@ export default function EmpleadosPage() {
                       </TableSortLabel>
                     </TableCell>
 
-                    <TableCell align="right" sx={{ width: 180 }}>
+                    <TableCell sx={{ minWidth: 220 }}>
+                      Cuenta
+                    </TableCell>
+
+                    <TableCell align="right" sx={{ width: 250 }}>
                       Acciones
                     </TableCell>
                   </TableRow>
@@ -2986,6 +3349,8 @@ export default function EmpleadosPage() {
                   {paginatedRows.map((row: Empleado) => {
                     const isActivo =
                       row.activo && row.estatusLaboralActual === "ACTIVO";
+                    const hasAccount = getEmpleadoTieneCuenta(row);
+                    const hasEmail = Boolean(row.email?.trim());
 
                     return (
                       <TableRow
@@ -3116,6 +3481,50 @@ export default function EmpleadosPage() {
                           </Stack>
                         </TableCell>
 
+                        <TableCell>
+                          <Stack spacing={0.35} alignItems="flex-start" sx={{ minWidth: 0 }}>
+                            <Chip
+                              size="small"
+                              variant="outlined"
+                              label={
+                                hasAccount
+                                  ? "Cuenta ligada"
+                                  : hasEmail
+                                  ? "Sin cuenta"
+                                  : "Sin correo"
+                              }
+                              sx={cuentaStatusChipSx(hasAccount, hasEmail)}
+                            />
+
+                            {hasAccount ? (
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                sx={{ ...tableCellTruncateSx, maxWidth: 200 }}
+                              >
+                                {getEmpleadoUsuarioRole(row) || "Rol"} ·{" "}
+                                {getEmpleadoUsuarioEmail(row) || "Sin correo"}
+                              </Typography>
+                            ) : hasEmail ? (
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                sx={{ ...tableCellTruncateSx, maxWidth: 200 }}
+                              >
+                                Listo para crear o vincular por email
+                              </Typography>
+                            ) : (
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                sx={{ ...tableCellTruncateSx, maxWidth: 200 }}
+                              >
+                                Captura correo antes de vincular
+                              </Typography>
+                            )}
+                          </Stack>
+                        </TableCell>
+
                         <TableCell align="right">
                           <Box sx={tableActionGridSx}>
                             <Tooltip title="Descargar ficha">
@@ -3146,6 +3555,46 @@ export default function EmpleadosPage() {
                                 </IconButton>
                               </span>
                             </Tooltip>
+
+                            {canManageEmpleados && !hasAccount ? (
+                              <Tooltip title="Crear cuenta">
+                                <span>
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => openCreateAccountDialog(row)}
+                                    disabled={createAccountMutation.isPending}
+                                    sx={actionIconButtonSx("createAccount")}
+                                  >
+                                    <ManageAccountsRoundedIcon fontSize="small" />
+                                  </IconButton>
+                                </span>
+                              </Tooltip>
+                            ) : (
+                              <Box />
+                            )}
+
+                            {canManageEmpleados && !hasAccount ? (
+                              <Tooltip
+                                title={
+                                  hasEmail
+                                    ? "Vincular usuario por email"
+                                    : "El empleado no tiene correo"
+                                }
+                              >
+                                <span>
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => openLinkAccountDialog(row)}
+                                    disabled={linkAccountMutation.isPending || !hasEmail}
+                                    sx={actionIconButtonSx("linkAccount")}
+                                  >
+                                    <LinkRoundedIcon fontSize="small" />
+                                  </IconButton>
+                                </span>
+                              </Tooltip>
+                            ) : (
+                              <Box />
+                            )}
 
                             {canManageEmpleados ? (
                               <Tooltip title="Editar">
@@ -3282,6 +3731,37 @@ export default function EmpleadosPage() {
         departamentos={departamentos}
         puestos={puestos}
         sucursales={sucursales}
+      />
+
+      <CreateAccountDialog
+        open={!!createAccountTarget}
+        empleado={createAccountTarget}
+        saving={createAccountMutation.isPending}
+        onClose={() => {
+          if (createAccountMutation.isPending) return;
+          setCreateAccountTarget(null);
+        }}
+        onSubmit={async (payload) => {
+          if (!createAccountTarget) return;
+          await createAccountMutation.mutateAsync({
+            empleado: createAccountTarget,
+            payload,
+          });
+        }}
+      />
+
+      <LinkUserByEmailDialog
+        open={!!linkAccountTarget}
+        empleado={linkAccountTarget}
+        saving={linkAccountMutation.isPending}
+        onClose={() => {
+          if (linkAccountMutation.isPending) return;
+          setLinkAccountTarget(null);
+        }}
+        onSubmit={async () => {
+          if (!linkAccountTarget) return;
+          await linkAccountMutation.mutateAsync(linkAccountTarget);
+        }}
       />
     </AppPage>
   );

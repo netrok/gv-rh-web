@@ -26,6 +26,13 @@ export type TipoMovimientoLaboral =
   | "CAMBIO_SALARIO"
   | "CAMBIO_ESTATUS";
 
+export type AppUserRole =
+  | "ADMIN"
+  | "RRHH"
+  | "JEFE"
+  | "CONSULTA"
+  | "EMPLEADO";
+
 export type Empleado = {
   id: number;
   numEmpleado: string;
@@ -50,6 +57,17 @@ export type Empleado = {
   puestoNombre?: string | null;
   sucursalId?: number | null;
   sucursalNombre?: string | null;
+
+  aprobadorPrimarioEmpleadoId?: number | null;
+  aprobadorPrimarioNombre?: string | null;
+  aprobadorSecundarioEmpleadoId?: number | null;
+  aprobadorSecundarioNombre?: string | null;
+
+  // Cuenta ligada
+  tieneCuenta?: boolean;
+  usuarioId?: number | null;
+  usuarioEmail?: string | null;
+  usuarioRole?: string | null;
 
   curp?: string | null;
   rfc?: string | null;
@@ -107,6 +125,9 @@ export type EmpleadoCreateInput = {
   puestoId?: number | null;
   sucursalId?: number | null;
 
+  aprobadorPrimarioEmpleadoId?: number | null;
+  aprobadorSecundarioEmpleadoId?: number | null;
+
   curp?: string | null;
   rfc?: string | null;
   nss?: string | null;
@@ -144,6 +165,9 @@ export type EmpleadoUpdateInput = {
   departamentoId?: number | null;
   puestoId?: number | null;
   sucursalId?: number | null;
+
+  aprobadorPrimarioEmpleadoId?: number | null;
+  aprobadorSecundarioEmpleadoId?: number | null;
 
   curp?: string | null;
   rfc?: string | null;
@@ -190,9 +214,38 @@ export type EmpleadoPhotoResponse = {
 
 export type CreateAccountForEmpleadoInput = {
   email: string;
-  role: string;
+  role: AppUserRole | string;
   password: string;
   isActive: boolean;
+};
+
+export type LinkedUserSummary = {
+  id: number;
+  email: string;
+  role: string;
+  isActive: boolean;
+  mustChangePassword: boolean;
+  empleadoId?: number | null;
+};
+
+export type LinkedEmpleadoSummary = {
+  id: number;
+  numEmpleado: string;
+  nombres: string;
+  apellidoPaterno: string;
+  apellidoMaterno?: string | null;
+  email?: string | null;
+};
+
+export type CreateAccountForEmpleadoResponse = {
+  message: string;
+  user: LinkedUserSummary;
+};
+
+export type LinkUserByEmailResponse = {
+  message: string;
+  user: LinkedUserSummary;
+  empleado: LinkedEmpleadoSummary;
 };
 
 export type DarBajaEmpleadoInput = {
@@ -516,16 +569,20 @@ export async function restoreEmpleado(id: number): Promise<void> {
 export async function createAccountForEmpleado(
   id: number,
   payload: CreateAccountForEmpleadoInput
-) {
-  const { data } = await api.post(
+): Promise<CreateAccountForEmpleadoResponse> {
+  const { data } = await api.post<CreateAccountForEmpleadoResponse>(
     `/api/Empleados/${id}/create-account`,
     payload
   );
   return data;
 }
 
-export async function linkUserByEmail(id: number) {
-  const { data } = await api.post(`/api/Empleados/${id}/link-user-by-email`);
+export async function linkUserByEmail(
+  id: number
+): Promise<LinkUserByEmailResponse> {
+  const { data } = await api.post<LinkUserByEmailResponse>(
+    `/api/Empleados/${id}/link-user-by-email`
+  );
   return data;
 }
 
