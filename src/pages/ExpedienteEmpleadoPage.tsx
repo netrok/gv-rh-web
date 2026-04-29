@@ -485,6 +485,10 @@ export default function ExpedienteEmpleadoPage() {
     ? "Consulta documental del empleado y trazabilidad laboral."
     : "Consulta y carga de tus documentos personales.";
 
+  const canEditDocumentoMetadata = canManageEmpleados;
+  const canDeleteDocumentos = canManageEmpleados;
+  const canReplaceDocumentos = true;
+
   const [empleado, setEmpleado] = useState<Empleado | null>(null);
   const [documentos, setDocumentos] = useState<EmpleadoDocumento[]>([]);
   const [checklist, setChecklist] = useState<EmpleadoDocumentoChecklist | null>(null);
@@ -711,6 +715,11 @@ export default function ExpedienteEmpleadoPage() {
   };
 
   const openEditDialog = (documento: EmpleadoDocumento) => {
+    if (!canEditDocumentoMetadata) {
+      showSnackbar("warning", "Solo RH puede editar metadatos del expediente.");
+      return;
+    }
+
     setSelectedDocumento(documento);
     setEditForm({
       tipo: documento.tipo,
@@ -733,6 +742,11 @@ export default function ExpedienteEmpleadoPage() {
   };
 
   const openDeleteDialog = (documento: EmpleadoDocumento) => {
+    if (!canDeleteDocumentos) {
+      showSnackbar("warning", "Solo RH puede eliminar documentos del expediente.");
+      return;
+    }
+
     setSelectedDocumento(documento);
     setDeleteDialogOpen(true);
   };
@@ -799,6 +813,11 @@ export default function ExpedienteEmpleadoPage() {
   };
 
   const handleEditSubmit = async () => {
+    if (!canEditDocumentoMetadata) {
+      showSnackbar("warning", "Solo RH puede editar metadatos del expediente.");
+      return;
+    }
+
     if (!selectedDocumento) return;
 
     const dateError = validateDates(
@@ -877,6 +896,11 @@ export default function ExpedienteEmpleadoPage() {
   };
 
   const handleDeleteConfirm = async () => {
+    if (!canDeleteDocumentos) {
+      showSnackbar("warning", "Solo RH puede eliminar documentos del expediente.");
+      return;
+    }
+
     if (!selectedDocumento) return;
 
     try {
@@ -1507,7 +1531,11 @@ export default function ExpedienteEmpleadoPage() {
 
           <SectionPanel
             title="Documentos cargados"
-            subtitle="Administra archivos, metadatos y vigencias."
+            subtitle={
+              canManageEmpleados
+                ? "Administra archivos, metadatos y vigencias."
+                : "Consulta, descarga y aporta documentos para tu expediente."
+            }
           >
             <Stack
               direction={{ xs: "column", lg: "row" }}
@@ -1701,32 +1729,38 @@ export default function ExpedienteEmpleadoPage() {
                               </span>
                             </Tooltip>
 
-                            <Tooltip title="Editar metadatos">
-                              <IconButton
-                                size="small"
-                                onClick={() => openEditDialog(doc)}
-                              >
-                                <EditRoundedIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
+                            {canEditDocumentoMetadata ? (
+                              <Tooltip title="Editar metadatos">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => openEditDialog(doc)}
+                                >
+                                  <EditRoundedIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            ) : null}
 
-                            <Tooltip title="Reemplazar archivo">
-                              <IconButton
-                                size="small"
-                                onClick={() => openReplaceDialog(doc)}
-                              >
-                                <SwapHorizRoundedIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
+                            {canReplaceDocumentos ? (
+                              <Tooltip title="Reemplazar archivo">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => openReplaceDialog(doc)}
+                                >
+                                  <SwapHorizRoundedIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            ) : null}
 
-                            <Tooltip title="Eliminar">
-                              <IconButton
-                                size="small"
-                                onClick={() => openDeleteDialog(doc)}
-                              >
-                                <DeleteOutlineRoundedIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
+                            {canDeleteDocumentos ? (
+                              <Tooltip title="Eliminar">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => openDeleteDialog(doc)}
+                                >
+                                  <DeleteOutlineRoundedIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            ) : null}
                           </Stack>
                         </TableCell>
                       </TableRow>
@@ -1843,12 +1877,13 @@ export default function ExpedienteEmpleadoPage() {
         </DialogActions>
       </Dialog>
 
-      <Dialog
-        open={editDialogOpen}
-        onClose={savingEdit ? undefined : () => setEditDialogOpen(false)}
-        fullWidth
-        maxWidth="sm"
-      >
+      {canEditDocumentoMetadata ? (
+        <Dialog
+          open={editDialogOpen}
+          onClose={savingEdit ? undefined : () => setEditDialogOpen(false)}
+          fullWidth
+          maxWidth="sm"
+        >
         <DialogTitle>Editar metadatos</DialogTitle>
         <DialogContent dividers>
           <Stack spacing={2} sx={{ pt: 1 }}>
@@ -1930,7 +1965,8 @@ export default function ExpedienteEmpleadoPage() {
             {savingEdit ? "Guardando..." : "Guardar cambios"}
           </Button>
         </DialogActions>
-      </Dialog>
+        </Dialog>
+      ) : null}
 
       <Dialog
         open={replaceDialogOpen}
@@ -2021,12 +2057,13 @@ export default function ExpedienteEmpleadoPage() {
         </DialogActions>
       </Dialog>
 
-      <Dialog
-        open={deleteDialogOpen}
-        onClose={deleting ? undefined : () => setDeleteDialogOpen(false)}
-        fullWidth
-        maxWidth="xs"
-      >
+      {canDeleteDocumentos ? (
+        <Dialog
+          open={deleteDialogOpen}
+          onClose={deleting ? undefined : () => setDeleteDialogOpen(false)}
+          fullWidth
+          maxWidth="xs"
+        >
         <DialogTitle>Eliminar documento</DialogTitle>
         <DialogContent dividers>
           <Stack spacing={1}>
@@ -2055,7 +2092,8 @@ export default function ExpedienteEmpleadoPage() {
             {deleting ? "Eliminando..." : "Eliminar"}
           </Button>
         </DialogActions>
-      </Dialog>
+        </Dialog>
+      ) : null}
 
       <Dialog
         open={previewDialogOpen}
