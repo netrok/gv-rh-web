@@ -78,6 +78,21 @@ import {
   type Empleado,
   type EmpleadoMovimientoLaboral,
 } from "../api/empleados.api";
+import {
+  generarPeriodoVacacion,
+  getEstatusVacacionPeriodoColor,
+  getEstatusVacacionPeriodoLabel,
+  getTipoMovimientoVacacionColor,
+  getTipoMovimientoVacacionLabel,
+  getVacacionesKardex,
+  getVacacionesPeriodos,
+  getVacacionesResumen,
+  registrarAjusteVacacion,
+  registrarDisfruteVacacion,
+  type VacacionMovimiento,
+  type VacacionPeriodo,
+  type VacacionesResumen,
+} from "../api/vacaciones.api";
 
 type SnackbarState = {
   open: boolean;
@@ -105,6 +120,28 @@ type ReplaceFormState = {
   fechaVencimiento: string;
   comentario: string;
   archivo: File | null;
+};
+
+type GenerateVacationPeriodFormState = {
+  anioServicio: string;
+  comentario: string;
+};
+
+type VacationEnjoymentFormState = {
+  vacacionPeriodoId: number | "";
+  fechaInicioDisfrute: string;
+  fechaFinDisfrute: string;
+  dias: string;
+  referencia: string;
+  comentario: string;
+};
+
+type VacationAdjustmentFormState = {
+  vacacionPeriodoId: number | "";
+  fechaMovimiento: string;
+  dias: string;
+  referencia: string;
+  comentario: string;
 };
 
 type DocumentoStatusTone = "success" | "warning" | "error" | "default";
@@ -139,6 +176,28 @@ const emptyReplaceForm: ReplaceFormState = {
   fechaVencimiento: "",
   comentario: "",
   archivo: null,
+};
+
+const emptyGenerateVacationPeriodForm: GenerateVacationPeriodFormState = {
+  anioServicio: "",
+  comentario: "",
+};
+
+const emptyVacationEnjoymentForm: VacationEnjoymentFormState = {
+  vacacionPeriodoId: "",
+  fechaInicioDisfrute: "",
+  fechaFinDisfrute: "",
+  dias: "",
+  referencia: "",
+  comentario: "",
+};
+
+const emptyVacationAdjustmentForm: VacationAdjustmentFormState = {
+  vacacionPeriodoId: "",
+  fechaMovimiento: "",
+  dias: "",
+  referencia: "",
+  comentario: "",
 };
 
 const TIPOS_DOCUMENTO_OPTIONS = [...TIPOS_DOCUMENTO_EMPLEADO];
@@ -178,6 +237,16 @@ function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+function formatDecimalDays(value?: number | null) {
+  const number = Number(value ?? 0);
+  if (!Number.isFinite(number)) return "0";
+
+  return new Intl.NumberFormat("es-MX", {
+    minimumFractionDigits: Number.isInteger(number) ? 0 : 1,
+    maximumFractionDigits: 2,
+  }).format(number);
 }
 
 function getDocumentoStatus(fechaVencimiento?: string | null): DocumentoStatus {
@@ -493,6 +562,10 @@ export default function ExpedienteEmpleadoPage() {
   const [documentos, setDocumentos] = useState<EmpleadoDocumento[]>([]);
   const [checklist, setChecklist] = useState<EmpleadoDocumentoChecklist | null>(null);
   const [movimientos, setMovimientos] = useState<EmpleadoMovimientoLaboral[]>([]);
+  const [vacacionesResumen, setVacacionesResumen] =
+    useState<VacacionesResumen | null>(null);
+  const [vacacionesPeriodos, setVacacionesPeriodos] = useState<VacacionPeriodo[]>([]);
+  const [vacacionesKardex, setVacacionesKardex] = useState<VacacionMovimiento[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -502,10 +575,22 @@ export default function ExpedienteEmpleadoPage() {
   const [replaceDialogOpen, setReplaceDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
+  const [generateVacationPeriodDialogOpen, setGenerateVacationPeriodDialogOpen] =
+    useState(false);
+  const [vacationEnjoymentDialogOpen, setVacationEnjoymentDialogOpen] =
+    useState(false);
+  const [vacationAdjustmentDialogOpen, setVacationAdjustmentDialogOpen] =
+    useState(false);
 
   const [createForm, setCreateForm] = useState<CreateFormState>(emptyCreateForm);
   const [editForm, setEditForm] = useState<EditFormState>(emptyEditForm);
   const [replaceForm, setReplaceForm] = useState<ReplaceFormState>(emptyReplaceForm);
+  const [generateVacationPeriodForm, setGenerateVacationPeriodForm] =
+    useState<GenerateVacationPeriodFormState>(emptyGenerateVacationPeriodForm);
+  const [vacationEnjoymentForm, setVacationEnjoymentForm] =
+    useState<VacationEnjoymentFormState>(emptyVacationEnjoymentForm);
+  const [vacationAdjustmentForm, setVacationAdjustmentForm] =
+    useState<VacationAdjustmentFormState>(emptyVacationAdjustmentForm);
 
   const [selectedDocumento, setSelectedDocumento] =
     useState<EmpleadoDocumento | null>(null);
@@ -514,6 +599,9 @@ export default function ExpedienteEmpleadoPage() {
   const [savingEdit, setSavingEdit] = useState(false);
   const [savingReplace, setSavingReplace] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [savingVacationPeriod, setSavingVacationPeriod] = useState(false);
+  const [savingVacationEnjoyment, setSavingVacationEnjoyment] = useState(false);
+  const [savingVacationAdjustment, setSavingVacationAdjustment] = useState(false);
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
   const [previewingId, setPreviewingId] = useState<number | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -555,18 +643,31 @@ export default function ExpedienteEmpleadoPage() {
       }
 
       try {
-        const [empleadoData, documentosData, checklistData, movimientosData] =
-          await Promise.all([
-            getEmpleadoById(empleadoId),
-            getEmpleadoDocumentos(empleadoId),
-            getEmpleadoDocumentosChecklist(empleadoId),
-            getEmpleadoMovimientos(empleadoId),
-          ]);
+        const [
+          empleadoData,
+          documentosData,
+          checklistData,
+          movimientosData,
+          vacacionesResumenData,
+          vacacionesPeriodosData,
+          vacacionesKardexData,
+        ] = await Promise.all([
+          getEmpleadoById(empleadoId),
+          getEmpleadoDocumentos(empleadoId),
+          getEmpleadoDocumentosChecklist(empleadoId),
+          getEmpleadoMovimientos(empleadoId),
+          getVacacionesResumen(empleadoId),
+          getVacacionesPeriodos(empleadoId),
+          getVacacionesKardex(empleadoId),
+        ]);
 
         setEmpleado(empleadoData);
         setDocumentos(documentosData);
         setChecklist(checklistData);
         setMovimientos(movimientosData);
+        setVacacionesResumen(vacacionesResumenData);
+        setVacacionesPeriodos(vacacionesPeriodosData);
+        setVacacionesKardex(vacacionesKardexData);
       } catch (error: any) {
         const message =
           error?.response?.data?.message ||
@@ -643,6 +744,14 @@ export default function ExpedienteEmpleadoPage() {
     };
   }, [movimientos]);
 
+  const vacacionesPeriodosAbiertos = useMemo(
+    () => vacacionesPeriodos.filter((periodo) => periodo.estatus === "ABIERTO"),
+    [vacacionesPeriodos]
+  );
+
+  const vacacionesPeriodoActual =
+    vacacionesResumen?.periodoActual ?? vacacionesPeriodosAbiertos[0] ?? null;
+
   const filteredDocuments = useMemo(() => {
     const term = search.trim().toLowerCase();
 
@@ -709,6 +818,19 @@ export default function ExpedienteEmpleadoPage() {
     setSelectedDocumento(null);
   };
 
+
+  const resetGenerateVacationPeriodForm = () => {
+    setGenerateVacationPeriodForm(emptyGenerateVacationPeriodForm);
+  };
+
+  const resetVacationEnjoymentForm = () => {
+    setVacationEnjoymentForm(emptyVacationEnjoymentForm);
+  };
+
+  const resetVacationAdjustmentForm = () => {
+    setVacationAdjustmentForm(emptyVacationAdjustmentForm);
+  };
+
   const openUploadDialog = () => {
     resetCreateForm();
     setUploadDialogOpen(true);
@@ -749,6 +871,55 @@ export default function ExpedienteEmpleadoPage() {
 
     setSelectedDocumento(documento);
     setDeleteDialogOpen(true);
+  };
+
+
+  const openGenerateVacationPeriodDialog = () => {
+    if (!canManageEmpleados) {
+      showSnackbar("warning", "Solo RH puede generar periodos de vacaciones.");
+      return;
+    }
+
+    resetGenerateVacationPeriodForm();
+    setGenerateVacationPeriodDialogOpen(true);
+  };
+
+  const openVacationEnjoymentDialog = (periodo?: VacacionPeriodo) => {
+    if (!canManageEmpleados) {
+      showSnackbar("warning", "Solo RH puede registrar disfrutes de vacaciones.");
+      return;
+    }
+
+    const selectedPeriodo = periodo ?? vacacionesPeriodoActual;
+    if (!selectedPeriodo) {
+      showSnackbar("warning", "Primero genera un periodo de vacaciones abierto.");
+      return;
+    }
+
+    setVacationEnjoymentForm({
+      ...emptyVacationEnjoymentForm,
+      vacacionPeriodoId: selectedPeriodo.id,
+    });
+    setVacationEnjoymentDialogOpen(true);
+  };
+
+  const openVacationAdjustmentDialog = (periodo?: VacacionPeriodo) => {
+    if (!canManageEmpleados) {
+      showSnackbar("warning", "Solo RH puede registrar ajustes de vacaciones.");
+      return;
+    }
+
+    const selectedPeriodo = periodo ?? vacacionesPeriodoActual;
+    if (!selectedPeriodo) {
+      showSnackbar("warning", "Primero genera un periodo de vacaciones abierto.");
+      return;
+    }
+
+    setVacationAdjustmentForm({
+      ...emptyVacationAdjustmentForm,
+      vacacionPeriodoId: selectedPeriodo.id,
+    });
+    setVacationAdjustmentDialogOpen(true);
   };
 
   const handleClosePreview = () => {
@@ -919,6 +1090,150 @@ export default function ExpedienteEmpleadoPage() {
       showSnackbar("error", message);
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleGenerateVacationPeriodSubmit = async () => {
+    if (!canManageEmpleados) {
+      showSnackbar("warning", "Solo RH puede generar periodos de vacaciones.");
+      return;
+    }
+
+    const anioServicioText = generateVacationPeriodForm.anioServicio.trim();
+    const parsedAnioServicio = anioServicioText ? Number(anioServicioText) : null;
+
+    if (
+      anioServicioText &&
+      (!Number.isInteger(parsedAnioServicio) ||
+        parsedAnioServicio === null ||
+        parsedAnioServicio <= 0)
+    ) {
+      showSnackbar("error", "El año de servicio debe ser un número entero mayor a cero.");
+      return;
+    }
+
+    const anioServicioPayload = parsedAnioServicio ?? null;
+
+    try {
+      setSavingVacationPeriod(true);
+
+      await generarPeriodoVacacion(empleadoId, {
+        anioServicio: anioServicioPayload,
+        comentario: normalizeNullableText(generateVacationPeriodForm.comentario),
+      });
+
+      setGenerateVacationPeriodDialogOpen(false);
+      resetGenerateVacationPeriodForm();
+      showSnackbar("success", "Periodo de vacaciones generado correctamente.");
+      await loadPageData(true);
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.message ||
+        "No se pudo generar el periodo de vacaciones.";
+      showSnackbar("error", message);
+    } finally {
+      setSavingVacationPeriod(false);
+    }
+  };
+
+  const handleVacationEnjoymentSubmit = async () => {
+    if (!canManageEmpleados) {
+      showSnackbar("warning", "Solo RH puede registrar disfrutes de vacaciones.");
+      return;
+    }
+
+    const periodoId = Number(vacationEnjoymentForm.vacacionPeriodoId);
+    const dias = Number(vacationEnjoymentForm.dias);
+
+    if (!periodoId) {
+      showSnackbar("error", "Selecciona un periodo de vacaciones.");
+      return;
+    }
+
+    if (!vacationEnjoymentForm.fechaInicioDisfrute || !vacationEnjoymentForm.fechaFinDisfrute) {
+      showSnackbar("error", "Captura la fecha inicial y final del disfrute.");
+      return;
+    }
+
+    if (!Number.isFinite(dias) || dias <= 0) {
+      showSnackbar("error", "Los días disfrutados deben ser mayores a cero.");
+      return;
+    }
+
+    const start = new Date(`${vacationEnjoymentForm.fechaInicioDisfrute}T00:00:00`);
+    const end = new Date(`${vacationEnjoymentForm.fechaFinDisfrute}T00:00:00`);
+    if (end < start) {
+      showSnackbar("error", "La fecha final no puede ser menor que la fecha inicial.");
+      return;
+    }
+
+    try {
+      setSavingVacationEnjoyment(true);
+
+      await registrarDisfruteVacacion(empleadoId, {
+        vacacionPeriodoId: periodoId,
+        fechaInicioDisfrute: vacationEnjoymentForm.fechaInicioDisfrute,
+        fechaFinDisfrute: vacationEnjoymentForm.fechaFinDisfrute,
+        dias,
+        referencia: normalizeNullableText(vacationEnjoymentForm.referencia),
+        comentario: normalizeNullableText(vacationEnjoymentForm.comentario),
+      });
+
+      setVacationEnjoymentDialogOpen(false);
+      resetVacationEnjoymentForm();
+      showSnackbar("success", "Disfrute de vacaciones registrado correctamente.");
+      await loadPageData(true);
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.message ||
+        "No se pudo registrar el disfrute de vacaciones.";
+      showSnackbar("error", message);
+    } finally {
+      setSavingVacationEnjoyment(false);
+    }
+  };
+
+  const handleVacationAdjustmentSubmit = async () => {
+    if (!canManageEmpleados) {
+      showSnackbar("warning", "Solo RH puede registrar ajustes de vacaciones.");
+      return;
+    }
+
+    const periodoId = Number(vacationAdjustmentForm.vacacionPeriodoId);
+    const dias = Number(vacationAdjustmentForm.dias);
+
+    if (!periodoId) {
+      showSnackbar("error", "Selecciona un periodo de vacaciones.");
+      return;
+    }
+
+    if (!Number.isFinite(dias) || dias === 0) {
+      showSnackbar("error", "El ajuste debe ser diferente de cero. Usa positivo para sumar y negativo para descontar.");
+      return;
+    }
+
+    try {
+      setSavingVacationAdjustment(true);
+
+      await registrarAjusteVacacion(empleadoId, {
+        vacacionPeriodoId: periodoId,
+        dias,
+        fechaMovimiento: vacationAdjustmentForm.fechaMovimiento || null,
+        referencia: normalizeNullableText(vacationAdjustmentForm.referencia),
+        comentario: normalizeNullableText(vacationAdjustmentForm.comentario),
+      });
+
+      setVacationAdjustmentDialogOpen(false);
+      resetVacationAdjustmentForm();
+      showSnackbar("success", "Ajuste de vacaciones registrado correctamente.");
+      await loadPageData(true);
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.message ||
+        "No se pudo registrar el ajuste de vacaciones.";
+      showSnackbar("error", message);
+    } finally {
+      setSavingVacationAdjustment(false);
     }
   };
 
@@ -1155,6 +1470,345 @@ export default function ExpedienteEmpleadoPage() {
               icon={<WarningAmberRoundedIcon color="error" />}
             />
           </Box>
+
+          <SectionPanel
+            title="Vacaciones"
+            subtitle={
+              canManageEmpleados
+                ? "Consulta saldos, periodos y kárdex de vacaciones del empleado."
+                : "Consulta tu saldo y movimientos de vacaciones."
+            }
+            actions={
+              canManageEmpleados ? (
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<EventAvailableRoundedIcon />}
+                    onClick={openGenerateVacationPeriodDialog}
+                  >
+                    Generar periodo
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<CheckCircleRoundedIcon />}
+                    onClick={() => openVacationEnjoymentDialog()}
+                    disabled={vacacionesPeriodosAbiertos.length === 0}
+                  >
+                    Registrar disfrute
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<CompareArrowsRoundedIcon />}
+                    onClick={() => openVacationAdjustmentDialog()}
+                    disabled={vacacionesPeriodosAbiertos.length === 0}
+                  >
+                    Ajuste
+                  </Button>
+                </Stack>
+              ) : undefined
+            }
+          >
+            {vacacionesResumen ? (
+              <Stack spacing={2}>
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: {
+                      xs: "1fr",
+                      sm: "repeat(2, minmax(0, 1fr))",
+                      xl: "repeat(4, minmax(0, 1fr))",
+                    },
+                    gap: 2,
+                  }}
+                >
+                  <MetricTile
+                    title="Saldo disponible"
+                    value={Number(vacacionesResumen.saldoDisponible ?? 0)}
+                    subtitle="Días pendientes de disfrutar"
+                    icon={<EventAvailableRoundedIcon color="primary" />}
+                  />
+                  <MetricTile
+                    title="Días derecho"
+                    value={Number(vacacionesResumen.diasDerechoTotal ?? 0)}
+                    subtitle="Total generado"
+                    icon={<TaskAltRoundedIcon color="success" />}
+                  />
+                  <MetricTile
+                    title="Días tomados"
+                    value={Number(vacacionesResumen.diasTomadosTotal ?? 0)}
+                    subtitle="Histórico disfrutado"
+                    icon={<CheckCircleRoundedIcon color="warning" />}
+                  />
+                  <MetricTile
+                    title="Periodos abiertos"
+                    value={Number(vacacionesResumen.periodosAbiertos ?? 0)}
+                    subtitle={`Total periodos: ${vacacionesResumen.periodosTotales ?? 0}`}
+                    icon={<TimelineRoundedIcon color="primary" />}
+                  />
+                </Box>
+
+                <Box
+                  sx={{
+                    p: 2,
+                    borderRadius: "18px",
+                    bgcolor: (theme) => alpha(theme.palette.primary.main, 0.03),
+                    border: "1px solid",
+                    borderColor: (theme) => alpha(theme.palette.primary.main, 0.08),
+                  }}
+                >
+                  <Stack
+                    direction={{ xs: "column", md: "row" }}
+                    spacing={1.5}
+                    justifyContent="space-between"
+                    alignItems={{ xs: "flex-start", md: "center" }}
+                  >
+                    <Box>
+                      <Typography variant="body2" color="text.secondary">
+                        Política vigente
+                      </Typography>
+                      <Typography variant="h6" fontWeight={800}>
+                        {vacacionesResumen.politicaNombre || "Sin política asignada"}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Antigüedad: {vacacionesResumen.antiguedadAnios ?? 0} años · Prima: {formatDecimalDays(vacacionesResumen.primaVacacionalPorcentaje)}%
+                      </Typography>
+                    </Box>
+
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      <Chip
+                        size="small"
+                        label={`Próximo aniversario: ${formatDate(vacacionesResumen.proximoAniversario)}`}
+                        variant="outlined"
+                      />
+                      <Chip
+                        size="small"
+                        label={`Pagados: ${formatDecimalDays(vacacionesResumen.diasPagadosTotal)} días`}
+                        variant="outlined"
+                      />
+                      <Chip
+                        size="small"
+                        label={`Vencidos: ${formatDecimalDays(vacacionesResumen.diasVencidosTotal)} días`}
+                        color={Number(vacacionesResumen.diasVencidosTotal ?? 0) > 0 ? "error" : "default"}
+                        variant="outlined"
+                      />
+                    </Stack>
+                  </Stack>
+                </Box>
+
+                {vacacionesPeriodos.length === 0 ? (
+                  <EmptyPanel
+                    title="Sin periodos de vacaciones"
+                    description={
+                      canManageEmpleados
+                        ? "Genera el primer periodo para iniciar el control formal del kárdex."
+                        : "Todavía no hay periodos de vacaciones registrados."
+                    }
+                    actionLabel={canManageEmpleados ? "Generar periodo" : undefined}
+                    onAction={canManageEmpleados ? openGenerateVacationPeriodDialog : undefined}
+                  />
+                ) : (
+                  <TableContainer
+                    sx={{
+                      overflowX: "auto",
+                      borderRadius: "18px",
+                      border: "1px solid",
+                      borderColor: "divider",
+                    }}
+                  >
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow
+                          sx={{
+                            "& th": {
+                              bgcolor: (theme) => alpha(theme.palette.primary.main, 0.05),
+                              fontWeight: 800,
+                              color: "text.secondary",
+                              borderBottom: "1px solid",
+                              borderColor: "divider",
+                              whiteSpace: "nowrap",
+                            },
+                          }}
+                        >
+                          <TableCell sx={{ minWidth: 120 }}>Año servicio</TableCell>
+                          <TableCell sx={{ minWidth: 230 }}>Periodo</TableCell>
+                          <TableCell sx={{ minWidth: 110 }}>Derecho</TableCell>
+                          <TableCell sx={{ minWidth: 110 }}>Tomados</TableCell>
+                          <TableCell sx={{ minWidth: 110 }}>Saldo</TableCell>
+                          <TableCell sx={{ minWidth: 130 }}>Estatus</TableCell>
+                          {canManageEmpleados ? (
+                            <TableCell align="right" sx={{ minWidth: 180 }}>
+                              Acciones
+                            </TableCell>
+                          ) : null}
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {vacacionesPeriodos.map((periodo) => (
+                          <TableRow key={periodo.id} hover>
+                            <TableCell sx={{ whiteSpace: "nowrap" }}>
+                              <Typography variant="body2" fontWeight={700}>
+                                Año {periodo.anioServicio}
+                              </Typography>
+                            </TableCell>
+                            <TableCell sx={{ whiteSpace: "nowrap" }}>
+                              <Stack spacing={0.25}>
+                                <Typography variant="body2" fontWeight={600}>
+                                  {formatDate(periodo.fechaInicio)} - {formatDate(periodo.fechaFin)}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  Límite disfrute: {formatDate(periodo.fechaLimiteDisfrute)}
+                                </Typography>
+                              </Stack>
+                            </TableCell>
+                            <TableCell>{formatDecimalDays(periodo.diasDerecho)}</TableCell>
+                            <TableCell>{formatDecimalDays(periodo.diasTomados)}</TableCell>
+                            <TableCell>
+                              <Typography variant="body2" fontWeight={800} color={Number(periodo.saldo) > 0 ? "primary.main" : "text.secondary"}>
+                                {formatDecimalDays(periodo.saldo)}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Chip
+                                size="small"
+                                label={getEstatusVacacionPeriodoLabel(periodo.estatus)}
+                                color={getEstatusVacacionPeriodoColor(periodo.estatus)}
+                                variant="outlined"
+                              />
+                            </TableCell>
+                            {canManageEmpleados ? (
+                              <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
+                                <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                                  <Button
+                                    size="small"
+                                    variant="outlined"
+                                    onClick={() => openVacationEnjoymentDialog(periodo)}
+                                    disabled={periodo.estatus !== "ABIERTO" || Number(periodo.saldo) <= 0}
+                                  >
+                                    Disfrute
+                                  </Button>
+                                  <Button
+                                    size="small"
+                                    variant="outlined"
+                                    onClick={() => openVacationAdjustmentDialog(periodo)}
+                                    disabled={periodo.estatus !== "ABIERTO"}
+                                  >
+                                    Ajuste
+                                  </Button>
+                                </Stack>
+                              </TableCell>
+                            ) : null}
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                )}
+
+                <Box>
+                  <Typography variant="subtitle1" fontWeight={800} sx={{ mb: 1 }}>
+                    Kárdex de vacaciones
+                  </Typography>
+
+                  {vacacionesKardex.length === 0 ? (
+                    <EmptyPanel
+                      title="Sin movimientos"
+                      description="Todavía no hay movimientos registrados en el kárdex de vacaciones."
+                    />
+                  ) : (
+                    <TableContainer
+                      sx={{
+                        overflowX: "auto",
+                        borderRadius: "18px",
+                        border: "1px solid",
+                        borderColor: "divider",
+                      }}
+                    >
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow
+                            sx={{
+                              "& th": {
+                                bgcolor: (theme) => alpha(theme.palette.primary.main, 0.05),
+                                fontWeight: 800,
+                                color: "text.secondary",
+                                borderBottom: "1px solid",
+                                borderColor: "divider",
+                                whiteSpace: "nowrap",
+                              },
+                            }}
+                          >
+                            <TableCell sx={{ minWidth: 120 }}>Fecha</TableCell>
+                            <TableCell sx={{ minWidth: 170 }}>Movimiento</TableCell>
+                            <TableCell sx={{ minWidth: 110 }}>Periodo</TableCell>
+                            <TableCell sx={{ minWidth: 110 }}>Días</TableCell>
+                            <TableCell sx={{ minWidth: 180 }}>Saldo</TableCell>
+                            <TableCell sx={{ minWidth: 260 }}>Comentario</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {vacacionesKardex.map((mov) => (
+                            <TableRow key={mov.id} hover>
+                              <TableCell sx={{ whiteSpace: "nowrap" }}>
+                                {formatDate(mov.fechaMovimiento)}
+                              </TableCell>
+                              <TableCell sx={{ whiteSpace: "nowrap" }}>
+                                <Chip
+                                  size="small"
+                                  label={getTipoMovimientoVacacionLabel(mov.tipoMovimiento)}
+                                  color={getTipoMovimientoVacacionColor(mov.tipoMovimiento)}
+                                  variant="outlined"
+                                />
+                              </TableCell>
+                              <TableCell sx={{ whiteSpace: "nowrap" }}>
+                                Año {mov.anioServicio}
+                              </TableCell>
+                              <TableCell>
+                                <Typography
+                                  variant="body2"
+                                  fontWeight={800}
+                                  color={Number(mov.dias) >= 0 ? "success.main" : "warning.main"}
+                                >
+                                  {Number(mov.dias) >= 0 ? "+" : ""}{formatDecimalDays(mov.dias)}
+                                </Typography>
+                              </TableCell>
+                              <TableCell sx={{ whiteSpace: "nowrap" }}>
+                                {formatDecimalDays(mov.saldoAntes)} → {formatDecimalDays(mov.saldoDespues)}
+                              </TableCell>
+                              <TableCell>
+                                <Stack spacing={0.25}>
+                                  <Typography variant="body2">
+                                    {mov.comentario || "—"}
+                                  </Typography>
+                                  {mov.referencia ? (
+                                    <Typography variant="caption" color="text.secondary">
+                                      Ref: {mov.referencia}
+                                    </Typography>
+                                  ) : null}
+                                  {mov.fechaInicioDisfrute || mov.fechaFinDisfrute ? (
+                                    <Typography variant="caption" color="text.secondary">
+                                      Disfrute: {formatDate(mov.fechaInicioDisfrute)} - {formatDate(mov.fechaFinDisfrute)}
+                                    </Typography>
+                                  ) : null}
+                                </Stack>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  )}
+                </Box>
+              </Stack>
+            ) : (
+              <EmptyPanel
+                title="Vacaciones no disponibles"
+                description="No fue posible cargar la información de vacaciones para este empleado."
+              />
+            )}
+          </SectionPanel>
 
           <SectionPanel
             title="Checklist documental"
@@ -1772,6 +2426,307 @@ export default function ExpedienteEmpleadoPage() {
           </SectionPanel>
         </Stack>
       </Box>
+
+      {canManageEmpleados ? (
+        <Dialog
+          open={generateVacationPeriodDialogOpen}
+          onClose={
+            savingVacationPeriod
+              ? undefined
+              : () => setGenerateVacationPeriodDialogOpen(false)
+          }
+          fullWidth
+          maxWidth="sm"
+        >
+          <DialogTitle>Generar periodo de vacaciones</DialogTitle>
+          <DialogContent dividers>
+            <Stack spacing={2} sx={{ pt: 1 }}>
+              <Alert severity="info">
+                Si dejas vacío el año de servicio, el sistema generará el periodo correspondiente según la fecha de ingreso y la política vigente.
+              </Alert>
+
+              <TextField
+                label="Año de servicio"
+                type="number"
+                value={generateVacationPeriodForm.anioServicio}
+                onChange={(e) =>
+                  setGenerateVacationPeriodForm((current) => ({
+                    ...current,
+                    anioServicio: e.target.value,
+                  }))
+                }
+                fullWidth
+                helperText="Opcional. Ejemplo: 1, 2, 3..."
+              />
+
+              <TextField
+                label="Comentario"
+                value={generateVacationPeriodForm.comentario}
+                onChange={(e) =>
+                  setGenerateVacationPeriodForm((current) => ({
+                    ...current,
+                    comentario: e.target.value,
+                  }))
+                }
+                fullWidth
+                multiline
+                minRows={3}
+              />
+            </Stack>
+          </DialogContent>
+          <DialogActions>
+            <Button
+              onClick={() => setGenerateVacationPeriodDialogOpen(false)}
+              disabled={savingVacationPeriod}
+              color="inherit"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => void handleGenerateVacationPeriodSubmit()}
+              variant="contained"
+              disabled={savingVacationPeriod}
+            >
+              {savingVacationPeriod ? "Generando..." : "Generar periodo"}
+            </Button>
+          </DialogActions>
+        </Dialog>
+      ) : null}
+
+      {canManageEmpleados ? (
+        <Dialog
+          open={vacationEnjoymentDialogOpen}
+          onClose={
+            savingVacationEnjoyment
+              ? undefined
+              : () => setVacationEnjoymentDialogOpen(false)
+          }
+          fullWidth
+          maxWidth="sm"
+        >
+          <DialogTitle>Registrar disfrute de vacaciones</DialogTitle>
+          <DialogContent dividers>
+            <Stack spacing={2} sx={{ pt: 1 }}>
+              <TextField
+                select
+                label="Periodo"
+                value={vacationEnjoymentForm.vacacionPeriodoId}
+                onChange={(e) =>
+                  setVacationEnjoymentForm((current) => ({
+                    ...current,
+                    vacacionPeriodoId: Number(e.target.value),
+                  }))
+                }
+                fullWidth
+              >
+                {vacacionesPeriodosAbiertos.map((periodo) => (
+                  <MenuItem key={periodo.id} value={periodo.id}>
+                    Año {periodo.anioServicio} · saldo {formatDecimalDays(periodo.saldo)} días
+                  </MenuItem>
+                ))}
+              </TextField>
+
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                <TextField
+                  label="Fecha inicio"
+                  type="date"
+                  value={vacationEnjoymentForm.fechaInicioDisfrute}
+                  onChange={(e) =>
+                    setVacationEnjoymentForm((current) => ({
+                      ...current,
+                      fechaInicioDisfrute: e.target.value,
+                    }))
+                  }
+                  fullWidth
+                  InputLabelProps={{ shrink: true }}
+                />
+
+                <TextField
+                  label="Fecha fin"
+                  type="date"
+                  value={vacationEnjoymentForm.fechaFinDisfrute}
+                  onChange={(e) =>
+                    setVacationEnjoymentForm((current) => ({
+                      ...current,
+                      fechaFinDisfrute: e.target.value,
+                    }))
+                  }
+                  fullWidth
+                  InputLabelProps={{ shrink: true }}
+                />
+              </Stack>
+
+              <TextField
+                label="Días"
+                type="number"
+                value={vacationEnjoymentForm.dias}
+                onChange={(e) =>
+                  setVacationEnjoymentForm((current) => ({
+                    ...current,
+                    dias: e.target.value,
+                  }))
+                }
+                fullWidth
+                helperText="Captura días hábiles o días que RH determine descontar."
+              />
+
+              <TextField
+                label="Referencia"
+                value={vacationEnjoymentForm.referencia}
+                onChange={(e) =>
+                  setVacationEnjoymentForm((current) => ({
+                    ...current,
+                    referencia: e.target.value,
+                  }))
+                }
+                fullWidth
+              />
+
+              <TextField
+                label="Comentario"
+                value={vacationEnjoymentForm.comentario}
+                onChange={(e) =>
+                  setVacationEnjoymentForm((current) => ({
+                    ...current,
+                    comentario: e.target.value,
+                  }))
+                }
+                fullWidth
+                multiline
+                minRows={3}
+              />
+            </Stack>
+          </DialogContent>
+          <DialogActions>
+            <Button
+              onClick={() => setVacationEnjoymentDialogOpen(false)}
+              disabled={savingVacationEnjoyment}
+              color="inherit"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => void handleVacationEnjoymentSubmit()}
+              variant="contained"
+              disabled={savingVacationEnjoyment}
+            >
+              {savingVacationEnjoyment ? "Guardando..." : "Registrar disfrute"}
+            </Button>
+          </DialogActions>
+        </Dialog>
+      ) : null}
+
+      {canManageEmpleados ? (
+        <Dialog
+          open={vacationAdjustmentDialogOpen}
+          onClose={
+            savingVacationAdjustment
+              ? undefined
+              : () => setVacationAdjustmentDialogOpen(false)
+          }
+          fullWidth
+          maxWidth="sm"
+        >
+          <DialogTitle>Registrar ajuste de vacaciones</DialogTitle>
+          <DialogContent dividers>
+            <Stack spacing={2} sx={{ pt: 1 }}>
+              <Alert severity="warning">
+                Usa días positivos para sumar saldo y negativos para descontarlo. Todo ajuste queda en el kárdex.
+              </Alert>
+
+              <TextField
+                select
+                label="Periodo"
+                value={vacationAdjustmentForm.vacacionPeriodoId}
+                onChange={(e) =>
+                  setVacationAdjustmentForm((current) => ({
+                    ...current,
+                    vacacionPeriodoId: Number(e.target.value),
+                  }))
+                }
+                fullWidth
+              >
+                {vacacionesPeriodosAbiertos.map((periodo) => (
+                  <MenuItem key={periodo.id} value={periodo.id}>
+                    Año {periodo.anioServicio} · saldo {formatDecimalDays(periodo.saldo)} días
+                  </MenuItem>
+                ))}
+              </TextField>
+
+              <TextField
+                label="Fecha movimiento"
+                type="date"
+                value={vacationAdjustmentForm.fechaMovimiento}
+                onChange={(e) =>
+                  setVacationAdjustmentForm((current) => ({
+                    ...current,
+                    fechaMovimiento: e.target.value,
+                  }))
+                }
+                fullWidth
+                InputLabelProps={{ shrink: true }}
+                helperText="Opcional. Si se deja vacío, se toma la fecha actual."
+              />
+
+              <TextField
+                label="Días de ajuste"
+                type="number"
+                value={vacationAdjustmentForm.dias}
+                onChange={(e) =>
+                  setVacationAdjustmentForm((current) => ({
+                    ...current,
+                    dias: e.target.value,
+                  }))
+                }
+                fullWidth
+                helperText="Ejemplo: 1.5 para sumar; -1 para descontar."
+              />
+
+              <TextField
+                label="Referencia"
+                value={vacationAdjustmentForm.referencia}
+                onChange={(e) =>
+                  setVacationAdjustmentForm((current) => ({
+                    ...current,
+                    referencia: e.target.value,
+                  }))
+                }
+                fullWidth
+              />
+
+              <TextField
+                label="Comentario"
+                value={vacationAdjustmentForm.comentario}
+                onChange={(e) =>
+                  setVacationAdjustmentForm((current) => ({
+                    ...current,
+                    comentario: e.target.value,
+                  }))
+                }
+                fullWidth
+                multiline
+                minRows={3}
+              />
+            </Stack>
+          </DialogContent>
+          <DialogActions>
+            <Button
+              onClick={() => setVacationAdjustmentDialogOpen(false)}
+              disabled={savingVacationAdjustment}
+              color="inherit"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => void handleVacationAdjustmentSubmit()}
+              variant="contained"
+              disabled={savingVacationAdjustment}
+            >
+              {savingVacationAdjustment ? "Guardando..." : "Registrar ajuste"}
+            </Button>
+          </DialogActions>
+        </Dialog>
+      ) : null}
 
       <Dialog
         open={uploadDialogOpen}
