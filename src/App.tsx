@@ -21,6 +21,7 @@ import CumpleaniosPage from "./pages/CumpleaniosPage";
 import VacacionesImportacionPage from "./pages/VacacionesImportacionPage";
 import VacacionesConciliacionPage from "./pages/VacacionesConciliacionPage";
 import VacacionesSaldosReportePage from "./pages/VacacionesSaldosReportePage";
+import VacacionesKardexReportePage from "./pages/VacacionesKardexReportePage";
 
 import RequireAuth from "./features/auth/RequireAuth";
 import RoleGuard from "./features/auth/RoleGuard";
@@ -246,6 +247,19 @@ export default function App() {
         />
 
         <Route
+          path="vacaciones/reportes/kardex"
+          element={
+            <RoleGuard
+              isAuthenticated={isAuthenticated}
+              userRoles={roles}
+              allow={VACACIONES_ROLES}
+            >
+              <VacacionesKardexReportePage />
+            </RoleGuard>
+          }
+        />
+
+        <Route
           path="reclutamiento"
           element={
             <RoleGuard
@@ -304,4 +318,3 @@ export default function App() {
     </Routes>
   );
 }
-

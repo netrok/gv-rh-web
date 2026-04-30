@@ -64,6 +64,80 @@ export type VacacionesSaldosReporteResult = {
   items: VacacionesSaldosReporteRow[];
 };
 
+export type VacacionesKardexReporteQuery = {
+  sucursalId?: number | null;
+  departamentoId?: number | null;
+  puestoId?: number | null;
+  empleadoId?: number | null;
+  estatusLaboral?: string | null;
+  tipoMovimiento?: string | null;
+  origen?: string | null;
+  fechaDesde?: string | null;
+  fechaHasta?: string | null;
+  soloActivos?: boolean | null;
+  search?: string | null;
+};
+
+export type VacacionesKardexReporteRow = {
+  movimientoId: number;
+
+  empleadoId: number;
+  numEmpleado: string;
+  nombreEmpleado: string;
+
+  sucursal?: string | null;
+  departamento?: string | null;
+  puesto?: string | null;
+
+  estatusLaboral: string;
+  activo: boolean;
+
+  vacacionPeriodoId: number;
+  anioServicio: number;
+
+  periodoFechaInicio: string;
+  periodoFechaFin: string;
+
+  tipoMovimiento: string;
+
+  fechaMovimiento: string;
+
+  fechaInicioDisfrute?: string | null;
+  fechaFinDisfrute?: string | null;
+
+  dias: number;
+  saldoAntes: number;
+  saldoDespues: number;
+
+  referencia?: string | null;
+  comentario?: string | null;
+
+  usuarioResponsableId?: number | null;
+  usuarioResponsable?: string | null;
+
+  origen?: string | null;
+
+  importacionArchivo?: string | null;
+  importacionHoja?: string | null;
+  importacionFila?: number | null;
+
+  createdAtUtc: string;
+};
+
+export type VacacionesKardexReporteResult = {
+  totalMovimientos: number;
+
+  totalDiasPositivos: number;
+  totalDiasNegativos: number;
+  balanceDias: number;
+
+  movimientosDisfrute: number;
+  movimientosAjuste: number;
+  movimientosImportacion: number;
+
+  items: VacacionesKardexReporteRow[];
+};
+
 function appendIfValue(
   params: URLSearchParams,
   key: string,
@@ -86,6 +160,26 @@ function buildVacacionesSaldosParams(
   appendIfValue(params, "fechaCorte", query?.fechaCorte ?? null);
   appendIfValue(params, "soloConSaldo", query?.soloConSaldo ?? null);
   appendIfValue(params, "soloVencidos", query?.soloVencidos ?? null);
+  appendIfValue(params, "soloActivos", query?.soloActivos ?? null);
+  appendIfValue(params, "search", query?.search ?? null);
+
+  return params;
+}
+
+function buildVacacionesKardexParams(
+  query?: VacacionesKardexReporteQuery
+): URLSearchParams {
+  const params = new URLSearchParams();
+
+  appendIfValue(params, "sucursalId", query?.sucursalId ?? null);
+  appendIfValue(params, "departamentoId", query?.departamentoId ?? null);
+  appendIfValue(params, "puestoId", query?.puestoId ?? null);
+  appendIfValue(params, "empleadoId", query?.empleadoId ?? null);
+  appendIfValue(params, "estatusLaboral", query?.estatusLaboral ?? null);
+  appendIfValue(params, "tipoMovimiento", query?.tipoMovimiento ?? null);
+  appendIfValue(params, "origen", query?.origen ?? null);
+  appendIfValue(params, "fechaDesde", query?.fechaDesde ?? null);
+  appendIfValue(params, "fechaHasta", query?.fechaHasta ?? null);
   appendIfValue(params, "soloActivos", query?.soloActivos ?? null);
   appendIfValue(params, "search", query?.search ?? null);
 
@@ -180,6 +274,61 @@ export async function exportVacacionesSaldosPdf(
   downloadBlobFile(response.data, fileName);
 }
 
+export async function getVacacionesKardexReporte(
+  query?: VacacionesKardexReporteQuery
+): Promise<VacacionesKardexReporteResult> {
+  const params = buildVacacionesKardexParams(query);
+
+  const { data } = await api.get<VacacionesKardexReporteResult>(
+    "/api/Vacaciones/reportes/kardex",
+    { params }
+  );
+
+  return data;
+}
+
+export async function exportVacacionesKardexXlsx(
+  query?: VacacionesKardexReporteQuery
+): Promise<void> {
+  const params = buildVacacionesKardexParams(query);
+
+  const response = await api.get<Blob>(
+    "/api/Vacaciones/reportes/kardex/export/xlsx",
+    {
+      params,
+      responseType: "blob",
+    }
+  );
+
+  const fileName = getFileNameFromDisposition(
+    response.headers["content-disposition"],
+    "vacaciones_kardex.xlsx"
+  );
+
+  downloadBlobFile(response.data, fileName);
+}
+
+export async function exportVacacionesKardexPdf(
+  query?: VacacionesKardexReporteQuery
+): Promise<void> {
+  const params = buildVacacionesKardexParams(query);
+
+  const response = await api.get<Blob>(
+    "/api/Vacaciones/reportes/kardex/export/pdf",
+    {
+      params,
+      responseType: "blob",
+    }
+  );
+
+  const fileName = getFileNameFromDisposition(
+    response.headers["content-disposition"],
+    "vacaciones_kardex.pdf"
+  );
+
+  downloadBlobFile(response.data, fileName);
+}
+
 export function getEstatusLaboralLabel(value?: string | null): string {
   switch ((value ?? "").toUpperCase()) {
     case "ACTIVO":
@@ -205,5 +354,30 @@ export function getEstatusPeriodoLabel(value?: string | null): string {
       return "Cancelado";
     default:
       return value || "Sin estatus";
+  }
+}
+
+export function getTipoMovimientoVacacionLabel(value?: string | null): string {
+  switch ((value ?? "").toUpperCase()) {
+    case "SALDO_INICIAL":
+      return "Saldo inicial";
+    case "APERTURA":
+      return "Apertura";
+    case "DISFRUTE":
+      return "Disfrute";
+    case "PAGO_DIAS":
+      return "Pago de días";
+    case "AJUSTE_POSITIVO":
+      return "Ajuste positivo";
+    case "AJUSTE_NEGATIVO":
+      return "Ajuste negativo";
+    case "CANCELACION":
+      return "Cancelación";
+    case "VENCIMIENTO":
+      return "Vencimiento";
+    case "PAGO_PRIMA":
+      return "Pago de prima";
+    default:
+      return value || "Sin tipo";
   }
 }

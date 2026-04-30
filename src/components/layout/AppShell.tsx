@@ -274,6 +274,10 @@ function getPageTitle(pathname: string) {
   if (pathname.startsWith("/incidencias")) return "Incidencias";
   if (pathname.startsWith("/puestos")) return "Puestos";
 
+  if (pathname.startsWith("/vacaciones/reportes/kardex")) {
+    return "Reporte de kárdex";
+  }
+
   if (pathname.startsWith("/vacaciones/reportes/saldos")) {
     return "Reporte de saldos";
   }
@@ -312,6 +316,10 @@ function getPageSubtitle(pathname: string) {
   }
 
   if (pathname.startsWith("/puestos")) return "Catálogo de puestos y jerarquías";
+
+  if (pathname.startsWith("/vacaciones/reportes/kardex")) {
+    return "Auditoría de movimientos, saldos y origen";
+  }
 
   if (pathname.startsWith("/vacaciones/reportes/saldos")) {
     return "Saldos disponibles, vencidos y acumulados";
@@ -353,6 +361,10 @@ function getPageSubtitle(pathname: string) {
 }
 
 function getPageBreadcrumb(pathname: string) {
+  if (pathname.startsWith("/vacaciones/reportes/kardex")) {
+    return ["Vacaciones", "Reporte de kárdex"];
+  }
+
   if (pathname.startsWith("/vacaciones/reportes/saldos")) {
     return ["Vacaciones", "Reporte de saldos"];
   }
@@ -538,6 +550,9 @@ function SidebarContent({
   );
   const isVacacionesSaldosRoute = pathname.startsWith(
     "/vacaciones/reportes/saldos"
+  );
+  const isVacacionesKardexRoute = pathname.startsWith(
+    "/vacaciones/reportes/kardex"
   );
 
   const [reclutamientoOpen, setReclutamientoOpen] =
@@ -984,6 +999,49 @@ function SidebarContent({
                               primaryTypographyProps={{
                                 fontSize: "0.93rem",
                                 fontWeight: isVacacionesSaldosRoute ? 800 : 600,
+                              }}
+                            />
+                          </ListItemButton>
+
+                          <ListItemButton
+                            component={RouterLink}
+                            to="/vacaciones/reportes/kardex"
+                            onClick={onNavigate}
+                            sx={subNavButtonSx(isVacacionesKardexRoute)}
+                          >
+                            <ListItemIcon
+                              sx={{
+                                minWidth: 34,
+                                color: isVacacionesKardexRoute
+                                  ? "#ffffff"
+                                  : alpha("#ffffff", 0.78),
+                              }}
+                            >
+                              <Box
+                                sx={{
+                                  width: 26,
+                                  height: 26,
+                                  borderRadius: "9px",
+                                  display: "grid",
+                                  placeItems: "center",
+                                  backgroundColor: isVacacionesKardexRoute
+                                    ? alpha("#ffffff", 0.1)
+                                    : alpha("#ffffff", 0.05),
+                                  border: `1px solid ${alpha(
+                                    "#ffffff",
+                                    isVacacionesKardexRoute ? 0.1 : 0.05
+                                  )}`,
+                                }}
+                              >
+                                <FactCheckRoundedIcon sx={{ fontSize: 17 }} />
+                              </Box>
+                            </ListItemIcon>
+
+                            <ListItemText
+                              primary="Reporte de kárdex"
+                              primaryTypographyProps={{
+                                fontSize: "0.93rem",
+                                fontWeight: isVacacionesKardexRoute ? 800 : 600,
                               }}
                             />
                           </ListItemButton>
