@@ -72,13 +72,13 @@ type NavItem = {
 
 type NavEntry =
   | {
-    type: "item";
-    item: NavItem;
-  }
+      type: "item";
+      item: NavItem;
+    }
   | {
-    type: "recruitment";
-    allow?: string[];
-  };
+      type: "recruitment";
+      allow?: string[];
+    };
 
 type NavSection = {
   title: string;
@@ -180,6 +180,15 @@ function buildNavSections(roles?: string[] | null): NavSection[] {
         {
           type: "item",
           item: {
+            label: "Conciliar vacaciones",
+            to: "/vacaciones/conciliacion",
+            icon: <FactCheckRoundedIcon />,
+            allow: ["ADMIN", "RRHH"],
+          },
+        },
+        {
+          type: "item",
+          item: {
             label: "Importar vacaciones",
             to: "/vacaciones/importacion",
             icon: <UploadFileRoundedIcon />,
@@ -267,6 +276,9 @@ function getPageTitle(pathname: string) {
   if (pathname.startsWith("/empleados")) return "Empleados";
   if (pathname.startsWith("/incidencias")) return "Incidencias";
   if (pathname.startsWith("/puestos")) return "Puestos";
+  if (pathname.startsWith("/vacaciones/conciliacion")) {
+    return "Conciliar vacaciones";
+  }
   if (pathname.startsWith("/vacaciones/importacion")) return "Importar saldos";
   if (pathname === "/reclutamiento") return "Resumen ejecutivo";
   if (pathname.startsWith("/reclutamiento/candidatos")) return "Candidatos";
@@ -289,6 +301,9 @@ function getPageSubtitle(pathname: string) {
     return "Control administrativo de incidencias";
   }
   if (pathname.startsWith("/puestos")) return "Catálogo de puestos y jerarquías";
+  if (pathname.startsWith("/vacaciones/conciliacion")) {
+    return "Cruce de empleados del Excel contra GV RH";
+  }
   if (pathname.startsWith("/vacaciones/importacion")) {
     return "Carga controlada de saldos iniciales desde Excel de nóminas";
   }
@@ -314,6 +329,9 @@ function getPageSubtitle(pathname: string) {
 }
 
 function getPageBreadcrumb(pathname: string) {
+  if (pathname.startsWith("/vacaciones/conciliacion")) {
+    return ["Vacaciones", "Conciliación"];
+  }
   if (pathname.startsWith("/vacaciones/importacion")) {
     return ["Vacaciones", "Importación Excel"];
   }
@@ -387,7 +405,10 @@ function getPageHeaderMeta(pathname: string): {
       icon: <BadgeRoundedIcon sx={{ fontSize: 16 }} />,
     };
   }
-  if (pathname.startsWith("/vacaciones/importacion")) {
+  if (
+    pathname.startsWith("/vacaciones/conciliacion") ||
+    pathname.startsWith("/vacaciones/importacion")
+  ) {
     return {
       label: "Vacaciones",
       icon: <UploadFileRoundedIcon sx={{ fontSize: 16 }} />,
@@ -466,7 +487,8 @@ function SidebarContent({
   const isCandidatosRoute = pathname.startsWith("/reclutamiento/candidatos");
   const isVacantesRoute = pathname.startsWith("/reclutamiento/vacantes");
 
-  const [reclutamientoOpen, setReclutamientoOpen] = useState(isRecruitmentRoute);
+  const [reclutamientoOpen, setReclutamientoOpen] =
+    useState(isRecruitmentRoute);
 
   useEffect(() => {
     if (isRecruitmentRoute) {
@@ -482,9 +504,9 @@ function SidebarContent({
     border: `1px solid ${active ? alpha("#ffffff", 0.16) : "transparent"}`,
     background: active
       ? `linear-gradient(90deg, ${alpha("#1e3a8a", 0.36)} 0%, ${alpha(
-        "#1e40af",
-        0.16
-      )} 100%)`
+          "#1e40af",
+          0.16
+        )} 100%)`
       : "transparent",
     "&:hover": {
       backgroundColor: alpha("#ffffff", 0.06),
@@ -511,9 +533,9 @@ function SidebarContent({
     border: `1px solid ${active ? alpha("#ffffff", 0.12) : "transparent"}`,
     background: active
       ? `linear-gradient(90deg, ${alpha("#1e3a8a", 0.28)} 0%, ${alpha(
-        "#1e40af",
-        0.12
-      )} 100%)`
+          "#1e40af",
+          0.12
+        )} 100%)`
       : "transparent",
     "&:hover": {
       backgroundColor: alpha("#ffffff", 0.05),
@@ -549,7 +571,9 @@ function SidebarContent({
           </Box>
 
           <Box sx={{ minWidth: 0 }}>
-            <Typography sx={{ fontSize: "1.75rem", fontWeight: 900, lineHeight: 1.1 }}>
+            <Typography
+              sx={{ fontSize: "1.75rem", fontWeight: 900, lineHeight: 1.1 }}
+            >
               GV RH
             </Typography>
             <Typography
@@ -571,10 +595,10 @@ function SidebarContent({
               borderRadius: "12px",
               px: 2,
               py: 1.75,
-              background: `linear-gradient(180deg, ${alpha("#ffffff", 0.06)} 0%, ${alpha(
+              background: `linear-gradient(180deg, ${alpha(
                 "#ffffff",
-                0.035
-              )} 100%)`,
+                0.06
+              )} 0%, ${alpha("#ffffff", 0.035)} 100%)`,
               border: `1px solid ${alpha("#ffffff", 0.08)}`,
             }}
           >
@@ -922,7 +946,7 @@ export default function AppShell({ children }: AppShellProps) {
   const auth = useAuth() as any;
   const user = auth?.user ?? null;
   const roles = auth?.roles ?? [];
-  const logout = auth?.logout ?? (() => { });
+  const logout = auth?.logout ?? (() => {});
   const primaryRole = normalizeRoles(roles)[0] ?? "USUARIO";
 
   const displayName = useMemo(() => getDisplayName(user), [user]);
@@ -1002,7 +1026,7 @@ export default function AppShell({ children }: AppShellProps) {
           )}
 
           <Box sx={{ minWidth: 0, flex: 1 }}>
-            {(showHeaderMeta || showBreadcrumb) ? (
+            {showHeaderMeta || showBreadcrumb ? (
               <Stack
                 direction="row"
                 spacing={1}

@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+﻿import { Navigate, Route, Routes } from "react-router-dom";
 import AppShell from "./components/layout/AppShell";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashBoardPage";
@@ -19,6 +19,7 @@ import CandidatosPage from "./pages/CandidatosPage";
 import VacanteDetallePage from "./pages/VacanteDetallePage";
 import CumpleaniosPage from "./pages/CumpleaniosPage";
 import VacacionesImportacionPage from "./pages/VacacionesImportacionPage";
+import VacacionesConciliacionPage from "./pages/VacacionesConciliacionPage";
 
 import RequireAuth from "./features/auth/RequireAuth";
 import RoleGuard from "./features/auth/RoleGuard";
@@ -200,6 +201,19 @@ export default function App() {
               allow={CUMPLEANIOS_ROLES}
             >
               <CumpleaniosPage />
+            </RoleGuard>
+          }
+        />
+
+        <Route
+          path="vacaciones/conciliacion"
+          element={
+            <RoleGuard
+              isAuthenticated={isAuthenticated}
+              userRoles={roles}
+              allow={VACACIONES_ROLES}
+            >
+              <VacacionesConciliacionPage />
             </RoleGuard>
           }
         />

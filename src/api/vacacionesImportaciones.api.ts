@@ -48,6 +48,64 @@ export type VacacionesLegacyImportPreview = {
   items: VacacionesLegacyImportPreviewItem[];
 };
 
+export type VacacionesLegacyConciliacionCandidato = {
+  empleadoId: number;
+  numEmpleado: string;
+  nombre: string;
+  rfc?: string | null;
+  nss?: string | null;
+  estatusLaboral: string;
+  puntaje: number;
+  motivos: string[];
+};
+
+export type VacacionesLegacyConciliacionItem = {
+  hoja: string;
+  filaReferencia?: number | null;
+
+  estado: "ENCONTRADO" | "NO_ENCONTRADO" | "POSIBLE_COINCIDENCIA" | string;
+  accionSugerida: string;
+
+  empleadoId?: number | null;
+
+  numEmpleadoExcel?: string | null;
+  nombreExcel?: string | null;
+  rfcExcel?: string | null;
+  nssExcel?: string | null;
+  puestoExcel?: string | null;
+  fechaIngresoExcel?: string | null;
+
+  numEmpleadoSistema?: string | null;
+  nombreSistema?: string | null;
+  rfcSistema?: string | null;
+  nssSistema?: string | null;
+  estatusLaboralSistema?: string | null;
+
+  saldoExcel?: number | null;
+  saldoSistemaActual?: number | null;
+  diferenciaSaldo?: number | null;
+
+  tienePeriodoSistema: boolean;
+  puedeImportar: boolean;
+
+  error?: string | null;
+  observacionesOriginales?: string | null;
+
+  diferencias: string[];
+  posiblesCoincidencias: VacacionesLegacyConciliacionCandidato[];
+};
+
+export type VacacionesLegacyConciliacion = {
+  archivo: string;
+  totalItemsPreview: number;
+  encontrados: number;
+  noEncontrados: number;
+  posiblesCoincidencias: number;
+  conDiferencias: number;
+  advertencias: string[];
+  items: VacacionesLegacyConciliacionItem[];
+};
+
 export type VacacionesLegacyImportConfirmItem = {
   hoja: string;
   empleadoId?: number | null;
@@ -85,20 +143,41 @@ export type ConfirmarImportacionVacacionesParams = {
   comentario?: string;
 };
 
+function createExcelFormData(archivo: File): FormData {
+  const formData = new FormData();
+  formData.append("Archivo", archivo);
+  return formData;
+}
+
+const multipartHeaders = {
+  headers: {
+    "Content-Type": "multipart/form-data",
+  },
+};
+
 export async function previewVacacionesLegacyExcel(
   archivo: File
 ): Promise<VacacionesLegacyImportPreview> {
-  const formData = new FormData();
-  formData.append("Archivo", archivo);
+  const formData = createExcelFormData(archivo);
 
   const { data } = await api.post<VacacionesLegacyImportPreview>(
     "/api/Vacaciones/importaciones/legacy-excel/preview",
     formData,
-    {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    }
+    multipartHeaders
+  );
+
+  return data;
+}
+
+export async function conciliarVacacionesLegacyExcel(
+  archivo: File
+): Promise<VacacionesLegacyConciliacion> {
+  const formData = createExcelFormData(archivo);
+
+  const { data } = await api.post<VacacionesLegacyConciliacion>(
+    "/api/Vacaciones/importaciones/legacy-excel/conciliar",
+    formData,
+    multipartHeaders
   );
 
   return data;
@@ -111,9 +190,8 @@ export async function confirmarVacacionesLegacyExcel({
   permitirSaldosNegativos = false,
   comentario,
 }: ConfirmarImportacionVacacionesParams): Promise<VacacionesLegacyImportConfirmResult> {
-  const formData = new FormData();
+  const formData = createExcelFormData(archivo);
 
-  formData.append("Archivo", archivo);
   formData.append("EmpleadoIds", empleadoIds.join(","));
   formData.append("ImportarTodosElegibles", String(importarTodosElegibles));
   formData.append("PermitirSaldosNegativos", String(permitirSaldosNegativos));
@@ -125,14 +203,23 @@ export async function confirmarVacacionesLegacyExcel({
   const { data } = await api.post<VacacionesLegacyImportConfirmResult>(
     "/api/Vacaciones/importaciones/legacy-excel/confirmar",
     formData,
-    {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    }
+    multipartHeaders
   );
 
   return data;
+}
+
+export function getEstadoConciliacionLabel(value?: string | null): string {
+  switch (value) {
+    case "ENCONTRADO":
+      return "Encontrado";
+    case "NO_ENCONTRADO":
+      return "No encontrado";
+    case "POSIBLE_COINCIDENCIA":
+      return "Posible coincidencia";
+    default:
+      return value || "Sin estado";
+  }
 }
 
 export function getAccionImportacionVacacionesLabel(value?: string | null): string {
