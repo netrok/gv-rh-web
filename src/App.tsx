@@ -18,6 +18,7 @@ import VacantesPage from "./pages/VacantesPage";
 import CandidatosPage from "./pages/CandidatosPage";
 import VacanteDetallePage from "./pages/VacanteDetallePage";
 import CumpleaniosPage from "./pages/CumpleaniosPage";
+import VacacionesImportacionPage from "./pages/VacacionesImportacionPage";
 
 import RequireAuth from "./features/auth/RequireAuth";
 import RoleGuard from "./features/auth/RoleGuard";
@@ -28,6 +29,7 @@ const EMPLEADOS_ROLES = ["ADMIN", "RRHH", "JEFE", "CONSULTA"];
 const INCIDENCIAS_ROLES = ["ADMIN", "RRHH", "JEFE", "EMPLEADO"];
 const CUMPLEANIOS_ROLES = ["ADMIN", "RRHH", "JEFE", "CONSULTA", "EMPLEADO"];
 const RECLUTAMIENTO_ROLES = ["ADMIN", "RRHH"];
+const VACACIONES_ROLES = ["ADMIN", "RRHH"];
 
 export default function App() {
   const { isAuthenticated, roles = [], mustChangePassword } = useAuth();
@@ -169,7 +171,7 @@ export default function App() {
             <RoleGuard
               isAuthenticated={isAuthenticated}
               userRoles={roles}
-              allow={["ADMIN", "RRHH", "EMPLEADO"]}
+              allow={["ADMIN", "RRHH"]}
             >
               <ExpedienteEmpleadoPage />
             </RoleGuard>
@@ -198,6 +200,19 @@ export default function App() {
               allow={CUMPLEANIOS_ROLES}
             >
               <CumpleaniosPage />
+            </RoleGuard>
+          }
+        />
+
+        <Route
+          path="vacaciones/importacion"
+          element={
+            <RoleGuard
+              isAuthenticated={isAuthenticated}
+              userRoles={roles}
+              allow={VACACIONES_ROLES}
+            >
+              <VacacionesImportacionPage />
             </RoleGuard>
           }
         />

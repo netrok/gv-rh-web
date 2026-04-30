@@ -46,6 +46,7 @@ import WorkOutlineRoundedIcon from "@mui/icons-material/WorkOutlineRounded";
 import PersonSearchRoundedIcon from "@mui/icons-material/PersonSearchRounded";
 import BusinessCenterRoundedIcon from "@mui/icons-material/BusinessCenterRounded";
 import CelebrationRoundedIcon from "@mui/icons-material/CelebrationRounded";
+import UploadFileRoundedIcon from "@mui/icons-material/UploadFileRounded";
 import ExpandLessRoundedIcon from "@mui/icons-material/ExpandLessRounded";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
@@ -177,6 +178,15 @@ function buildNavSections(roles?: string[] | null): NavSection[] {
           },
         },
         {
+          type: "item",
+          item: {
+            label: "Importar vacaciones",
+            to: "/vacaciones/importacion",
+            icon: <UploadFileRoundedIcon />,
+            allow: ["ADMIN", "RRHH"],
+          },
+        },
+        {
           type: "recruitment",
           allow: ["ADMIN", "RRHH"],
         },
@@ -257,6 +267,7 @@ function getPageTitle(pathname: string) {
   if (pathname.startsWith("/empleados")) return "Empleados";
   if (pathname.startsWith("/incidencias")) return "Incidencias";
   if (pathname.startsWith("/puestos")) return "Puestos";
+  if (pathname.startsWith("/vacaciones/importacion")) return "Importar saldos";
   if (pathname === "/reclutamiento") return "Resumen ejecutivo";
   if (pathname.startsWith("/reclutamiento/candidatos")) return "Candidatos";
   if (pathname.startsWith("/reclutamiento/vacantes")) return "Vacantes";
@@ -278,6 +289,9 @@ function getPageSubtitle(pathname: string) {
     return "Control administrativo de incidencias";
   }
   if (pathname.startsWith("/puestos")) return "Catálogo de puestos y jerarquías";
+  if (pathname.startsWith("/vacaciones/importacion")) {
+    return "Carga controlada de saldos iniciales desde Excel de nóminas";
+  }
   if (pathname === "/reclutamiento") {
     return "Vista ejecutiva del módulo de reclutamiento";
   }
@@ -300,6 +314,9 @@ function getPageSubtitle(pathname: string) {
 }
 
 function getPageBreadcrumb(pathname: string) {
+  if (pathname.startsWith("/vacaciones/importacion")) {
+    return ["Vacaciones", "Importación Excel"];
+  }
   if (pathname === "/reclutamiento") {
     return ["Reclutamiento", "Resumen"];
   }
@@ -368,6 +385,12 @@ function getPageHeaderMeta(pathname: string): {
     return {
       label: "Puestos",
       icon: <BadgeRoundedIcon sx={{ fontSize: 16 }} />,
+    };
+  }
+  if (pathname.startsWith("/vacaciones/importacion")) {
+    return {
+      label: "Vacaciones",
+      icon: <UploadFileRoundedIcon sx={{ fontSize: 16 }} />,
     };
   }
   if (pathname.startsWith("/reclutamiento")) {
