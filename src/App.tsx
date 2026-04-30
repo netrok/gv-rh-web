@@ -20,6 +20,7 @@ import VacanteDetallePage from "./pages/VacanteDetallePage";
 import CumpleaniosPage from "./pages/CumpleaniosPage";
 import VacacionesImportacionPage from "./pages/VacacionesImportacionPage";
 import VacacionesConciliacionPage from "./pages/VacacionesConciliacionPage";
+import VacacionesSaldosReportePage from "./pages/VacacionesSaldosReportePage";
 
 import RequireAuth from "./features/auth/RequireAuth";
 import RoleGuard from "./features/auth/RoleGuard";
@@ -232,6 +233,19 @@ export default function App() {
         />
 
         <Route
+          path="vacaciones/reportes/saldos"
+          element={
+            <RoleGuard
+              isAuthenticated={isAuthenticated}
+              userRoles={roles}
+              allow={VACACIONES_ROLES}
+            >
+              <VacacionesSaldosReportePage />
+            </RoleGuard>
+          }
+        />
+
+        <Route
           path="reclutamiento"
           element={
             <RoleGuard
@@ -290,3 +304,4 @@ export default function App() {
     </Routes>
   );
 }
+

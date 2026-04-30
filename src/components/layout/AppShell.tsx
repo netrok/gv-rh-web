@@ -47,6 +47,7 @@ import PersonSearchRoundedIcon from "@mui/icons-material/PersonSearchRounded";
 import BusinessCenterRoundedIcon from "@mui/icons-material/BusinessCenterRounded";
 import CelebrationRoundedIcon from "@mui/icons-material/CelebrationRounded";
 import UploadFileRoundedIcon from "@mui/icons-material/UploadFileRounded";
+import TableViewRoundedIcon from "@mui/icons-material/TableViewRounded";
 import ExpandLessRoundedIcon from "@mui/icons-material/ExpandLessRounded";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
@@ -273,6 +274,10 @@ function getPageTitle(pathname: string) {
   if (pathname.startsWith("/incidencias")) return "Incidencias";
   if (pathname.startsWith("/puestos")) return "Puestos";
 
+  if (pathname.startsWith("/vacaciones/reportes/saldos")) {
+    return "Reporte de saldos";
+  }
+
   if (pathname.startsWith("/vacaciones/conciliacion")) {
     return "Validar Excel";
   }
@@ -307,6 +312,10 @@ function getPageSubtitle(pathname: string) {
   }
 
   if (pathname.startsWith("/puestos")) return "Catálogo de puestos y jerarquías";
+
+  if (pathname.startsWith("/vacaciones/reportes/saldos")) {
+    return "Saldos disponibles, vencidos y acumulados";
+  }
 
   if (pathname.startsWith("/vacaciones/conciliacion")) {
     return "Cruce previo de empleados contra GV RH";
@@ -344,6 +353,10 @@ function getPageSubtitle(pathname: string) {
 }
 
 function getPageBreadcrumb(pathname: string) {
+  if (pathname.startsWith("/vacaciones/reportes/saldos")) {
+    return ["Vacaciones", "Reporte de saldos"];
+  }
+
   if (pathname.startsWith("/vacaciones/conciliacion")) {
     return ["Vacaciones", "Validación"];
   }
@@ -522,6 +535,9 @@ function SidebarContent({
   );
   const isVacacionesImportacionRoute = pathname.startsWith(
     "/vacaciones/importacion"
+  );
+  const isVacacionesSaldosRoute = pathname.startsWith(
+    "/vacaciones/reportes/saldos"
   );
 
   const [reclutamientoOpen, setReclutamientoOpen] =
@@ -925,6 +941,49 @@ function SidebarContent({
                                 fontWeight: isVacacionesImportacionRoute
                                   ? 800
                                   : 600,
+                              }}
+                            />
+                          </ListItemButton>
+
+                          <ListItemButton
+                            component={RouterLink}
+                            to="/vacaciones/reportes/saldos"
+                            onClick={onNavigate}
+                            sx={subNavButtonSx(isVacacionesSaldosRoute)}
+                          >
+                            <ListItemIcon
+                              sx={{
+                                minWidth: 34,
+                                color: isVacacionesSaldosRoute
+                                  ? "#ffffff"
+                                  : alpha("#ffffff", 0.78),
+                              }}
+                            >
+                              <Box
+                                sx={{
+                                  width: 26,
+                                  height: 26,
+                                  borderRadius: "9px",
+                                  display: "grid",
+                                  placeItems: "center",
+                                  backgroundColor: isVacacionesSaldosRoute
+                                    ? alpha("#ffffff", 0.1)
+                                    : alpha("#ffffff", 0.05),
+                                  border: `1px solid ${alpha(
+                                    "#ffffff",
+                                    isVacacionesSaldosRoute ? 0.1 : 0.05
+                                  )}`,
+                                }}
+                              >
+                                <TableViewRoundedIcon sx={{ fontSize: 17 }} />
+                              </Box>
+                            </ListItemIcon>
+
+                            <ListItemText
+                              primary="Reporte de saldos"
+                              primaryTypographyProps={{
+                                fontSize: "0.93rem",
+                                fontWeight: isVacacionesSaldosRoute ? 800 : 600,
                               }}
                             />
                           </ListItemButton>
