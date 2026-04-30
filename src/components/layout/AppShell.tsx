@@ -1,4 +1,4 @@
-import {
+﻿import {
   useEffect,
   useMemo,
   useState,
@@ -78,6 +78,10 @@ type NavEntry =
   | {
       type: "recruitment";
       allow?: string[];
+    }
+  | {
+      type: "vacations";
+      allow?: string[];
     };
 
 type NavSection = {
@@ -93,6 +97,7 @@ function normalizeRoles(roles?: string[] | null) {
 
 function hasSomeRole(roles?: string[] | null, allowed?: string[]) {
   if (!allowed || allowed.length === 0) return true;
+
   const current = normalizeRoles(roles);
   return allowed.some((role) => current.includes(role.toUpperCase()));
 }
@@ -114,10 +119,14 @@ function getDisplayEmail(user: any) {
 
 function getInitials(text: string) {
   const clean = text.trim();
+
   if (!clean) return "U";
 
   const parts = clean.split(/\s+/).filter(Boolean);
-  if (parts.length === 1) return parts[0].slice(0, 1).toUpperCase();
+
+  if (parts.length === 1) {
+    return parts[0].slice(0, 1).toUpperCase();
+  }
 
   return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
 }
@@ -178,22 +187,8 @@ function buildNavSections(roles?: string[] | null): NavSection[] {
           },
         },
         {
-          type: "item",
-          item: {
-            label: "Conciliar vacaciones",
-            to: "/vacaciones/conciliacion",
-            icon: <FactCheckRoundedIcon />,
-            allow: ["ADMIN", "RRHH"],
-          },
-        },
-        {
-          type: "item",
-          item: {
-            label: "Importar vacaciones",
-            to: "/vacaciones/importacion",
-            icon: <UploadFileRoundedIcon />,
-            allow: ["ADMIN", "RRHH"],
-          },
+          type: "vacations",
+          allow: ["ADMIN", "RRHH"],
         },
         {
           type: "recruitment",
@@ -265,6 +260,7 @@ function buildNavSections(roles?: string[] | null): NavSection[] {
 
 function isRouteActive(pathname: string, to: string) {
   if (to === "/dashboard") return pathname === "/dashboard";
+
   return pathname === to || pathname.startsWith(`${to}/`);
 }
 
@@ -276,77 +272,102 @@ function getPageTitle(pathname: string) {
   if (pathname.startsWith("/empleados")) return "Empleados";
   if (pathname.startsWith("/incidencias")) return "Incidencias";
   if (pathname.startsWith("/puestos")) return "Puestos";
+
   if (pathname.startsWith("/vacaciones/conciliacion")) {
-    return "Conciliar vacaciones";
+    return "Validar Excel";
   }
-  if (pathname.startsWith("/vacaciones/importacion")) return "Importar saldos";
+
+  if (pathname.startsWith("/vacaciones/importacion")) {
+    return "Importar saldos";
+  }
+
   if (pathname === "/reclutamiento") return "Resumen ejecutivo";
   if (pathname.startsWith("/reclutamiento/candidatos")) return "Candidatos";
   if (pathname.startsWith("/reclutamiento/vacantes")) return "Vacantes";
   if (pathname.startsWith("/reclutamiento")) return "Reclutamiento";
   if (pathname.startsWith("/sucursales")) return "Sucursales";
   if (pathname.startsWith("/usuarios")) return "Usuarios";
+
   return "GV RH";
 }
 
 function getPageSubtitle(pathname: string) {
   if (pathname.startsWith("/dashboard")) return "Vista general del sistema";
   if (pathname.startsWith("/audit")) return "Trazabilidad y control de movimientos";
+
   if (pathname.startsWith("/cumpleanios")) {
     return "Celebraciones y próximos cumpleaños del personal";
   }
+
   if (pathname.startsWith("/departamentos")) return "Estructura organizacional";
   if (pathname.startsWith("/empleados")) return "Gestión integral del personal";
+
   if (pathname.startsWith("/incidencias")) {
     return "Control administrativo de incidencias";
   }
+
   if (pathname.startsWith("/puestos")) return "Catálogo de puestos y jerarquías";
+
   if (pathname.startsWith("/vacaciones/conciliacion")) {
-    return "Cruce de empleados del Excel contra GV RH";
+    return "Cruce previo de empleados contra GV RH";
   }
+
   if (pathname.startsWith("/vacaciones/importacion")) {
-    return "Carga controlada de saldos iniciales desde Excel de nóminas";
+    return "Confirmación controlada de saldos iniciales";
   }
+
   if (pathname === "/reclutamiento") {
     return "Vista ejecutiva del módulo de reclutamiento";
   }
+
   if (pathname.startsWith("/reclutamiento/candidatos")) {
     return "Banco de talento y gestión de perfiles";
   }
+
   if (pathname.startsWith("/reclutamiento/vacantes")) {
     return "Vacantes y posiciones abiertas";
   }
+
   if (pathname.startsWith("/reclutamiento")) {
     return "Atracción y seguimiento de talento";
   }
+
   if (pathname.startsWith("/sucursales")) {
     return "Catálogo y operación de sucursales";
   }
+
   if (pathname.startsWith("/usuarios")) {
     return "Administración de accesos y cuentas";
   }
+
   return "Recursos Humanos";
 }
 
 function getPageBreadcrumb(pathname: string) {
   if (pathname.startsWith("/vacaciones/conciliacion")) {
-    return ["Vacaciones", "Conciliación"];
+    return ["Vacaciones", "Validación"];
   }
+
   if (pathname.startsWith("/vacaciones/importacion")) {
-    return ["Vacaciones", "Importación Excel"];
+    return ["Vacaciones", "Importación"];
   }
+
   if (pathname === "/reclutamiento") {
     return ["Reclutamiento", "Resumen"];
   }
+
   if (pathname.startsWith("/reclutamiento/candidatos")) {
     return ["Reclutamiento", "Candidatos"];
   }
+
   if (pathname.startsWith("/reclutamiento/vacantes")) {
     return ["Reclutamiento", "Vacantes"];
   }
+
   if (pathname.startsWith("/reclutamiento")) {
     return ["Reclutamiento"];
   }
+
   if (pathname.startsWith("/audit")) return ["Auditoría"];
   if (pathname.startsWith("/cumpleanios")) return ["Cumpleaños"];
   if (pathname.startsWith("/departamentos")) return ["Departamentos"];
@@ -356,6 +377,7 @@ function getPageBreadcrumb(pathname: string) {
   if (pathname.startsWith("/sucursales")) return ["Sucursales"];
   if (pathname.startsWith("/usuarios")) return ["Usuarios"];
   if (pathname.startsWith("/dashboard")) return ["Dashboard"];
+
   return ["GV RH"];
 }
 
@@ -369,63 +391,70 @@ function getPageHeaderMeta(pathname: string): {
       icon: <DashboardRoundedIcon sx={{ fontSize: 16 }} />,
     };
   }
+
   if (pathname.startsWith("/audit")) {
     return {
       label: "Auditoría",
       icon: <FactCheckRoundedIcon sx={{ fontSize: 16 }} />,
     };
   }
+
   if (pathname.startsWith("/cumpleanios")) {
     return {
       label: "Cumpleaños",
       icon: <CelebrationRoundedIcon sx={{ fontSize: 16 }} />,
     };
   }
+
   if (pathname.startsWith("/departamentos")) {
     return {
       label: "Departamentos",
       icon: <ApartmentRoundedIcon sx={{ fontSize: 16 }} />,
     };
   }
+
   if (pathname.startsWith("/empleados")) {
     return {
       label: "Empleados",
       icon: <Groups2RoundedIcon sx={{ fontSize: 16 }} />,
     };
   }
+
   if (pathname.startsWith("/incidencias")) {
     return {
       label: "Incidencias",
       icon: <EventBusyRoundedIcon sx={{ fontSize: 16 }} />,
     };
   }
+
   if (pathname.startsWith("/puestos")) {
     return {
       label: "Puestos",
       icon: <BadgeRoundedIcon sx={{ fontSize: 16 }} />,
     };
   }
-  if (
-    pathname.startsWith("/vacaciones/conciliacion") ||
-    pathname.startsWith("/vacaciones/importacion")
-  ) {
+
+  if (pathname.startsWith("/vacaciones")) {
     return {
       label: "Vacaciones",
       icon: <UploadFileRoundedIcon sx={{ fontSize: 16 }} />,
     };
   }
+
   if (pathname.startsWith("/reclutamiento")) {
     return {
       label: "Reclutamiento",
       icon: <BusinessCenterRoundedIcon sx={{ fontSize: 16 }} />,
     };
   }
+
   if (pathname.startsWith("/sucursales")) {
     return {
       label: "Sucursales",
       icon: <StoreRoundedIcon sx={{ fontSize: 16 }} />,
     };
   }
+
   if (pathname.startsWith("/usuarios")) {
     return {
       label: "Usuarios",
@@ -487,14 +516,29 @@ function SidebarContent({
   const isCandidatosRoute = pathname.startsWith("/reclutamiento/candidatos");
   const isVacantesRoute = pathname.startsWith("/reclutamiento/vacantes");
 
+  const isVacationsRoute = pathname.startsWith("/vacaciones");
+  const isVacacionesConciliacionRoute = pathname.startsWith(
+    "/vacaciones/conciliacion"
+  );
+  const isVacacionesImportacionRoute = pathname.startsWith(
+    "/vacaciones/importacion"
+  );
+
   const [reclutamientoOpen, setReclutamientoOpen] =
     useState(isRecruitmentRoute);
+  const [vacacionesOpen, setVacacionesOpen] = useState(isVacationsRoute);
 
   useEffect(() => {
     if (isRecruitmentRoute) {
       setReclutamientoOpen(true);
     }
   }, [isRecruitmentRoute]);
+
+  useEffect(() => {
+    if (isVacationsRoute) {
+      setVacacionesOpen(true);
+    }
+  }, [isVacationsRoute]);
 
   const navButtonSx = (active: boolean) => ({
     minHeight: 52,
@@ -746,6 +790,150 @@ function SidebarContent({
                   );
                 }
 
+                if (entry.type === "vacations") {
+                  return (
+                    <Box key={`${section.title}-vacations-${entryIndex}`}>
+                      <ListItemButton
+                        onClick={() => setVacacionesOpen((prev) => !prev)}
+                        sx={navButtonSx(isVacationsRoute)}
+                      >
+                        <ListItemIcon
+                          sx={{
+                            minWidth: 40,
+                            color: isVacationsRoute
+                              ? "#ffffff"
+                              : alpha("#ffffff", 0.82),
+                          }}
+                        >
+                          <Box sx={navIconWrapSx(isVacationsRoute)}>
+                            <UploadFileRoundedIcon />
+                          </Box>
+                        </ListItemIcon>
+
+                        <ListItemText
+                          primary="Vacaciones"
+                          primaryTypographyProps={{
+                            fontSize: "0.98rem",
+                            fontWeight: isVacationsRoute ? 800 : 700,
+                          }}
+                        />
+
+                        {vacacionesOpen ? (
+                          <ExpandLessRoundedIcon
+                            sx={{
+                              color: isVacationsRoute
+                                ? "#fff"
+                                : alpha("#ffffff", 0.55),
+                            }}
+                          />
+                        ) : (
+                          <ExpandMoreRoundedIcon
+                            sx={{
+                              color: isVacationsRoute
+                                ? "#fff"
+                                : alpha("#ffffff", 0.55),
+                            }}
+                          />
+                        )}
+                      </ListItemButton>
+
+                      <Collapse in={vacacionesOpen} timeout="auto" unmountOnExit>
+                        <List sx={{ p: 0, pt: 0.75, display: "grid", gap: 0.6 }}>
+                          <ListItemButton
+                            component={RouterLink}
+                            to="/vacaciones/conciliacion"
+                            onClick={onNavigate}
+                            sx={subNavButtonSx(isVacacionesConciliacionRoute)}
+                          >
+                            <ListItemIcon
+                              sx={{
+                                minWidth: 34,
+                                color: isVacacionesConciliacionRoute
+                                  ? "#ffffff"
+                                  : alpha("#ffffff", 0.78),
+                              }}
+                            >
+                              <Box
+                                sx={{
+                                  width: 26,
+                                  height: 26,
+                                  borderRadius: "9px",
+                                  display: "grid",
+                                  placeItems: "center",
+                                  backgroundColor: isVacacionesConciliacionRoute
+                                    ? alpha("#ffffff", 0.1)
+                                    : alpha("#ffffff", 0.05),
+                                  border: `1px solid ${alpha(
+                                    "#ffffff",
+                                    isVacacionesConciliacionRoute ? 0.1 : 0.05
+                                  )}`,
+                                }}
+                              >
+                                <FactCheckRoundedIcon sx={{ fontSize: 17 }} />
+                              </Box>
+                            </ListItemIcon>
+
+                            <ListItemText
+                              primary="Validar Excel"
+                              primaryTypographyProps={{
+                                fontSize: "0.93rem",
+                                fontWeight: isVacacionesConciliacionRoute
+                                  ? 800
+                                  : 600,
+                              }}
+                            />
+                          </ListItemButton>
+
+                          <ListItemButton
+                            component={RouterLink}
+                            to="/vacaciones/importacion"
+                            onClick={onNavigate}
+                            sx={subNavButtonSx(isVacacionesImportacionRoute)}
+                          >
+                            <ListItemIcon
+                              sx={{
+                                minWidth: 34,
+                                color: isVacacionesImportacionRoute
+                                  ? "#ffffff"
+                                  : alpha("#ffffff", 0.78),
+                              }}
+                            >
+                              <Box
+                                sx={{
+                                  width: 26,
+                                  height: 26,
+                                  borderRadius: "9px",
+                                  display: "grid",
+                                  placeItems: "center",
+                                  backgroundColor: isVacacionesImportacionRoute
+                                    ? alpha("#ffffff", 0.1)
+                                    : alpha("#ffffff", 0.05),
+                                  border: `1px solid ${alpha(
+                                    "#ffffff",
+                                    isVacacionesImportacionRoute ? 0.1 : 0.05
+                                  )}`,
+                                }}
+                              >
+                                <UploadFileRoundedIcon sx={{ fontSize: 17 }} />
+                              </Box>
+                            </ListItemIcon>
+
+                            <ListItemText
+                              primary="Importar saldos"
+                              primaryTypographyProps={{
+                                fontSize: "0.93rem",
+                                fontWeight: isVacacionesImportacionRoute
+                                  ? 800
+                                  : 600,
+                              }}
+                            />
+                          </ListItemButton>
+                        </List>
+                      </Collapse>
+                    </Box>
+                  );
+                }
+
                 return (
                   <Box key={`${section.title}-recruitment-${entryIndex}`}>
                     <ListItemButton
@@ -940,6 +1128,7 @@ export default function AppShell({ children }: AppShellProps) {
   const isDesktop = useMediaQuery(theme.breakpoints.up("lg"));
   const location = useLocation();
   const navigate = useNavigate();
+
   const [mobileOpen, setMobileOpen] = useState(false);
   const [accountAnchor, setAccountAnchor] = useState<null | HTMLElement>(null);
 
@@ -952,6 +1141,7 @@ export default function AppShell({ children }: AppShellProps) {
   const displayName = useMemo(() => getDisplayName(user), [user]);
   const displayEmail = useMemo(() => getDisplayEmail(user), [user]);
   const initials = useMemo(() => getInitials(displayName), [displayName]);
+
   const breadcrumb = useMemo(
     () => getPageBreadcrumb(location.pathname),
     [location.pathname]
@@ -982,7 +1172,9 @@ export default function AppShell({ children }: AppShellProps) {
   };
 
   const handleCloseDrawer = () => {
-    if (!isDesktop) setMobileOpen(false);
+    if (!isDesktop) {
+      setMobileOpen(false);
+    }
   };
 
   const handleLogout = async () => {
@@ -1068,11 +1260,12 @@ export default function AppShell({ children }: AppShellProps) {
                         spacing={0.5}
                         alignItems="center"
                       >
-                        {index > 0 && (
+                        {index > 0 ? (
                           <ChevronRightIcon
                             sx={{ fontSize: 16, color: alpha("#64748b", 0.9) }}
                           />
-                        )}
+                        ) : null}
+
                         <Typography
                           sx={{
                             fontSize: "0.8rem",
@@ -1104,7 +1297,7 @@ export default function AppShell({ children }: AppShellProps) {
             </Typography>
           </Box>
 
-          {isDesktop && (
+          {isDesktop ? (
             <Stack direction="row" spacing={1.25} alignItems="center">
               <Chip
                 label={primaryRole}
@@ -1118,7 +1311,7 @@ export default function AppShell({ children }: AppShellProps) {
               />
 
               <Button
-                onClick={(e) => setAccountAnchor(e.currentTarget)}
+                onClick={(event) => setAccountAnchor(event.currentTarget)}
                 variant="text"
                 sx={{
                   px: 1.1,
@@ -1187,7 +1380,8 @@ export default function AppShell({ children }: AppShellProps) {
                     overflow: "hidden",
                     borderRadius: "12px",
                     border: `1px solid ${alpha("#1e3a8a", 0.12)}`,
-                    background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
+                    background:
+                      "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
                     boxShadow: "0 22px 50px rgba(15, 23, 42, 0.18)",
                   },
                 }}
@@ -1299,7 +1493,7 @@ export default function AppShell({ children }: AppShellProps) {
                 </Box>
               </Menu>
             </Stack>
-          )}
+          ) : null}
         </Toolbar>
       </AppBar>
 
