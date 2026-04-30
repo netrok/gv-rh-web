@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Alert,
@@ -14,7 +14,9 @@ import {
   TableCell,
   TableContainer,
   TableHead,
+  TablePagination,
   TableRow,
+  TableSortLabel,
   TextField,
   Typography,
 } from "@mui/material";
@@ -55,6 +57,26 @@ type DepartamentoListItem =
   Awaited<ReturnType<typeof getDepartamentos>> extends Array<infer T>
     ? T
     : never;
+
+type SortDirection = "asc" | "desc";
+
+type SortKey =
+  | "numEmpleado"
+  | "nombreEmpleado"
+  | "sucursal"
+  | "departamento"
+  | "estatusLaboral"
+  | "fechaIngreso"
+  | "anioServicio"
+  | "fechaInicio"
+  | "fechaFin"
+  | "fechaLimiteDisfrute"
+  | "diasDerecho"
+  | "diasTomados"
+  | "diasPagados"
+  | "diasVencidos"
+  | "saldo"
+  | "estatusPeriodo";
 
 function formatNumber(value?: number | null): string {
   return new Intl.NumberFormat("es-MX").format(value ?? 0);
@@ -105,6 +127,8 @@ function buildSaldoChipSx(value: number) {
       borderColor: alpha("#16a34a", 0.22),
       backgroundColor: alpha("#16a34a", 0.05),
       fontWeight: 800,
+      borderRadius: "999px",
+      minWidth: 58,
     };
   }
 
@@ -113,22 +137,82 @@ function buildSaldoChipSx(value: number) {
     borderColor: alpha("#475569", 0.18),
     backgroundColor: alpha("#475569", 0.04),
     fontWeight: 800,
+    borderRadius: "999px",
+    minWidth: 58,
   };
+}
+
+function getSortValue(item: VacacionesSaldosReporteRow, key: SortKey) {
+  switch (key) {
+    case "numEmpleado":
+      return item.numEmpleado ?? "";
+    case "nombreEmpleado":
+      return item.nombreEmpleado ?? "";
+    case "sucursal":
+      return item.sucursal ?? "";
+    case "departamento":
+      return item.departamento ?? "";
+    case "estatusLaboral":
+      return getEstatusLaboralLabel(item.estatusLaboral);
+    case "fechaIngreso":
+      return item.fechaIngreso ?? "";
+    case "anioServicio":
+      return item.anioServicio ?? 0;
+    case "fechaInicio":
+      return item.fechaInicio ?? "";
+    case "fechaFin":
+      return item.fechaFin ?? "";
+    case "fechaLimiteDisfrute":
+      return item.fechaLimiteDisfrute ?? "";
+    case "diasDerecho":
+      return item.diasDerecho ?? 0;
+    case "diasTomados":
+      return item.diasTomados ?? 0;
+    case "diasPagados":
+      return item.diasPagados ?? 0;
+    case "diasVencidos":
+      return item.diasVencidos ?? 0;
+    case "saldo":
+      return item.saldo ?? 0;
+    case "estatusPeriodo":
+      return item.estaVencido
+        ? "Vencido"
+        : getEstatusPeriodoLabel(item.estatusPeriodo);
+    default:
+      return "";
+  }
+}
+
+function compareValues(a: unknown, b: unknown) {
+  if (typeof a === "number" && typeof b === "number") {
+    return a - b;
+  }
+
+  return String(a ?? "").localeCompare(String(b ?? ""), "es-MX", {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+
+function sortRows(
+  rows: VacacionesSaldosReporteRow[],
+  orderBy: SortKey,
+  order: SortDirection
+) {
+  return [...rows].sort((a, b) => {
+    const result = compareValues(getSortValue(a, orderBy), getSortValue(b, orderBy));
+    return order === "asc" ? result : -result;
+  });
 }
 
 function VacacionesSaldoRow({ item }: { item: VacacionesSaldosReporteRow }) {
   return (
     <TableRow hover>
-      <TableCell>
-        <Stack spacing={0.4}>
-          <Typography fontWeight={800}>{item.numEmpleado}</Typography>
-          <Typography variant="caption" color="text.secondary">
-            ID {item.empleadoId}
-          </Typography>
-        </Stack>
+      <TableCell sx={{ whiteSpace: "nowrap" }}>
+        <Typography fontWeight={800}>{item.numEmpleado}</Typography>
       </TableCell>
 
-      <TableCell>
+      <TableCell sx={{ minWidth: 210 }}>
         <Stack spacing={0.4}>
           <Typography fontWeight={800}>{item.nombreEmpleado}</Typography>
           <Typography variant="caption" color="text.secondary">
@@ -137,10 +221,15 @@ function VacacionesSaldoRow({ item }: { item: VacacionesSaldosReporteRow }) {
         </Stack>
       </TableCell>
 
-      <TableCell>{item.sucursal || "Sin sucursal"}</TableCell>
-      <TableCell>{item.departamento || "Sin departamento"}</TableCell>
+      <TableCell sx={{ minWidth: 150 }}>
+        {item.sucursal || "Sin sucursal"}
+      </TableCell>
 
-      <TableCell>
+      <TableCell sx={{ minWidth: 150 }}>
+        {item.departamento || "Sin departamento"}
+      </TableCell>
+
+      <TableCell sx={{ whiteSpace: "nowrap" }}>
         <Chip
           size="small"
           variant="outlined"
@@ -149,15 +238,19 @@ function VacacionesSaldoRow({ item }: { item: VacacionesSaldosReporteRow }) {
         />
       </TableCell>
 
-      <TableCell>{formatDate(item.fechaIngreso)}</TableCell>
+      <TableCell sx={{ whiteSpace: "nowrap" }}>
+        {formatDate(item.fechaIngreso)}
+      </TableCell>
 
       <TableCell align="center">
         <Chip size="small" variant="outlined" label={item.anioServicio} />
       </TableCell>
 
-      <TableCell>{formatDate(item.fechaInicio)}</TableCell>
-      <TableCell>{formatDate(item.fechaFin)}</TableCell>
-      <TableCell>{formatDate(item.fechaLimiteDisfrute)}</TableCell>
+      <TableCell sx={{ whiteSpace: "nowrap" }}>{formatDate(item.fechaInicio)}</TableCell>
+      <TableCell sx={{ whiteSpace: "nowrap" }}>{formatDate(item.fechaFin)}</TableCell>
+      <TableCell sx={{ whiteSpace: "nowrap" }}>
+        {formatDate(item.fechaLimiteDisfrute)}
+      </TableCell>
 
       <TableCell align="right">{formatDays(item.diasDerecho)}</TableCell>
       <TableCell align="right">{formatDays(item.diasTomados)}</TableCell>
@@ -173,7 +266,7 @@ function VacacionesSaldoRow({ item }: { item: VacacionesSaldosReporteRow }) {
         />
       </TableCell>
 
-      <TableCell>
+      <TableCell sx={{ whiteSpace: "nowrap" }}>
         <Chip
           size="small"
           variant="outlined"
@@ -190,17 +283,53 @@ function VacacionesSaldoRow({ item }: { item: VacacionesSaldosReporteRow }) {
   );
 }
 
+function SortableHeaderCell({
+  label,
+  sortKey,
+  orderBy,
+  order,
+  align = "left",
+  onSort,
+}: {
+  label: string;
+  sortKey: SortKey;
+  orderBy: SortKey;
+  order: SortDirection;
+  align?: "left" | "right" | "center";
+  onSort: (key: SortKey) => void;
+}) {
+  const active = orderBy === sortKey;
+
+  return (
+    <TableCell align={align}>
+      <TableSortLabel
+        active={active}
+        direction={active ? order : "asc"}
+        onClick={() => onSort(sortKey)}
+      >
+        {label}
+      </TableSortLabel>
+    </TableCell>
+  );
+}
+
 export default function VacacionesSaldosReportePage() {
   const { showSnackbar } = useAppSnackbar();
+  const todayValue = useMemo(() => getTodayInputValue(), []);
 
   const [sucursalId, setSucursalId] = useState<number | "">("");
   const [departamentoId, setDepartamentoId] = useState<number | "">("");
   const [estatusLaboral, setEstatusLaboral] = useState("");
-  const [fechaCorte, setFechaCorte] = useState(getTodayInputValue());
+  const [fechaCorte, setFechaCorte] = useState(todayValue);
   const [soloConSaldo, setSoloConSaldo] = useState(false);
   const [soloVencidos, setSoloVencidos] = useState(false);
   const [soloActivos, setSoloActivos] = useState(true);
   const [search, setSearch] = useState("");
+
+  const [orderBy, setOrderBy] = useState<SortKey>("numEmpleado");
+  const [order, setOrder] = useState<SortDirection>("asc");
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   const [exportingXlsx, setExportingXlsx] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
@@ -249,6 +378,20 @@ export default function VacacionesSaldosReportePage() {
   const result = reporteQueryResult.data;
   const rows = result?.items ?? [];
 
+  const sortedRows = useMemo(
+    () => sortRows(rows, orderBy, order),
+    [rows, orderBy, order]
+  );
+
+  const paginatedRows = useMemo(() => {
+    const start = page * rowsPerPage;
+    return sortedRows.slice(start, start + rowsPerPage);
+  }, [sortedRows, page, rowsPerPage]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [reporteQuery, rowsPerPage]);
+
   const isLoading = reporteQueryResult.isLoading;
   const isRefreshing = reporteQueryResult.isFetching && !isLoading;
 
@@ -258,10 +401,10 @@ export default function VacacionesSaldosReportePage() {
     if (sucursalId !== "") count += 1;
     if (departamentoId !== "") count += 1;
     if (estatusLaboral) count += 1;
-    if (fechaCorte) count += 1;
+    if (fechaCorte && fechaCorte !== todayValue) count += 1;
     if (soloConSaldo) count += 1;
     if (soloVencidos) count += 1;
-    if (soloActivos) count += 1;
+    if (!soloActivos) count += 1;
     if (search.trim()) count += 1;
 
     return count;
@@ -274,17 +417,31 @@ export default function VacacionesSaldosReportePage() {
     soloVencidos,
     soloActivos,
     search,
+    todayValue,
   ]);
 
   const clearFilters = () => {
     setSucursalId("");
     setDepartamentoId("");
     setEstatusLaboral("");
-    setFechaCorte(getTodayInputValue());
+    setFechaCorte(todayValue);
     setSoloConSaldo(false);
     setSoloVencidos(false);
     setSoloActivos(true);
     setSearch("");
+    setPage(0);
+  };
+
+  const handleSort = (key: SortKey) => {
+    setPage(0);
+
+    if (orderBy === key) {
+      setOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+
+    setOrderBy(key);
+    setOrder("asc");
   };
 
   async function handleExportXlsx() {
@@ -334,364 +491,527 @@ export default function VacacionesSaldosReportePage() {
         </Stack>
       }
     >
-      <Stack spacing={2.5}>
-        <HeroBanner
-          eyebrow="Vacaciones / Reportes"
-          title="Saldos de vacaciones"
-          subtitle="Consulta saldos disponibles, periodos vencidos y acumulados por empleado con exportación corporativa en Excel y PDF."
-          badge="Control RH"
-          icon={<BeachAccessRoundedIcon />}
-          actions={
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              <Chip
-                size="small"
-                variant="outlined"
-                label={
-                  activeFiltersCount > 0
-                    ? `${activeFiltersCount} filtro${activeFiltersCount > 1 ? "s" : ""}`
-                    : "Sin filtros"
+      <Box sx={{ width: "100%", maxWidth: "100%", minWidth: 0, overflowX: "hidden" }}>
+        <Stack spacing={2.5} sx={{ minWidth: 0 }}>
+          <HeroBanner
+            eyebrow="Vacaciones / Reportes"
+            title="Saldos de vacaciones"
+            subtitle="Consulta saldos disponibles, periodos vencidos y acumulados por empleado con exportación corporativa en Excel y PDF."
+            badge="Control RH"
+            icon={<BeachAccessRoundedIcon />}
+            actions={
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                <Chip
+                  size="small"
+                  variant="outlined"
+                  label={
+                    activeFiltersCount > 0
+                      ? `${activeFiltersCount} filtro${activeFiltersCount > 1 ? "s" : ""}`
+                      : "Sin filtros"
+                  }
+                  sx={{
+                    color: "#fff",
+                    borderColor: "rgba(255,255,255,0.24)",
+                    backgroundColor: "rgba(255,255,255,0.08)",
+                  }}
+                />
+
+                <Chip
+                  size="small"
+                  variant="outlined"
+                  label={`Corte: ${formatDate(fechaCorte)}`}
+                  sx={{
+                    color: "#fff",
+                    borderColor: "rgba(255,255,255,0.24)",
+                    backgroundColor: "rgba(255,255,255,0.08)",
+                  }}
+                />
+              </Stack>
+            }
+          />
+
+          <Grid container spacing={2.5} sx={{ minWidth: 0 }}>
+            <Grid size={{ xs: 12, md: 3 }}>
+              <MetricCard
+                title="Registros"
+                value={result?.totalRegistros ?? 0}
+                subtitle="Periodos visibles"
+                icon={<TableViewRoundedIcon />}
+              />
+            </Grid>
+
+            <Grid size={{ xs: 12, md: 3 }}>
+              <MetricCard
+                title="Empleados con saldo"
+                value={result?.empleadosConSaldo ?? 0}
+                subtitle="Saldo mayor a cero"
+                icon={<BeachAccessRoundedIcon />}
+              />
+            </Grid>
+
+            <Grid size={{ xs: 12, md: 3 }}>
+              <MetricCard
+                title="Saldo total"
+                value={formatDays(result?.totalSaldo ?? 0)}
+                subtitle="Días disponibles"
+                icon={<SavingsRoundedIcon />}
+              />
+            </Grid>
+
+            <Grid size={{ xs: 12, md: 3 }}>
+              <MetricCard
+                title="Vencidos"
+                value={result?.periodosVencidos ?? 0}
+                subtitle={`${formatDays(result?.totalDiasVencidos ?? 0)} días vencidos`}
+                icon={<ErrorOutlineRoundedIcon />}
+              />
+            </Grid>
+
+            <Grid size={12} sx={{ minWidth: 0 }}>
+              <SectionCard
+                title="Filtros"
+                subtitle="Acota el reporte por sucursal, departamento, estatus o fecha de corte."
+                actions={
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                    <Chip
+                      size="small"
+                      variant="outlined"
+                      label={
+                        activeFiltersCount > 0
+                          ? `${activeFiltersCount} filtro${activeFiltersCount === 1 ? "" : "s"}`
+                          : "Sin filtros"
+                      }
+                    />
+
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={<FilterAltRoundedIcon />}
+                      onClick={clearFilters}
+                      disabled={activeFiltersCount === 0}
+                    >
+                      Limpiar
+                    </Button>
+                  </Stack>
                 }
-                sx={{
-                  color: "#fff",
-                  borderColor: "rgba(255,255,255,0.24)",
-                  backgroundColor: "rgba(255,255,255,0.08)",
-                }}
-              />
+              >
+                <Grid container spacing={2}>
+                  <Grid size={{ xs: 12, md: 3 }}>
+                    <TextField
+                      select
+                      fullWidth
+                      label="Sucursal"
+                      value={sucursalId}
+                      onChange={(event) =>
+                        setSucursalId(
+                          event.target.value === "" ? "" : Number(event.target.value)
+                        )
+                      }
+                      disabled={sucursalesQuery.isLoading}
+                    >
+                      <MenuItem value="">Todas</MenuItem>
+                      {sucursales.map((item) => (
+                        <MenuItem key={item.id} value={item.id}>
+                          {item.nombre}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
 
-              <Chip
-                size="small"
-                variant="outlined"
-                label={`Corte: ${formatDate(fechaCorte)}`}
-                sx={{
-                  color: "#fff",
-                  borderColor: "rgba(255,255,255,0.24)",
-                  backgroundColor: "rgba(255,255,255,0.08)",
-                }}
-              />
-            </Stack>
-          }
-        />
+                  <Grid size={{ xs: 12, md: 3 }}>
+                    <TextField
+                      select
+                      fullWidth
+                      label="Departamento"
+                      value={departamentoId}
+                      onChange={(event) =>
+                        setDepartamentoId(
+                          event.target.value === "" ? "" : Number(event.target.value)
+                        )
+                      }
+                      disabled={departamentosQuery.isLoading}
+                    >
+                      <MenuItem value="">Todos</MenuItem>
+                      {departamentos.map((item) => (
+                        <MenuItem key={item.id} value={item.id}>
+                          {item.nombre}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
 
-        <Grid container spacing={2.5}>
-          <Grid size={{ xs: 12, md: 3 }}>
-            <MetricCard
-              title="Registros"
-              value={result?.totalRegistros ?? 0}
-              subtitle="Periodos visibles"
-              icon={<TableViewRoundedIcon />}
-            />
-          </Grid>
+                  <Grid size={{ xs: 12, md: 3 }}>
+                    <TextField
+                      select
+                      fullWidth
+                      label="Estatus laboral"
+                      value={estatusLaboral}
+                      onChange={(event) => setEstatusLaboral(event.target.value)}
+                    >
+                      <MenuItem value="">Todos</MenuItem>
+                      <MenuItem value="ACTIVO">Activo</MenuItem>
+                      <MenuItem value="BAJA">Baja</MenuItem>
+                      <MenuItem value="REINGRESO">Reingreso</MenuItem>
+                    </TextField>
+                  </Grid>
 
-          <Grid size={{ xs: 12, md: 3 }}>
-            <MetricCard
-              title="Empleados con saldo"
-              value={result?.empleadosConSaldo ?? 0}
-              subtitle="Saldo mayor a cero"
-              icon={<BeachAccessRoundedIcon />}
-            />
-          </Grid>
+                  <Grid size={{ xs: 12, md: 3 }}>
+                    <TextField
+                      fullWidth
+                      type="date"
+                      label="Fecha corte"
+                      value={fechaCorte}
+                      onChange={(event) => setFechaCorte(event.target.value)}
+                      InputLabelProps={{ shrink: true }}
+                    />
+                  </Grid>
 
-          <Grid size={{ xs: 12, md: 3 }}>
-            <MetricCard
-              title="Saldo total"
-              value={formatDays(result?.totalSaldo ?? 0)}
-              subtitle="Días disponibles"
-              icon={<SavingsRoundedIcon />}
-            />
-          </Grid>
+                  <Grid size={{ xs: 12, md: 3 }}>
+                    <TextField
+                      select
+                      fullWidth
+                      label="Solo activos"
+                      value={soloActivos ? "true" : "false"}
+                      onChange={(event) =>
+                        setSoloActivos(event.target.value === "true")
+                      }
+                    >
+                      <MenuItem value="true">Sí</MenuItem>
+                      <MenuItem value="false">No</MenuItem>
+                    </TextField>
+                  </Grid>
 
-          <Grid size={{ xs: 12, md: 3 }}>
-            <MetricCard
-              title="Vencidos"
-              value={result?.periodosVencidos ?? 0}
-              subtitle={`${formatDays(result?.totalDiasVencidos ?? 0)} días vencidos`}
-              icon={<ErrorOutlineRoundedIcon />}
-            />
-          </Grid>
+                  <Grid size={{ xs: 12, md: 3 }}>
+                    <TextField
+                      select
+                      fullWidth
+                      label="Solo con saldo"
+                      value={soloConSaldo ? "true" : "false"}
+                      onChange={(event) =>
+                        setSoloConSaldo(event.target.value === "true")
+                      }
+                    >
+                      <MenuItem value="false">No</MenuItem>
+                      <MenuItem value="true">Sí</MenuItem>
+                    </TextField>
+                  </Grid>
 
-          <Grid size={12}>
-            <SectionCard
-              title="Filtros"
-              subtitle="Acota el reporte por sucursal, departamento, estatus o fecha de corte."
-              actions={
-                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  <Grid size={{ xs: 12, md: 3 }}>
+                    <TextField
+                      select
+                      fullWidth
+                      label="Solo vencidos"
+                      value={soloVencidos ? "true" : "false"}
+                      onChange={(event) =>
+                        setSoloVencidos(event.target.value === "true")
+                      }
+                    >
+                      <MenuItem value="false">No</MenuItem>
+                      <MenuItem value="true">Sí</MenuItem>
+                    </TextField>
+                  </Grid>
+
+                  <Grid size={{ xs: 12, md: 3 }}>
+                    <TextField
+                      fullWidth
+                      label="Buscar"
+                      value={search}
+                      onChange={(event) => setSearch(event.target.value)}
+                      placeholder="Empleado, RFC, NSS..."
+                      InputProps={{
+                        startAdornment: (
+                          <SearchRoundedIcon
+                            fontSize="small"
+                            style={{ marginRight: 8, opacity: 0.65 }}
+                          />
+                        ),
+                      }}
+                    />
+                  </Grid>
+                </Grid>
+              </SectionCard>
+            </Grid>
+
+            <Grid size={12} sx={{ minWidth: 0 }}>
+              <SectionCard
+                title="Exportación"
+                subtitle="Descarga el mismo resultado filtrado en formato Excel o PDF corporativo."
+                actions={
                   <Chip
                     size="small"
                     variant="outlined"
-                    label={`${activeFiltersCount} filtro${activeFiltersCount === 1 ? "" : "s"}`}
+                    label={`${formatNumber(rows.length)} registro${rows.length === 1 ? "" : "s"}`}
                   />
+                }
+              >
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  <Button
+                    variant="outlined"
+                    startIcon={
+                      exportingXlsx ? (
+                        <CircularProgress size={18} />
+                      ) : (
+                        <TableViewRoundedIcon />
+                      )
+                    }
+                    onClick={handleExportXlsx}
+                    disabled={isLoading || exportingXlsx || exportingPdf}
+                  >
+                    {exportingXlsx ? "Exportando Excel..." : "Exportar Excel"}
+                  </Button>
 
                   <Button
-                    size="small"
                     variant="outlined"
-                    startIcon={<FilterAltRoundedIcon />}
-                    onClick={clearFilters}
+                    startIcon={
+                      exportingPdf ? (
+                        <CircularProgress size={18} />
+                      ) : (
+                        <PictureAsPdfRoundedIcon />
+                      )
+                    }
+                    onClick={handleExportPdf}
+                    disabled={isLoading || exportingXlsx || exportingPdf}
                   >
-                    Limpiar
+                    {exportingPdf ? "Exportando PDF..." : "Exportar PDF"}
                   </Button>
                 </Stack>
-              }
-            >
-              <Grid container spacing={2}>
-                <Grid size={{ xs: 12, md: 3 }}>
-                  <TextField
-                    select
-                    fullWidth
-                    label="Sucursal"
-                    value={sucursalId}
-                    onChange={(event) =>
-                      setSucursalId(
-                        event.target.value === "" ? "" : Number(event.target.value)
-                      )
-                    }
-                    disabled={sucursalesQuery.isLoading}
-                  >
-                    <MenuItem value="">Todas</MenuItem>
-                    {sucursales.map((item) => (
-                      <MenuItem key={item.id} value={item.id}>
-                        {item.nombre}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                </Grid>
+              </SectionCard>
+            </Grid>
 
-                <Grid size={{ xs: 12, md: 3 }}>
-                  <TextField
-                    select
-                    fullWidth
-                    label="Departamento"
-                    value={departamentoId}
-                    onChange={(event) =>
-                      setDepartamentoId(
-                        event.target.value === "" ? "" : Number(event.target.value)
-                      )
-                    }
-                    disabled={departamentosQuery.isLoading}
-                  >
-                    <MenuItem value="">Todos</MenuItem>
-                    {departamentos.map((item) => (
-                      <MenuItem key={item.id} value={item.id}>
-                        {item.nombre}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                </Grid>
-
-                <Grid size={{ xs: 12, md: 3 }}>
-                  <TextField
-                    select
-                    fullWidth
-                    label="Estatus laboral"
-                    value={estatusLaboral}
-                    onChange={(event) => setEstatusLaboral(event.target.value)}
-                  >
-                    <MenuItem value="">Todos</MenuItem>
-                    <MenuItem value="ACTIVO">Activo</MenuItem>
-                    <MenuItem value="BAJA">Baja</MenuItem>
-                    <MenuItem value="REINGRESO">Reingreso</MenuItem>
-                  </TextField>
-                </Grid>
-
-                <Grid size={{ xs: 12, md: 3 }}>
-                  <TextField
-                    fullWidth
-                    type="date"
-                    label="Fecha corte"
-                    value={fechaCorte}
-                    onChange={(event) => setFechaCorte(event.target.value)}
-                    InputLabelProps={{ shrink: true }}
+            <Grid size={12} sx={{ minWidth: 0 }}>
+              <SectionCard
+                title="Detalle de saldos"
+                subtitle="Periodos vacacionales detectados con derecho, uso, vencimiento y saldo."
+                actions={
+                  <Chip
+                    size="small"
+                    variant="outlined"
+                    icon={<CalculateRoundedIcon />}
+                    label={`${formatDays(result?.totalSaldo ?? 0)} días disponibles`}
                   />
-                </Grid>
+                }
+              >
+                {isLoading ? (
+                  <Stack alignItems="center" justifyContent="center" sx={{ py: 6 }}>
+                    <CircularProgress />
+                  </Stack>
+                ) : null}
 
-                <Grid size={{ xs: 12, md: 3 }}>
-                  <TextField
-                    select
-                    fullWidth
-                    label="Solo activos"
-                    value={soloActivos ? "true" : "false"}
-                    onChange={(event) => setSoloActivos(event.target.value === "true")}
-                  >
-                    <MenuItem value="true">Sí</MenuItem>
-                    <MenuItem value="false">No</MenuItem>
-                  </TextField>
-                </Grid>
+                {reporteQueryResult.isError ? (
+                  <Alert severity="error">
+                    No se pudo cargar el reporte de saldos. Revisa API, permisos o sesión.
+                  </Alert>
+                ) : null}
 
-                <Grid size={{ xs: 12, md: 3 }}>
-                  <TextField
-                    select
-                    fullWidth
-                    label="Solo con saldo"
-                    value={soloConSaldo ? "true" : "false"}
-                    onChange={(event) => setSoloConSaldo(event.target.value === "true")}
-                  >
-                    <MenuItem value="false">No</MenuItem>
-                    <MenuItem value="true">Sí</MenuItem>
-                  </TextField>
-                </Grid>
-
-                <Grid size={{ xs: 12, md: 3 }}>
-                  <TextField
-                    select
-                    fullWidth
-                    label="Solo vencidos"
-                    value={soloVencidos ? "true" : "false"}
-                    onChange={(event) => setSoloVencidos(event.target.value === "true")}
-                  >
-                    <MenuItem value="false">No</MenuItem>
-                    <MenuItem value="true">Sí</MenuItem>
-                  </TextField>
-                </Grid>
-
-                <Grid size={{ xs: 12, md: 3 }}>
-                  <TextField
-                    fullWidth
-                    label="Buscar"
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Empleado, RFC, NSS..."
-                    InputProps={{
-                      startAdornment: (
-                        <SearchRoundedIcon
-                          fontSize="small"
-                          style={{ marginRight: 8, opacity: 0.65 }}
-                        />
-                      ),
-                    }}
-                  />
-                </Grid>
-              </Grid>
-            </SectionCard>
-          </Grid>
-
-          <Grid size={12}>
-            <SectionCard
-              title="Exportación"
-              subtitle="Descarga el mismo resultado filtrado en formato Excel o PDF corporativo."
-              actions={
-                <Chip
-                  size="small"
-                  variant="outlined"
-                  label={`${formatNumber(rows.length)} registro${rows.length === 1 ? "" : "s"}`}
-                />
-              }
-            >
-              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                <Button
-                  variant="outlined"
-                  startIcon={
-                    exportingXlsx ? <CircularProgress size={18} /> : <TableViewRoundedIcon />
-                  }
-                  onClick={handleExportXlsx}
-                  disabled={isLoading || exportingXlsx || exportingPdf}
-                >
-                  {exportingXlsx ? "Exportando Excel..." : "Exportar Excel"}
-                </Button>
-
-                <Button
-                  variant="outlined"
-                  startIcon={
-                    exportingPdf ? <CircularProgress size={18} /> : <PictureAsPdfRoundedIcon />
-                  }
-                  onClick={handleExportPdf}
-                  disabled={isLoading || exportingXlsx || exportingPdf}
-                >
-                  {exportingPdf ? "Exportando PDF..." : "Exportar PDF"}
-                </Button>
-              </Stack>
-            </SectionCard>
-          </Grid>
-
-          <Grid size={12}>
-            <SectionCard
-              title="Detalle de saldos"
-              subtitle="Periodos vacacionales detectados con derecho, uso, vencimiento y saldo."
-              actions={
-                <Chip
-                  size="small"
-                  variant="outlined"
-                  icon={<CalculateRoundedIcon />}
-                  label={`${formatDays(result?.totalSaldo ?? 0)} días disponibles`}
-                />
-              }
-            >
-              {isLoading ? (
-                <Stack alignItems="center" justifyContent="center" sx={{ py: 6 }}>
-                  <CircularProgress />
-                </Stack>
-              ) : null}
-
-              {reporteQueryResult.isError ? (
-                <Alert severity="error">
-                  No se pudo cargar el reporte de saldos. Revisa API, permisos o sesión.
-                </Alert>
-              ) : null}
-
-              {!isLoading && !reporteQueryResult.isError ? (
-                rows.length === 0 ? (
-                  <Box sx={{ py: 5, textAlign: "center" }}>
-                    <BeachAccessRoundedIcon
-                      sx={{ fontSize: 46, color: "text.disabled", mb: 1 }}
-                    />
-                    <Typography fontWeight={800}>Sin saldos encontrados</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Ajusta los filtros o genera/importa periodos de vacaciones.
-                    </Typography>
-                  </Box>
-                ) : (
-                  <TableContainer
-                    sx={{
-                      border: "1px solid",
-                      borderColor: "divider",
-                      borderRadius: 3,
-                      overflowX: "auto",
-                      maxHeight: 680,
-                    }}
-                  >
-                    <Table stickyHeader size="small" sx={{ minWidth: 1450 }}>
-                      <TableHead
+                {!isLoading && !reporteQueryResult.isError ? (
+                  rows.length === 0 ? (
+                    <Box sx={{ py: 5, textAlign: "center" }}>
+                      <BeachAccessRoundedIcon
+                        sx={{ fontSize: 46, color: "text.disabled", mb: 1 }}
+                      />
+                      <Typography fontWeight={800}>Sin saldos encontrados</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Ajusta los filtros o genera/importa periodos de vacaciones.
+                      </Typography>
+                    </Box>
+                  ) : (
+                    <Box sx={{ width: "100%", maxWidth: "100%", minWidth: 0 }}>
+                      <TableContainer
                         sx={{
-                          "& .MuiTableCell-head": {
-                            backgroundColor: "#f4f7fc",
-                            fontWeight: 800,
+                          width: "100%",
+                          maxWidth: "100%",
+                          border: "1px solid",
+                          borderColor: "divider",
+                          borderTopLeftRadius: 12,
+                          borderTopRightRadius: 12,
+                          overflowX: "auto",
+                          overflowY: "auto",
+                          maxHeight: 680,
+                          "&::-webkit-scrollbar": {
+                            height: 10,
+                            width: 10,
+                          },
+                          "&::-webkit-scrollbar-thumb": {
+                            backgroundColor: alpha("#0f172a", 0.22),
+                            borderRadius: 999,
                           },
                         }}
                       >
-                        <TableRow>
-                          <TableCell>Núm.</TableCell>
-                          <TableCell>Empleado</TableCell>
-                          <TableCell>Sucursal</TableCell>
-                          <TableCell>Departamento</TableCell>
-                          <TableCell>Estatus</TableCell>
-                          <TableCell>Ingreso</TableCell>
-                          <TableCell align="center">Año</TableCell>
-                          <TableCell>Inicio</TableCell>
-                          <TableCell>Fin</TableCell>
-                          <TableCell>Límite</TableCell>
-                          <TableCell align="right">Derecho</TableCell>
-                          <TableCell align="right">Tomados</TableCell>
-                          <TableCell align="right">Pagados</TableCell>
-                          <TableCell align="right">Vencidos</TableCell>
-                          <TableCell align="right">Saldo</TableCell>
-                          <TableCell>Periodo</TableCell>
-                        </TableRow>
-                      </TableHead>
+                        <Table stickyHeader size="small" sx={{ minWidth: 1500 }}>
+                          <TableHead
+                            sx={{
+                              "& .MuiTableCell-head": {
+                                backgroundColor: "#f4f7fc",
+                                fontWeight: 800,
+                                whiteSpace: "nowrap",
+                              },
+                            }}
+                          >
+                            <TableRow>
+                              <SortableHeaderCell
+                                label="Núm."
+                                sortKey="numEmpleado"
+                                orderBy={orderBy}
+                                order={order}
+                                onSort={handleSort}
+                              />
+                              <SortableHeaderCell
+                                label="Empleado"
+                                sortKey="nombreEmpleado"
+                                orderBy={orderBy}
+                                order={order}
+                                onSort={handleSort}
+                              />
+                              <SortableHeaderCell
+                                label="Sucursal"
+                                sortKey="sucursal"
+                                orderBy={orderBy}
+                                order={order}
+                                onSort={handleSort}
+                              />
+                              <SortableHeaderCell
+                                label="Departamento"
+                                sortKey="departamento"
+                                orderBy={orderBy}
+                                order={order}
+                                onSort={handleSort}
+                              />
+                              <SortableHeaderCell
+                                label="Estatus"
+                                sortKey="estatusLaboral"
+                                orderBy={orderBy}
+                                order={order}
+                                onSort={handleSort}
+                              />
+                              <SortableHeaderCell
+                                label="Ingreso"
+                                sortKey="fechaIngreso"
+                                orderBy={orderBy}
+                                order={order}
+                                onSort={handleSort}
+                              />
+                              <SortableHeaderCell
+                                label="Año"
+                                sortKey="anioServicio"
+                                orderBy={orderBy}
+                                order={order}
+                                align="center"
+                                onSort={handleSort}
+                              />
+                              <SortableHeaderCell
+                                label="Inicio"
+                                sortKey="fechaInicio"
+                                orderBy={orderBy}
+                                order={order}
+                                onSort={handleSort}
+                              />
+                              <SortableHeaderCell
+                                label="Fin"
+                                sortKey="fechaFin"
+                                orderBy={orderBy}
+                                order={order}
+                                onSort={handleSort}
+                              />
+                              <SortableHeaderCell
+                                label="Límite"
+                                sortKey="fechaLimiteDisfrute"
+                                orderBy={orderBy}
+                                order={order}
+                                onSort={handleSort}
+                              />
+                              <SortableHeaderCell
+                                label="Derecho"
+                                sortKey="diasDerecho"
+                                orderBy={orderBy}
+                                order={order}
+                                align="right"
+                                onSort={handleSort}
+                              />
+                              <SortableHeaderCell
+                                label="Tomados"
+                                sortKey="diasTomados"
+                                orderBy={orderBy}
+                                order={order}
+                                align="right"
+                                onSort={handleSort}
+                              />
+                              <SortableHeaderCell
+                                label="Pagados"
+                                sortKey="diasPagados"
+                                orderBy={orderBy}
+                                order={order}
+                                align="right"
+                                onSort={handleSort}
+                              />
+                              <SortableHeaderCell
+                                label="Vencidos"
+                                sortKey="diasVencidos"
+                                orderBy={orderBy}
+                                order={order}
+                                align="right"
+                                onSort={handleSort}
+                              />
+                              <SortableHeaderCell
+                                label="Saldo"
+                                sortKey="saldo"
+                                orderBy={orderBy}
+                                order={order}
+                                align="right"
+                                onSort={handleSort}
+                              />
+                              <SortableHeaderCell
+                                label="Periodo"
+                                sortKey="estatusPeriodo"
+                                orderBy={orderBy}
+                                order={order}
+                                onSort={handleSort}
+                              />
+                            </TableRow>
+                          </TableHead>
 
-                      <TableBody>
-                        {rows.map((item) => (
-                          <VacacionesSaldoRow
-                            key={`${item.empleadoId}-${item.vacacionPeriodoId}`}
-                            item={item}
-                          />
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                )
-              ) : null}
-            </SectionCard>
+                          <TableBody>
+                            {paginatedRows.map((item) => (
+                              <VacacionesSaldoRow
+                                key={`${item.empleadoId}-${item.vacacionPeriodoId}`}
+                                item={item}
+                              />
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+
+                      <TablePagination
+                        component="div"
+                        count={sortedRows.length}
+                        page={page}
+                        onPageChange={(_, newPage) => setPage(newPage)}
+                        rowsPerPage={rowsPerPage}
+                        onRowsPerPageChange={(event) => {
+                          setRowsPerPage(Number(event.target.value));
+                          setPage(0);
+                        }}
+                        rowsPerPageOptions={[10, 25, 50, 100]}
+                        labelRowsPerPage="Filas por página"
+                        labelDisplayedRows={({ from, to, count }) =>
+                          `${from}-${to} de ${count !== -1 ? count : `más de ${to}`}`
+                        }
+                        sx={{
+                          border: "1px solid",
+                          borderColor: "divider",
+                          borderTop: 0,
+                          borderBottomLeftRadius: 12,
+                          borderBottomRightRadius: 12,
+                          backgroundColor: "#fff",
+                        }}
+                      />
+                    </Box>
+                  )
+                ) : null}
+              </SectionCard>
+            </Grid>
           </Grid>
-        </Grid>
-      </Stack>
+        </Stack>
+      </Box>
     </AppPage>
   );
 }
