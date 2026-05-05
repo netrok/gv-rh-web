@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Alert,
@@ -837,7 +837,7 @@ export default function VacacionesSaldosReportePage() {
                           },
                         }}
                       >
-                        <Table stickyHeader size="small" sx={{ minWidth: 1500 }}>
+                        <Table stickyHeader size="small" sx={{ minWidth: 1560 }}>
                           <TableHead
                             sx={{
                               "& .MuiTableCell-head": {

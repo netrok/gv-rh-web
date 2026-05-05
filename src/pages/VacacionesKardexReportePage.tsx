@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Alert,
@@ -339,7 +339,7 @@ function VacacionesKardexRow({ item }: { item: VacacionesKardexReporteRow }) {
             },
           }}
         >
-          <TableCell colSpan={13} sx={{ backgroundColor: "#f8fafc" }}>
+          <TableCell colSpan={14} sx={{ backgroundColor: "#f8fafc" }}>
             <Box
               sx={{
                 border: "1px solid",
@@ -946,7 +946,7 @@ export default function VacacionesKardexReportePage() {
                           stickyHeader
                           size="small"
                           sx={{
-                            minWidth: 1450,
+                            minWidth: 1510,
                             "& .MuiTableCell-root": {
                               verticalAlign: "top",
                             },

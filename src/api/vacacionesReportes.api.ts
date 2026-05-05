@@ -1,4 +1,4 @@
-import { api } from "./axios";
+﻿import { api } from "./axios";
 
 export type VacacionesSaldosReporteQuery = {
   sucursalId?: number | null;
@@ -28,6 +28,7 @@ export type VacacionesSaldosReporteRow = {
   fechaIngreso: string;
 
   vacacionPeriodoId: number;
+  cicloLaboral: number;
   anioServicio: number;
 
   fechaInicio: string;
@@ -93,6 +94,7 @@ export type VacacionesKardexReporteRow = {
   activo: boolean;
 
   vacacionPeriodoId: number;
+  cicloLaboral: number;
   anioServicio: number;
 
   periodoFechaInicio: string;
