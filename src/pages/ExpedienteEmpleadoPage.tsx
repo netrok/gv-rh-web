@@ -752,6 +752,21 @@ export default function ExpedienteEmpleadoPage() {
   const vacacionesPeriodoActual =
     vacacionesResumen?.periodoActual ?? vacacionesPeriodosAbiertos[0] ?? null;
 
+  const vacacionesCicloLaboralActual =
+    vacacionesResumen?.cicloLaboralActual ??
+    vacacionesPeriodoActual?.cicloLaboral ??
+    1;
+
+  const vacacionesFechaBaseCiclo =
+    vacacionesResumen?.fechaBaseCicloLaboral ??
+    vacacionesResumen?.fechaIngreso ??
+    null;
+
+  const vacacionesFechaIngresoOriginal =
+    vacacionesResumen?.fechaIngresoOriginal ??
+    empleado?.fechaIngreso ??
+    null;
+
   const filteredDocuments = useMemo(() => {
     const term = search.trim().toLowerCase();
 
@@ -1515,6 +1530,54 @@ export default function ExpedienteEmpleadoPage() {
               <Stack spacing={2}>
                 <Box
                   sx={{
+                    p: 2,
+                    borderRadius: "18px",
+                    bgcolor: (theme) => alpha(theme.palette.info.main, 0.045),
+                    border: "1px solid",
+                    borderColor: (theme) => alpha(theme.palette.info.main, 0.18),
+                  }}
+                >
+                  <Stack
+                    direction={{ xs: "column", md: "row" }}
+                    spacing={1.5}
+                    alignItems={{ xs: "flex-start", md: "center" }}
+                    justifyContent="space-between"
+                  >
+                    <Box>
+                      <Typography variant="subtitle1" fontWeight={900}>
+                        Ciclo laboral de vacaciones
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        El saldo se calcula con la fecha base del ciclo actual. Si el empleado reingresa,
+                        el año de servicio vuelve a iniciar sin mezclar el historial anterior.
+                      </Typography>
+                    </Box>
+
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      <Chip
+                        size="small"
+                        color="primary"
+                        variant="outlined"
+                        label={`Ciclo ${vacacionesCicloLaboralActual}`}
+                        sx={{ fontWeight: 800 }}
+                      />
+                      <Chip
+                        size="small"
+                        variant="outlined"
+                        label={`Base: ${formatDate(vacacionesFechaBaseCiclo)}`}
+                        sx={{ fontWeight: 700 }}
+                      />
+                      <Chip
+                        size="small"
+                        variant="outlined"
+                        label={`Ingreso original: ${formatDate(vacacionesFechaIngresoOriginal)}`}
+                        sx={{ fontWeight: 700 }}
+                      />
+                    </Stack>
+                  </Stack>
+                </Box>
+                <Box
+                  sx={{
                     display: "grid",
                     gridTemplateColumns: {
                       xs: "1fr",
@@ -1650,7 +1713,7 @@ export default function ExpedienteEmpleadoPage() {
                           <TableRow key={periodo.id} hover>
                             <TableCell sx={{ whiteSpace: "nowrap" }}>
                               <Typography variant="body2" fontWeight={700}>
-                                Año {periodo.anioServicio}
+                                Ciclo {periodo.cicloLaboral ?? 1} · Año {periodo.anioServicio}
                               </Typography>
                             </TableCell>
                             <TableCell sx={{ whiteSpace: "nowrap" }}>
@@ -2521,7 +2584,7 @@ export default function ExpedienteEmpleadoPage() {
               >
                 {vacacionesPeriodosAbiertos.map((periodo) => (
                   <MenuItem key={periodo.id} value={periodo.id}>
-                    Año {periodo.anioServicio} · saldo {formatDecimalDays(periodo.saldo)} días
+                    Ciclo {periodo.cicloLaboral ?? 1} · Año {periodo.anioServicio} · saldo {formatDecimalDays(periodo.saldo)} días
                   </MenuItem>
                 ))}
               </TextField>
@@ -2648,7 +2711,7 @@ export default function ExpedienteEmpleadoPage() {
               >
                 {vacacionesPeriodosAbiertos.map((periodo) => (
                   <MenuItem key={periodo.id} value={periodo.id}>
-                    Año {periodo.anioServicio} · saldo {formatDecimalDays(periodo.saldo)} días
+                    Ciclo {periodo.cicloLaboral ?? 1} · Año {periodo.anioServicio} · saldo {formatDecimalDays(periodo.saldo)} días
                   </MenuItem>
                 ))}
               </TextField>
@@ -3131,3 +3194,6 @@ export default function ExpedienteEmpleadoPage() {
     </>
   );
 }
+
+
+

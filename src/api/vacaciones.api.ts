@@ -1,4 +1,4 @@
-import { api } from "./axios";
+﻿import { api } from "./axios";
 
 export type TipoMovimientoVacacion =
   | "SALDO_INICIAL"
@@ -18,6 +18,7 @@ export type VacacionPeriodo = {
   empleadoId: number;
   vacacionPoliticaId?: number | null;
   vacacionPoliticaNombre?: string | null;
+  cicloLaboral: number;
   anioServicio: number;
   fechaInicio: string;
   fechaFin: string;
@@ -40,7 +41,10 @@ export type VacacionesResumen = {
   empleadoId: number;
   numEmpleado: string;
   empleadoNombre: string;
+  fechaIngresoOriginal: string;
   fechaIngreso: string;
+  cicloLaboralActual: number;
+  fechaBaseCicloLaboral: string;
   antiguedadAnios: number;
   proximoAniversario?: string | null;
   politicaId?: number | null;
@@ -61,6 +65,7 @@ export type VacacionMovimiento = {
   id: number;
   empleadoId: number;
   vacacionPeriodoId: number;
+  cicloLaboral: number;
   anioServicio: number;
   tipoMovimiento: TipoMovimientoVacacion;
   fechaMovimiento: string;
@@ -217,3 +222,6 @@ export function getTipoMovimientoVacacionColor(
     default: return "default";
   }
 }
+
+
+
