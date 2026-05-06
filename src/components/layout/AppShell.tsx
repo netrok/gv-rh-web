@@ -35,6 +35,7 @@ import {
 import { alpha, useTheme } from "@mui/material/styles";
 import MenuRoundedIcon from "@mui/icons-material/MenuRounded";
 import DashboardRoundedIcon from "@mui/icons-material/DashboardRounded";
+import AssignmentTurnedInRoundedIcon from "@mui/icons-material/AssignmentTurnedInRounded";
 import PeopleAltRoundedIcon from "@mui/icons-material/PeopleAltRounded";
 import StoreRoundedIcon from "@mui/icons-material/StoreRounded";
 import FactCheckRoundedIcon from "@mui/icons-material/FactCheckRounded";
@@ -556,6 +557,8 @@ function SidebarContent({
   const isVacationsRoute = pathname.startsWith("/vacaciones");
   const isVacacionesDashboardRoute =
     pathname === "/vacaciones" || pathname.startsWith("/vacaciones/dashboard");
+  const isVacacionesSolicitudesRoute =
+    pathname.startsWith("/vacaciones/solicitudes");
   const isVacacionesConciliacionRoute = pathname.startsWith(
     "/vacaciones/conciliacion"
   );
@@ -956,6 +959,51 @@ function SidebarContent({
                               primaryTypographyProps={{
                                 fontSize: "0.82rem",
                                 fontWeight: isVacacionesConciliacionRoute
+                                  ? 800
+                                  : 600,
+                              }}
+                            />
+                          </ListItemButton>
+
+                          <ListItemButton
+                            component={RouterLink}
+                            to="/vacaciones/solicitudes"
+                            onClick={onNavigate}
+                            sx={subNavButtonSx(isVacacionesSolicitudesRoute)}
+                          >
+                            <ListItemIcon
+                              sx={{
+                                minWidth: 34,
+                                color: isVacacionesSolicitudesRoute
+                                  ? "#ffffff"
+                                  : alpha("#ffffff", 0.78),
+                              }}
+                            >
+                              <Box
+                                sx={{
+                                  width: 26,
+                                  height: 26,
+                                  borderRadius: "9px",
+                                  display: "grid",
+                                  placeItems: "center",
+                                  backgroundColor: isVacacionesSolicitudesRoute
+                                    ? alpha("#ffffff", 0.1)
+                                    : alpha("#ffffff", 0.05),
+                                  border: `1px solid ${alpha(
+                                    "#ffffff",
+                                    isVacacionesSolicitudesRoute ? 0.1 : 0.05
+                                  )}`,
+                                }}
+                              >
+                                <AssignmentTurnedInRoundedIcon sx={{ fontSize: 16 }} />
+                              </Box>
+                            </ListItemIcon>
+
+                            <ListItemText
+                              primary="Solicitudes"
+                              primaryTypographyProps={{
+                                fontSize: "0.82rem",
+                                fontWeight: isVacacionesSolicitudesRoute
                                   ? 800
                                   : 600,
                               }}

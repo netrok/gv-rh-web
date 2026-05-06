@@ -23,6 +23,7 @@ import VacacionesConciliacionPage from "./pages/VacacionesConciliacionPage";
 import VacacionesSaldosReportePage from "./pages/VacacionesSaldosReportePage";
 import VacacionesKardexReportePage from "./pages/VacacionesKardexReportePage";
 import VacacionesDashboardPage from "./pages/VacacionesDashboardPage";
+import VacacionesSolicitudesPage from "./pages/VacacionesSolicitudesPage";
 
 import RequireAuth from "./features/auth/RequireAuth";
 import RoleGuard from "./features/auth/RoleGuard";
@@ -222,6 +223,18 @@ export default function App() {
               allow={VACACIONES_ROLES}
             >
               <VacacionesDashboardPage />
+            </RoleGuard>
+          }
+        />
+        <Route
+          path="vacaciones/solicitudes"
+          element={
+            <RoleGuard
+              isAuthenticated={isAuthenticated}
+              userRoles={roles}
+              allow={["ADMIN", "RRHH", "JEFE", "EMPLEADO"]}
+            >
+              <VacacionesSolicitudesPage />
             </RoleGuard>
           }
         />
