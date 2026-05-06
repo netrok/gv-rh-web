@@ -507,6 +507,12 @@ export default function IncidenciasPage() {
 
   const normalizedRoles = useMemo(() => normalizeRoles(userRoles), [userRoles]);
 
+  const isEmpleadoOnly =
+    normalizedRoles.includes("EMPLEADO") &&
+    !normalizedRoles.includes("ADMIN") &&
+    !normalizedRoles.includes("RRHH") &&
+    !normalizedRoles.includes("JEFE");
+
   const canViewIncidencias = hasSomeRole(userRoles, [
     "ADMIN",
     "RRHH",
@@ -597,15 +603,15 @@ export default function IncidenciasPage() {
 
   const activeFiltersCount = useMemo(() => {
     let count = 0;
-    if (filters.empleadoId) count += 1;
-    if (filters.sucursalId) count += 1;
+    if (!isEmpleadoOnly && filters.empleadoId) count += 1;
+    if (!isEmpleadoOnly && filters.sucursalId) count += 1;
     if (filters.tipo) count += 1;
     if (filters.estatus) count += 1;
     if (filters.fechaDesde) count += 1;
     if (filters.fechaHasta) count += 1;
     if (filters.soloPendientes) count += 1;
     return count;
-  }, [filters]);
+  }, [filters, isEmpleadoOnly]);
 
   const paginatedItems = useMemo(() => {
     const start = page * rowsPerPage;
@@ -646,10 +652,10 @@ export default function IncidenciasPage() {
       : undefined;
 
     return {
-      empleadoId: currentFilters.empleadoId
+      empleadoId: !isEmpleadoOnly && currentFilters.empleadoId
         ? Number(currentFilters.empleadoId)
         : undefined,
-      sucursalId: currentFilters.sucursalId
+      sucursalId: !isEmpleadoOnly && currentFilters.sucursalId
         ? Number(currentFilters.sucursalId)
         : undefined,
       tipo: tipoSeleccionado?.clave ?? undefined,
@@ -666,18 +672,26 @@ export default function IncidenciasPage() {
     setTipos(DEFAULT_TIPOS);
     setEstatuses(DEFAULT_ESTATUS);
 
-    const [tiposResult, estatusResult, empleadosResult, sucursalesResult] =
-      await Promise.allSettled([
-        getTiposIncidencia(),
-        getEstatusIncidencia(),
-        getEmpleados({
+        const empleadosPromise = isEmpleadoOnly
+      ? Promise.resolve({ items: [] })
+      : getEmpleados({
           page: 1,
           pageSize: 1000,
           activo: true,
           sort: "nombre",
           dir: "asc",
-        }),
-        getSucursales(),
+        });
+
+    const sucursalesPromise = isEmpleadoOnly
+      ? Promise.resolve([])
+      : getSucursales();
+
+    const [tiposResult, estatusResult, empleadosResult, sucursalesResult] =
+      await Promise.allSettled([
+        getTiposIncidencia(),
+        getEstatusIncidencia(),
+        empleadosPromise,
+        sucursalesPromise,
       ]);
 
     if (tiposResult.status === "fulfilled" && Array.isArray(tiposResult.value)) {
@@ -1142,8 +1156,8 @@ export default function IncidenciasPage() {
   return (
     <AppPage
       eyebrow="Recursos Humanos"
-      title="Incidencias"
-      subtitle="Control de incidencias y asistencias con evidencia documental, filtros operativos y exportación."
+      title={isEmpleadoOnly ? "Mis incidencias" : "Incidencias"}
+      subtitle={isEmpleadoOnly ? "Consulta personal de tus incidencias y evidencias." : "Control de incidencias y asistencias con evidencia documental, filtros operativos y exportación."}
       actions={
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
           <Button
@@ -1204,8 +1218,8 @@ export default function IncidenciasPage() {
     >
       <HeroBanner
         eyebrow="Módulo operativo"
-        title="Seguimiento de incidencias"
-        subtitle="Registra, revisa, aprueba y documenta incidencias del personal con control por estatus, fechas y evidencia adjunta."
+        title={isEmpleadoOnly ? "Mis incidencias" : "Seguimiento de incidencias"}
+        subtitle={isEmpleadoOnly ? "Consulta únicamente tus incidencias registradas y descarga evidencia cuando exista." : "Registra, revisa, aprueba y documenta incidencias del personal con control por estatus, fechas y evidencia adjunta."}
         badge={
           canManageIncidencias
             ? "Gestión habilitada"
@@ -1315,7 +1329,7 @@ export default function IncidenciasPage() {
 
       <SectionCard
         title="Filtros"
-        subtitle="Refina el listado por empleado, sucursal, tipo, estatus o fechas."
+        subtitle={isEmpleadoOnly ? "Filtra tus incidencias por tipo, estatus o fechas." : "Refina el listado por empleado, sucursal, tipo, estatus o fechas."}
         actions={
           <Chip
             size="small"
@@ -1341,9 +1355,8 @@ export default function IncidenciasPage() {
             gap: 2,
           }}
         >
-          <Box sx={{ gridColumn: { xs: "span 1", md: "span 4" } }}>
-            <Autocomplete
-              options={empleadoOptions}
+          <Box sx={{ gridColumn: { xs: "span 1", md: "span 4" }, display: isEmpleadoOnly ? "none" : undefined }}>
+            <Autocomplete options={empleadoOptions}
               value={selectedEmpleadoFilterOption}
               onChange={(_, option) =>
                 setFilters((prev) => ({
@@ -1374,7 +1387,7 @@ export default function IncidenciasPage() {
             />
           </Box>
 
-          <Box sx={{ gridColumn: { xs: "span 1", md: "span 4" } }}>
+          <Box sx={{ gridColumn: { xs: "span 1", md: "span 4" }, display: isEmpleadoOnly ? "none" : undefined }}>
             <FormControl fullWidth>
               <InputLabel>Sucursal</InputLabel>
               <Select
@@ -1540,7 +1553,7 @@ export default function IncidenciasPage() {
           <EmptyState
             icon={<PendingActionsRoundedIcon sx={{ fontSize: 52 }} />}
             title="No hay incidencias para mostrar"
-            description="No se encontraron registros con los filtros actuales. Ajusta la búsqueda o registra una nueva incidencia."
+            description={isEmpleadoOnly ? "No tienes incidencias registradas con los filtros actuales." : "No se encontraron registros con los filtros actuales. Ajusta la búsqueda o registra una nueva incidencia."}
             actionLabel={canManageIncidencias ? "Nueva incidencia" : undefined}
             onAction={canManageIncidencias ? openCreate : undefined}
           />
