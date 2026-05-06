@@ -274,6 +274,10 @@ function getPageTitle(pathname: string) {
   if (pathname.startsWith("/incidencias")) return "Incidencias";
   if (pathname.startsWith("/puestos")) return "Puestos";
 
+  if (pathname === "/vacaciones" || pathname.startsWith("/vacaciones/dashboard")) {
+    return "Resumen de vacaciones";
+  }
+
   if (pathname.startsWith("/vacaciones/reportes/kardex")) {
     return "Reporte de kárdex";
   }
@@ -316,6 +320,10 @@ function getPageSubtitle(pathname: string) {
   }
 
   if (pathname.startsWith("/puestos")) return "Catálogo de puestos y jerarquías";
+
+  if (pathname === "/vacaciones" || pathname.startsWith("/vacaciones/dashboard")) {
+    return "Centro operativo de saldos, vencimientos y movimientos";
+  }
 
   if (pathname.startsWith("/vacaciones/reportes/kardex")) {
     return "Auditoría de movimientos, saldos y origen";
@@ -361,6 +369,10 @@ function getPageSubtitle(pathname: string) {
 }
 
 function getPageBreadcrumb(pathname: string) {
+  if (pathname === "/vacaciones" || pathname.startsWith("/vacaciones/dashboard")) {
+    return ["Vacaciones", "Resumen"];
+  }
+
   if (pathname.startsWith("/vacaciones/reportes/kardex")) {
     return ["Vacaciones", "Reporte de kárdex"];
   }
@@ -542,6 +554,8 @@ function SidebarContent({
   const isVacantesRoute = pathname.startsWith("/reclutamiento/vacantes");
 
   const isVacationsRoute = pathname.startsWith("/vacaciones");
+  const isVacacionesDashboardRoute =
+    pathname === "/vacaciones" || pathname.startsWith("/vacaciones/dashboard");
   const isVacacionesConciliacionRoute = pathname.startsWith(
     "/vacaciones/conciliacion"
   );
@@ -858,7 +872,52 @@ function SidebarContent({
 
                       <Collapse in={vacacionesOpen} timeout="auto" unmountOnExit>
                         <List sx={{ p: 0, pt: 0.75, display: "grid", gap: 0.45 }}>
-                          <ListItemButton
+                                                    <ListItemButton
+                            component={RouterLink}
+                            to="/vacaciones/dashboard"
+                            onClick={onNavigate}
+                            sx={subNavButtonSx(isVacacionesDashboardRoute)}
+                          >
+                            <ListItemIcon
+                              sx={{
+                                minWidth: 34,
+                                color: isVacacionesDashboardRoute
+                                  ? "#ffffff"
+                                  : alpha("#ffffff", 0.78),
+                              }}
+                            >
+                              <Box
+                                sx={{
+                                  width: 26,
+                                  height: 26,
+                                  borderRadius: "9px",
+                                  display: "grid",
+                                  placeItems: "center",
+                                  backgroundColor: isVacacionesDashboardRoute
+                                    ? alpha("#ffffff", 0.1)
+                                    : alpha("#ffffff", 0.05),
+                                  border: `1px solid ${alpha(
+                                    "#ffffff",
+                                    isVacacionesDashboardRoute ? 0.1 : 0.05
+                                  )}`,
+                                }}
+                              >
+                                <DashboardRoundedIcon sx={{ fontSize: 16 }} />
+                              </Box>
+                            </ListItemIcon>
+
+                            <ListItemText
+                              primary="Resumen"
+                              primaryTypographyProps={{
+                                fontSize: "0.82rem",
+                                fontWeight: isVacacionesDashboardRoute
+                                  ? 800
+                                  : 600,
+                              }}
+                            />
+                          </ListItemButton>
+
+<ListItemButton
                             component={RouterLink}
                             to="/vacaciones/conciliacion"
                             onClick={onNavigate}
