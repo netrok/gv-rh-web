@@ -14,6 +14,7 @@ import {
   DialogTitle,
   Divider,
   MenuItem,
+  Paper,
   Stack,
   Table,
   TableBody,
@@ -23,7 +24,6 @@ import {
   TableRow,
   TextField,
   Typography,
-  Paper,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 
@@ -34,6 +34,7 @@ import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import HourglassBottomRoundedIcon from "@mui/icons-material/HourglassBottomRounded";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
+import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 
 import AppPage from "../components/ui/AppPage";
 import HeroBanner from "../components/ui/HeroBanner";
@@ -53,10 +54,30 @@ import {
   type VacacionesSolicitudCreate,
   type VacacionesSolicitudResolver,
 } from "../api/vacacionesSolicitudes.api";
+import { useAuth } from "../features/auth/AuthContext";
 
 const numberFormatter = new Intl.NumberFormat("es-MX", {
   maximumFractionDigits: 2,
 });
+
+type ChipColor =
+  | "default"
+  | "primary"
+  | "secondary"
+  | "error"
+  | "info"
+  | "success"
+  | "warning";
+
+function normalizeRoles(roles?: string[] | null): string[] {
+  return [
+    ...new Set((roles ?? []).map((role) => String(role).trim().toUpperCase()).filter(Boolean)),
+  ];
+}
+
+function hasRole(roles: string[], role: string): boolean {
+  return roles.includes(role.toUpperCase());
+}
 
 function formatNumber(value?: number | null): string {
   return numberFormatter.format(Number(value ?? 0));
@@ -127,7 +148,7 @@ function getStatusKey(value?: string | number | null): string {
   return raw;
 }
 
-function getStatusColor(value?: string | number | null) {
+function getStatusColor(value?: string | number | null): ChipColor {
   const key = getStatusKey(value);
 
   if (key === "APROBADA") return "success";
@@ -237,27 +258,57 @@ type ResolveDialogState =
 
 export default function VacacionesSolicitudesPage() {
   const queryClient = useQueryClient();
+  const { roles, user } = useAuth();
+
+  const normalizedRoles = useMemo(() => normalizeRoles(roles), [roles]);
+
+  const isAdmin = hasRole(normalizedRoles, "ADMIN");
+  const isRrhh = hasRole(normalizedRoles, "RRHH");
+  const isJefe = hasRole(normalizedRoles, "JEFE");
+  const isEmpleado = hasRole(normalizedRoles, "EMPLEADO");
+
+  const canManageAll = isAdmin || isRrhh;
+  const canSelectEmpleado = canManageAll || isJefe;
+  const canResolveSolicitudes = canManageAll || isJefe;
+  const isEmpleadoOnly = isEmpleado && !canManageAll && !isJefe;
 
   const [estatus, setEstatus] = useState<EstatusVacacionSolicitud | "">("");
   const [soloPendientes, setSoloPendientes] = useState(false);
+  const [empleadoFilter, setEmpleadoFilter] = useState("");
+  const [fechaDesde, setFechaDesde] = useState("");
+  const [fechaHasta, setFechaHasta] = useState("");
+
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState<CreateFormState>(initialCreateForm);
   const [resolveDialog, setResolveDialog] = useState<ResolveDialogState>(null);
 
   const solicitudesQuery = useQuery({
-    queryKey: ["vacaciones", "solicitudes", estatus, soloPendientes],
+    queryKey: [
+      "vacaciones",
+      "solicitudes",
+      estatus,
+      soloPendientes,
+      empleadoFilter,
+      fechaDesde,
+      fechaHasta,
+      isEmpleadoOnly,
+    ],
     queryFn: () =>
       getVacacionesSolicitudes({
         page: 1,
         pageSize: 80,
-        estatus,
+        estatus: soloPendientes ? "" : estatus,
         soloPendientes,
+        empleadoId: canSelectEmpleado && empleadoFilter ? Number(empleadoFilter) : "",
+        fechaDesde,
+        fechaHasta,
       }),
   });
 
   const empleadosQuery = useQuery({
     queryKey: ["vacaciones", "solicitudes", "empleados-lookup"],
     queryFn: getVacacionesEmpleadoLookup,
+    enabled: canSelectEmpleado,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -316,9 +367,26 @@ export default function VacacionesSolicitudesPage() {
     rechazarMutation.isPending ||
     cancelarMutation.isPending;
 
+  const createError = createMutation.error ? getErrorMessage(createMutation.error) : null;
+
+  const resolveError =
+    aprobarMutation.error || rechazarMutation.error || cancelarMutation.error
+      ? getErrorMessage(aprobarMutation.error ?? rechazarMutation.error ?? cancelarMutation.error)
+      : null;
+
+  const canSubmitCreate =
+    !createMutation.isPending &&
+    createForm.fechaInicio &&
+    createForm.fechaFin &&
+    Number(createForm.diasSolicitados) > 0 &&
+    (!canSelectEmpleado || Boolean(createForm.empleadoId));
+
   const handleCreateSubmit = () => {
     const payload: VacacionesSolicitudCreate = {
-      empleadoId: createForm.empleadoId ? Number(createForm.empleadoId) : null,
+      empleadoId:
+        canSelectEmpleado && createForm.empleadoId
+          ? Number(createForm.empleadoId)
+          : null,
       vacacionPeriodoId: createForm.vacacionPeriodoId
         ? Number(createForm.vacacionPeriodoId)
         : null,
@@ -352,11 +420,21 @@ export default function VacacionesSolicitudesPage() {
     cancelarMutation.mutate({ id: resolveDialog.solicitud.id, payload });
   };
 
-  const createError = createMutation.error ? getErrorMessage(createMutation.error) : null;
-  const resolveError =
-    aprobarMutation.error || rechazarMutation.error || cancelarMutation.error
-      ? getErrorMessage(aprobarMutation.error ?? rechazarMutation.error ?? cancelarMutation.error)
-      : null;
+  const clearFilters = () => {
+    setEstatus("");
+    setSoloPendientes(false);
+    setEmpleadoFilter("");
+    setFechaDesde("");
+    setFechaHasta("");
+  };
+
+  const heroSubtitle = isEmpleadoOnly
+    ? "Consulta tus solicitudes, registra nuevas fechas y da seguimiento al estatus sin depender de RH para preguntar lo básico."
+    : "Registra, revisa, aprueba o rechaza solicitudes. Al aprobar, el sistema descuenta saldo, genera kárdex e incidencia de vacaciones.";
+
+  const heroBadge = isEmpleadoOnly
+    ? "Mis vacaciones"
+    : `${solicitudesQuery.data?.pendientes ?? 0} pendiente(s)`;
 
   return (
     <AppPage
@@ -384,7 +462,7 @@ export default function VacacionesSolicitudesPage() {
             startIcon={<AddRoundedIcon />}
             onClick={() => setCreateOpen(true)}
           >
-            Nueva solicitud
+            {isEmpleadoOnly ? "Solicitar vacaciones" : "Nueva solicitud"}
           </Button>
         </Stack>
       }
@@ -392,16 +470,31 @@ export default function VacacionesSolicitudesPage() {
       <Box sx={{ width: "100%", maxWidth: "100%", minWidth: 0, overflowX: "hidden" }}>
         <Stack spacing={2.25}>
           <HeroBanner
-            eyebrow="Vacaciones / Solicitudes"
-            title="Solicitudes de vacaciones"
-            subtitle="Registra, revisa, aprueba o rechaza solicitudes. Al aprobar, el sistema descuenta saldo, genera kárdex e incidencia de vacaciones."
-            badge={`${solicitudesQuery.data?.pendientes ?? 0} pendiente(s)`}
+            eyebrow={isEmpleadoOnly ? "Mis vacaciones" : "Vacaciones / Solicitudes"}
+            title={isEmpleadoOnly ? "Mis solicitudes de vacaciones" : "Solicitudes de vacaciones"}
+            subtitle={heroSubtitle}
+            badge={heroBadge}
+            actions={
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                {normalizedRoles.map((role) => (
+                  <Chip key={role} size="small" variant="outlined" label={role} />
+                ))}
+              </Stack>
+            }
           />
 
           {solicitudesQuery.isError ? (
             <Alert severity="error">
               No se pudieron cargar las solicitudes. Revisa que el backend tenga activo
               /api/Vacaciones/solicitudes.
+            </Alert>
+          ) : null}
+
+          {isEmpleadoOnly ? (
+            <Alert severity="info">
+              Estás viendo únicamente tus solicitudes. Para aprobar o rechazar, debe hacerlo tu jefe,
+              RH o un administrador según el flujo definido.
+              {user?.email ? ` Cuenta: ${user.email}.` : ""}
             </Alert>
           ) : null}
 
@@ -419,7 +512,7 @@ export default function VacacionesSolicitudesPage() {
             <MetricCard
               title="Pendientes"
               value={solicitudesQuery.data?.pendientes ?? 0}
-              subtitle="Requieren revisión"
+              subtitle={isEmpleadoOnly ? "En revisión" : "Requieren revisión"}
               icon={<HourglassBottomRoundedIcon />}
             />
 
@@ -446,19 +539,67 @@ export default function VacacionesSolicitudesPage() {
           </Box>
 
           <SectionCard
-            title="Bandeja de solicitudes"
-            subtitle="Control operativo de solicitudes de vacaciones."
-            actions={
-              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            title={isEmpleadoOnly ? "Mis solicitudes" : "Bandeja de solicitudes"}
+            subtitle={
+              isEmpleadoOnly
+                ? "Seguimiento personal de solicitudes registradas."
+                : "Control operativo de solicitudes de vacaciones."
+            }
+            >
+            <Box
+              sx={{
+                mb: 1.5,
+                p: 1.35,
+                borderRadius: 2,
+                border: "1px solid",
+                borderColor: alpha("#0f172a", 0.08),
+                bgcolor: alpha("#f8fafc", 0.9),
+              }}
+            >
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: {
+                    xs: "1fr",
+                    sm: "repeat(2, minmax(0, 1fr))",
+                    lg: canSelectEmpleado
+                      ? "minmax(240px, 1.35fr) minmax(140px, 0.8fr) repeat(2, minmax(135px, 0.75fr)) auto auto"
+                      : "minmax(150px, 0.8fr) repeat(2, minmax(135px, 0.75fr)) auto auto",
+                  },
+                  gap: 1,
+                  alignItems: "center",
+                }}
+              >
+                {canSelectEmpleado ? (
+                  <TextField
+                    select
+                    size="small"
+                    label="Empleado"
+                    value={empleadoFilter}
+                    onChange={(event) => setEmpleadoFilter(event.target.value)}
+                    disabled={empleadosQuery.isLoading}
+                    fullWidth
+                  >
+                    <MenuItem value="">Todos</MenuItem>
+                    {(empleadosQuery.data ?? []).map((empleado) => (
+                      <MenuItem key={empleado.id} value={String(empleado.id)}>
+                        #{empleado.numEmpleado} · {empleado.nombreCompleto}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                ) : null}
+
                 <TextField
                   select
                   size="small"
                   label="Estatus"
                   value={estatus}
-                  onChange={(event) =>
-                    setEstatus(event.target.value as EstatusVacacionSolicitud | "")
-                  }
-                  sx={{ minWidth: 160 }}
+                  onChange={(event) => {
+                    setSoloPendientes(false);
+                    setEstatus(event.target.value as EstatusVacacionSolicitud | "");
+                  }}
+                  disabled={soloPendientes}
+                  fullWidth
                 >
                   <MenuItem value="">Todos</MenuItem>
                   <MenuItem value="PENDIENTE">Pendientes</MenuItem>
@@ -467,16 +608,49 @@ export default function VacacionesSolicitudesPage() {
                   <MenuItem value="CANCELADA">Canceladas</MenuItem>
                 </TextField>
 
+                <TextField
+                  size="small"
+                  label="Desde"
+                  type="date"
+                  value={fechaDesde}
+                  onChange={(event) => setFechaDesde(event.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                  fullWidth
+                />
+
+                <TextField
+                  size="small"
+                  label="Hasta"
+                  type="date"
+                  value={fechaHasta}
+                  onChange={(event) => setFechaHasta(event.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                  fullWidth
+                />
+
                 <Button
                   size="small"
                   variant={soloPendientes ? "contained" : "outlined"}
-                  onClick={() => setSoloPendientes((value) => !value)}
+                  onClick={() => {
+                    setSoloPendientes((value) => !value);
+                    if (!soloPendientes) setEstatus("");
+                  }}
+                  sx={{ whiteSpace: "nowrap", minHeight: 38 }}
                 >
                   Solo pendientes
                 </Button>
-              </Stack>
-            }
-          >
+
+                <Button
+                  size="small"
+                  variant="text"
+                  startIcon={<SearchRoundedIcon />}
+                  onClick={clearFilters}
+                  sx={{ whiteSpace: "nowrap", minHeight: 38 }}
+                >
+                  Limpiar
+                </Button>
+              </Box>
+            </Box>
             <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
               <Table size="small">
                 <TableHead>
@@ -525,7 +699,9 @@ export default function VacacionesSolicitudesPage() {
                   ) : (
                     solicitudes.map((item) => {
                       const statusKey = getStatusKey(item.estatus);
-                      const canResolve = statusKey === "PENDIENTE";
+                      const isPending = statusKey === "PENDIENTE";
+                      const canResolveRow = isPending && canResolveSolicitudes;
+                      const canCancelRow = isPending && (canResolveSolicitudes || isEmpleadoOnly);
 
                       return (
                         <TableRow key={item.id} hover>
@@ -585,45 +761,49 @@ export default function VacacionesSolicitudesPage() {
                               flexWrap="wrap"
                               useFlexGap
                             >
-                              <Button
-                                size="small"
-                                variant="outlined"
-                                color="success"
-                                disabled={!canResolve || pendingMutation}
-                                onClick={() =>
-                                  setResolveDialog({
-                                    mode: "aprobar",
-                                    solicitud: item,
-                                    comentarioResolucion: "",
-                                    motivoRechazo: "",
-                                  })
-                                }
-                              >
-                                Aprobar
-                              </Button>
+                              {canResolveSolicitudes ? (
+                                <>
+                                  <Button
+                                    size="small"
+                                    variant="outlined"
+                                    color="success"
+                                    disabled={!canResolveRow || pendingMutation}
+                                    onClick={() =>
+                                      setResolveDialog({
+                                        mode: "aprobar",
+                                        solicitud: item,
+                                        comentarioResolucion: "",
+                                        motivoRechazo: "",
+                                      })
+                                    }
+                                  >
+                                    Aprobar
+                                  </Button>
+
+                                  <Button
+                                    size="small"
+                                    variant="outlined"
+                                    color="error"
+                                    disabled={!canResolveRow || pendingMutation}
+                                    onClick={() =>
+                                      setResolveDialog({
+                                        mode: "rechazar",
+                                        solicitud: item,
+                                        comentarioResolucion: "",
+                                        motivoRechazo: "",
+                                      })
+                                    }
+                                  >
+                                    Rechazar
+                                  </Button>
+                                </>
+                              ) : null}
 
                               <Button
                                 size="small"
-                                variant="outlined"
-                                color="error"
-                                disabled={!canResolve || pendingMutation}
-                                onClick={() =>
-                                  setResolveDialog({
-                                    mode: "rechazar",
-                                    solicitud: item,
-                                    comentarioResolucion: "",
-                                    motivoRechazo: "",
-                                  })
-                                }
-                              >
-                                Rechazar
-                              </Button>
-
-                              <Button
-                                size="small"
-                                variant="text"
+                                variant={canResolveSolicitudes ? "text" : "outlined"}
                                 color="inherit"
-                                disabled={!canResolve || pendingMutation}
+                                disabled={!canCancelRow || pendingMutation}
                                 onClick={() =>
                                   setResolveDialog({
                                     mode: "cancelar",
@@ -635,6 +815,10 @@ export default function VacacionesSolicitudesPage() {
                               >
                                 Cancelar
                               </Button>
+
+                              {!isPending ? (
+                                <Chip size="small" variant="outlined" label="Cerrada" />
+                              ) : null}
                             </Stack>
                           </TableCell>
                         </TableRow>
@@ -656,41 +840,46 @@ export default function VacacionesSolicitudesPage() {
         fullWidth
         maxWidth="sm"
       >
-        <DialogTitle>Nueva solicitud de vacaciones</DialogTitle>
+        <DialogTitle>
+          {isEmpleadoOnly ? "Solicitar vacaciones" : "Nueva solicitud de vacaciones"}
+        </DialogTitle>
 
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1 }}>
             {createError ? <Alert severity="error">{createError}</Alert> : null}
 
-            <Alert severity="info">
-              Para empleados, deja el empleado vacío: el backend usará tu cuenta vinculada.
-              ADMIN/RRHH/JEFE pueden seleccionar un empleado.
+            <Alert severity={isEmpleadoOnly ? "info" : "warning"}>
+              {isEmpleadoOnly
+                ? "La solicitud se registrará con tu empleado vinculado. No necesitas seleccionar empleado."
+                : "Selecciona el empleado que solicita vacaciones. El sistema elegirá automáticamente el periodo abierto con saldo si no capturas un periodo específico."}
             </Alert>
 
-            <TextField
-              select
-              label="Empleado"
-              value={createForm.empleadoId}
-              onChange={(event) =>
-                setCreateForm((form) => ({
-                  ...form,
-                  empleadoId: event.target.value,
-                }))
-              }
-              disabled={empleadosQuery.isLoading}
-              helperText={
-                empleadosQuery.isError
-                  ? "No se pudo cargar el catálogo. Puedes dejarlo vacío si es solicitud propia."
-                  : "Opcional para empleado. Requerido si capturas para otra persona."
-              }
-            >
-              <MenuItem value="">Mi solicitud / sin empleado explícito</MenuItem>
-              {(empleadosQuery.data ?? []).map((empleado) => (
-                <MenuItem key={empleado.id} value={String(empleado.id)}>
-                  #{empleado.numEmpleado} · {empleado.nombreCompleto}
-                </MenuItem>
-              ))}
-            </TextField>
+            {canSelectEmpleado ? (
+              <TextField
+                select
+                label="Empleado"
+                value={createForm.empleadoId}
+                onChange={(event) =>
+                  setCreateForm((form) => ({
+                    ...form,
+                    empleadoId: event.target.value,
+                  }))
+                }
+                disabled={empleadosQuery.isLoading}
+                helperText={
+                  empleadosQuery.isError
+                    ? "No se pudo cargar el catálogo de empleados."
+                    : "Requerido para capturar solicitudes de otra persona."
+                }
+              >
+                <MenuItem value="">Selecciona empleado</MenuItem>
+                {(empleadosQuery.data ?? []).map((empleado) => (
+                  <MenuItem key={empleado.id} value={String(empleado.id)}>
+                    #{empleado.numEmpleado} · {empleado.nombreCompleto}
+                  </MenuItem>
+                ))}
+              </TextField>
+            ) : null}
 
             <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
               <TextField
@@ -752,7 +941,7 @@ export default function VacacionesSolicitudesPage() {
                     vacacionPeriodoId: event.target.value,
                   }))
                 }
-                helperText="Opcional. Si lo dejas vacío, usa el periodo abierto con saldo."
+                helperText="Opcional. Vacío = primer periodo abierto con saldo."
                 fullWidth
               />
             </Stack>
@@ -791,12 +980,7 @@ export default function VacacionesSolicitudesPage() {
               )
             }
             onClick={handleCreateSubmit}
-            disabled={
-              createMutation.isPending ||
-              !createForm.fechaInicio ||
-              !createForm.fechaFin ||
-              Number(createForm.diasSolicitados) <= 0
-            }
+            disabled={!canSubmitCreate}
           >
             Crear solicitud
           </Button>
@@ -852,6 +1036,12 @@ export default function VacacionesSolicitudesPage() {
                 <Alert severity="warning">
                   Al aprobar se descontará saldo, se generará movimiento DISFRUTE en kárdex
                   y se creará una incidencia VACACIONES aprobada.
+                </Alert>
+              ) : null}
+
+              {resolveDialog.mode === "cancelar" ? (
+                <Alert severity="info">
+                  La cancelación solo aplica para solicitudes pendientes. No impacta kárdex ni incidencias.
                 </Alert>
               ) : null}
 

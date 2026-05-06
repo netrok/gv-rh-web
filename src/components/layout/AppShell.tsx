@@ -189,6 +189,16 @@ function buildNavSections(roles?: string[] | null): NavSection[] {
           },
         },
         {
+          type: "item",
+          item: {
+            label: "Solicitudes vacaciones",
+            to: "/vacaciones/solicitudes",
+            icon: <AssignmentTurnedInRoundedIcon />,
+            allow: ["JEFE", "EMPLEADO"],
+          },
+        },
+
+        {
           type: "vacations",
           allow: ["ADMIN", "RRHH"],
         },
@@ -267,6 +277,9 @@ function isRouteActive(pathname: string, to: string) {
 }
 
 function getPageTitle(pathname: string) {
+  if (pathname.startsWith("/vacaciones/solicitudes")) {
+    return "Solicitudes de vacaciones";
+  }
   if (pathname.startsWith("/dashboard")) return "Dashboard";
   if (pathname.startsWith("/audit")) return "Auditoría";
   if (pathname.startsWith("/cumpleanios")) return "Cumpleaños";
@@ -306,6 +319,9 @@ function getPageTitle(pathname: string) {
 }
 
 function getPageSubtitle(pathname: string) {
+  if (pathname.startsWith("/vacaciones/solicitudes")) {
+    return "Bandeja de solicitud, aprobación y control de vacaciones";
+  }
   if (pathname.startsWith("/dashboard")) return "Vista general del sistema";
   if (pathname.startsWith("/audit")) return "Trazabilidad y control de movimientos";
 
@@ -370,6 +386,9 @@ function getPageSubtitle(pathname: string) {
 }
 
 function getPageBreadcrumb(pathname: string) {
+  if (pathname.startsWith("/vacaciones/solicitudes")) {
+    return ["Vacaciones", "Solicitudes"];
+  }
   if (pathname === "/vacaciones" || pathname.startsWith("/vacaciones/dashboard")) {
     return ["Vacaciones", "Resumen"];
   }
