@@ -30,6 +30,7 @@ import HeroBanner from "../components/ui/HeroBanner";
 import MetricCard from "../components/ui/MetricCard";
 import SectionCard from "../components/ui/SectionCard";
 import { useAppSnackbar } from "../features/ui/AppSnackbarContext";
+import { useAuth } from "../features/auth/AuthContext";
 
 import {
   exportCumpleaniosPdf,
@@ -99,6 +100,16 @@ function getPeriodoReporteLabel(scope: CumpleaniosReporteScope) {
   }
 }
 
+
+function normalizeRoles(roles?: string[] | null): string[] {
+  return (roles ?? [])
+    .map((role) => String(role).trim().toUpperCase())
+    .filter(Boolean);
+}
+
+function hasRole(roles: string[], role: string): boolean {
+  return roles.includes(role.toUpperCase());
+}
 function getErrorMessage(error: unknown) {
   if (error instanceof Error && error.message.trim()) {
     return error.message;
@@ -169,6 +180,15 @@ function BirthdayPersonCard({ item }: { item: CumpleaniosItem }) {
 export default function CumpleaniosPage() {
   const today = new Date();
   const { showSnackbar } = useAppSnackbar();
+  const { roles } = useAuth();
+
+  const normalizedRoles = useMemo(() => normalizeRoles(roles), [roles]);
+  const isEmpleadoOnly =
+    hasRole(normalizedRoles, "EMPLEADO") &&
+    !hasRole(normalizedRoles, "ADMIN") &&
+    !hasRole(normalizedRoles, "RRHH") &&
+    !hasRole(normalizedRoles, "JEFE") &&
+    !hasRole(normalizedRoles, "CONSULTA");
 
   const [sucursalId, setSucursalId] = useState<number | "">("");
   const [departamentoId, setDepartamentoId] = useState<number | "">("");
@@ -224,11 +244,15 @@ export default function CumpleaniosPage() {
   const sucursalesQuery = useQuery({
     queryKey: ["sucursales", "all"],
     queryFn: () => getSucursales(),
+    enabled: !isEmpleadoOnly,
+    staleTime: 5 * 60 * 1000,
   });
 
   const departamentosQuery = useQuery({
     queryKey: ["departamentos", "all"],
     queryFn: () => getDepartamentos(),
+    enabled: !isEmpleadoOnly,
+    staleTime: 5 * 60 * 1000,
   });
 
   const isLoading =
@@ -354,7 +378,7 @@ export default function CumpleaniosPage() {
       <Stack spacing={2.5}>
         <HeroBanner
           title="Cumpleaños"
-          subtitle="Consulta celebraciones del día, próximos cumpleaños y calendario del mes por sucursal o departamento."
+          subtitle={isEmpleadoOnly ? "Consulta el calendario de cumpleaños del personal. Vista informativa para empleados." : "Consulta celebraciones del día, próximos cumpleaños y calendario del mes por sucursal o departamento."}
           eyebrow="Capital humano"
           icon={<CelebrationRoundedIcon />}
           actions={
@@ -376,7 +400,7 @@ export default function CumpleaniosPage() {
               <Chip
                 size="small"
                 variant="outlined"
-                label={`Reporte: ${getPeriodoReporteLabel(scopeReporte)}`}
+                label={isEmpleadoOnly ? "Vista informativa" : `Reporte: ${getPeriodoReporteLabel(scopeReporte)}`}
                 sx={{
                   color: "#fff",
                   borderColor: "rgba(255,255,255,0.24)",
@@ -414,6 +438,7 @@ export default function CumpleaniosPage() {
               icon={<CalendarMonthRoundedIcon />}
             />
           </Grid>
+          {!isEmpleadoOnly ? (
 
           <Grid size={12}>
             <SectionCard
@@ -503,6 +528,8 @@ export default function CumpleaniosPage() {
               </Grid>
             </SectionCard>
           </Grid>
+          ) : null}
+          {!isEmpleadoOnly ? (
 
           <Grid size={12}>
             <SectionCard
@@ -597,6 +624,7 @@ export default function CumpleaniosPage() {
               </Grid>
             </SectionCard>
           </Grid>
+          ) : null}
 
           {isLoading ? (
             <Grid size={12}>
