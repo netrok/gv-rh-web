@@ -28,15 +28,15 @@ export default function SectionCard({
         <>
           <Box
             sx={{
-              px: { xs: 1.75, md: 2.25 },
-              py: { xs: 1.5, md: 1.75 },
+              px: { xs: 1.35, md: 1.75 },
+              py: { xs: 1.15, md: 1.4 },
             }}
           >
             <Stack
               direction={{ xs: "column", sm: "row" }}
               justifyContent="space-between"
               alignItems={{ xs: "flex-start", sm: "center" }}
-              spacing={{ xs: 1.25, sm: 1.5 }}
+              spacing={{ xs: 1, sm: 1.15 }}
             >
               <Box
                 sx={{
@@ -48,7 +48,7 @@ export default function SectionCard({
                   <Typography
                     variant="h6"
                     sx={{
-                      fontWeight: 800,
+                      fontWeight: 750,
                       color: "text.primary",
                       lineHeight: 1.15,
                       letterSpacing: "-0.01em",
@@ -64,7 +64,7 @@ export default function SectionCard({
                     color="text.secondary"
                     sx={{
                       mt: title ? 0.4 : 0,
-                      lineHeight: 1.45,
+                      lineHeight: 1.32,
                       maxWidth: { xs: "100%", md: "88%" },
                     }}
                   >
@@ -79,7 +79,7 @@ export default function SectionCard({
                     flexShrink: 0,
                     display: "flex",
                     alignItems: "center",
-                    gap: 0.75,
+                    gap: 0.55,
                     width: { xs: "100%", sm: "auto" },
                     justifyContent: { xs: "flex-start", sm: "flex-end" },
                     pt: { xs: 0.15, sm: 0 },
@@ -97,8 +97,8 @@ export default function SectionCard({
 
       <Box
         sx={{
-          px: { xs: 1.75, md: 2.25 },
-          py: { xs: 1.5, md: 1.9 },
+          px: { xs: 1.35, md: 1.75 },
+          py: { xs: 1.15, md: 1.55 },
         }}
       >
         {children}

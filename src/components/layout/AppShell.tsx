@@ -1,4 +1,4 @@
-﻿import {
+import {
   useEffect,
   useMemo,
   useState,
@@ -58,7 +58,7 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 
 import { useAuth } from "../../features/auth/AuthContext";
 
-const DRAWER_WIDTH = 260;
+const DRAWER_WIDTH = 244;
 
 type AppShellProps = {
   children?: ReactNode;
@@ -297,7 +297,7 @@ function getPageTitle(pathname: string) {
   if (pathname.startsWith("/sucursales")) return "Sucursales";
   if (pathname.startsWith("/usuarios")) return "Usuarios";
 
-  return "GV RH";
+  return "GRANVIA";
 }
 
 function getPageSubtitle(pathname: string) {
@@ -326,7 +326,7 @@ function getPageSubtitle(pathname: string) {
   }
 
   if (pathname.startsWith("/vacaciones/conciliacion")) {
-    return "Cruce previo de empleados contra GV RH";
+    return "Cruce previo de empleados contra GRANVIA";
   }
 
   if (pathname.startsWith("/vacaciones/importacion")) {
@@ -403,7 +403,7 @@ function getPageBreadcrumb(pathname: string) {
   if (pathname.startsWith("/usuarios")) return ["Usuarios"];
   if (pathname.startsWith("/dashboard")) return ["Dashboard"];
 
-  return ["GV RH"];
+  return ["GRANVIA"];
 }
 
 function getPageHeaderMeta(pathname: string): {
@@ -488,7 +488,7 @@ function getPageHeaderMeta(pathname: string): {
   }
 
   return {
-    label: "GV RH",
+    label: "GRANVIA",
     icon: <ShieldRoundedIcon sx={{ fontSize: 16 }} />,
   };
 }
@@ -572,7 +572,7 @@ function SidebarContent({
   }, [isVacationsRoute]);
 
   const navButtonSx = (active: boolean) => ({
-    minHeight: 52,
+    minHeight: 36,
     borderRadius: "12px",
     px: 1.4,
     color: "#fff",
@@ -599,7 +599,7 @@ function SidebarContent({
   });
 
   const subNavButtonSx = (active: boolean) => ({
-    minHeight: 46,
+    minHeight: 40,
     borderRadius: "12px",
     pl: 2.35,
     pr: 1.35,
@@ -628,12 +628,12 @@ function SidebarContent({
         color: "#fff",
       }}
     >
-      <Box sx={{ px: 2.25, pt: 2.25, pb: isDesktop ? 2 : 1.5 }}>
-        <Stack direction="row" spacing={1.5} alignItems="center">
+      <Box sx={{ px: 1.5, pt: 1.5, pb: isDesktop ? 1.25 : 1 }}>
+        <Stack direction="row" spacing={0.85} alignItems="center">
           <Box
             sx={{
-              width: 48,
-              height: 48,
+              width: 32,
+              height: 32,
               borderRadius: "10px",
               display: "grid",
               placeItems: "center",
@@ -647,13 +647,13 @@ function SidebarContent({
 
           <Box sx={{ minWidth: 0 }}>
             <Typography
-              sx={{ fontSize: "1.75rem", fontWeight: 900, lineHeight: 1.1 }}
+              sx={{ fontSize: "1.42rem", fontWeight: 800, lineHeight: 1.05 }}
             >
-              GV RH
+              GRANVIA
             </Typography>
             <Typography
               sx={{
-                fontSize: "0.92rem",
+                fontSize: "0.74rem",
                 color: alpha("#ffffff", 0.68),
               }}
             >
@@ -664,12 +664,12 @@ function SidebarContent({
       </Box>
 
       {!isDesktop && (
-        <Box sx={{ px: 2.25, pb: 2 }}>
+        <Box sx={{ px: 1.5, pb: 1.25 }}>
           <Box
             sx={{
               borderRadius: "12px",
-              px: 2,
-              py: 1.75,
+              px: 1.4,
+              py: 1.2,
               background: `linear-gradient(180deg, ${alpha(
                 "#ffffff",
                 0.06
@@ -677,12 +677,12 @@ function SidebarContent({
               border: `1px solid ${alpha("#ffffff", 0.08)}`,
             }}
           >
-            <Stack direction="row" spacing={1.5} alignItems="center">
+            <Stack direction="row" spacing={0.85} alignItems="center">
               <Avatar
                 sx={{
-                  width: 44,
-                  height: 44,
-                  fontWeight: 900,
+                  width: 36,
+                  height: 36,
+                  fontWeight: 800,
                   bgcolor: alpha("#ffffff", 0.12),
                   color: "#fff",
                 }}
@@ -740,22 +740,10 @@ function SidebarContent({
 
       <Divider sx={{ borderColor: alpha("#ffffff", 0.08) }} />
 
-      <Box sx={{ px: 1.25, pt: 1.5, pb: 1 }}>
-        <Typography
-          sx={{
-            px: 1,
-            fontSize: "0.78rem",
-            fontWeight: 900,
-            letterSpacing: "0.06em",
-            color: alpha("#ffffff", 0.65),
-            textTransform: "uppercase",
-          }}
-        >
-          Navegación
-        </Typography>
-      </Box>
+      <Box sx={{ px: 1, pt: 0.35, pb: 0.65 }}>
+</Box>
 
-      <Box sx={{ flex: 1, overflowY: "auto", px: 1.25, pb: 2 }}>
+      <Box sx={{ flex: 1, overflowY: "auto", px: 1, pb: 1.25, pt: 0.25 }}>
         {navSections.map((section, sectionIndex) => (
           <Box key={section.title} sx={{ mb: 1.35 }}>
             {sectionIndex > 0 && (
@@ -771,9 +759,9 @@ function SidebarContent({
               sx={{
                 px: 1.05,
                 mb: 0.85,
-                fontSize: "0.72rem",
-                fontWeight: 900,
-                letterSpacing: "0.08em",
+                fontSize: "0.68rem",
+                fontWeight: 800,
+                letterSpacing: "0.055em",
                 color: alpha("#ffffff", 0.48),
                 textTransform: "uppercase",
               }}
@@ -781,7 +769,7 @@ function SidebarContent({
               {section.title}
             </Typography>
 
-            <List sx={{ p: 0, display: "grid", gap: 0.75 }}>
+            <List sx={{ p: 0, display: "grid", gap: 0.5 }}>
               {section.entries.map((entry, entryIndex) => {
                 if (entry.type === "item") {
                   const active = isRouteActive(pathname, entry.item.to);
@@ -806,7 +794,7 @@ function SidebarContent({
                       <ListItemText
                         primary={entry.item.label}
                         primaryTypographyProps={{
-                          fontSize: "0.98rem",
+                          fontSize: "0.82rem",
                           fontWeight: active ? 800 : 700,
                         }}
                       />
@@ -844,7 +832,7 @@ function SidebarContent({
                         <ListItemText
                           primary="Vacaciones"
                           primaryTypographyProps={{
-                            fontSize: "0.98rem",
+                            fontSize: "0.82rem",
                             fontWeight: isVacationsRoute ? 800 : 700,
                           }}
                         />
@@ -869,7 +857,7 @@ function SidebarContent({
                       </ListItemButton>
 
                       <Collapse in={vacacionesOpen} timeout="auto" unmountOnExit>
-                        <List sx={{ p: 0, pt: 0.75, display: "grid", gap: 0.6 }}>
+                        <List sx={{ p: 0, pt: 0.75, display: "grid", gap: 0.45 }}>
                           <ListItemButton
                             component={RouterLink}
                             to="/vacaciones/conciliacion"
@@ -907,7 +895,7 @@ function SidebarContent({
                             <ListItemText
                               primary="Validar Excel"
                               primaryTypographyProps={{
-                                fontSize: "0.93rem",
+                                fontSize: "0.82rem",
                                 fontWeight: isVacacionesConciliacionRoute
                                   ? 800
                                   : 600,
@@ -952,7 +940,7 @@ function SidebarContent({
                             <ListItemText
                               primary="Importar saldos"
                               primaryTypographyProps={{
-                                fontSize: "0.93rem",
+                                fontSize: "0.82rem",
                                 fontWeight: isVacacionesImportacionRoute
                                   ? 800
                                   : 600,
@@ -997,7 +985,7 @@ function SidebarContent({
                             <ListItemText
                               primary="Reporte de saldos"
                               primaryTypographyProps={{
-                                fontSize: "0.93rem",
+                                fontSize: "0.82rem",
                                 fontWeight: isVacacionesSaldosRoute ? 800 : 600,
                               }}
                             />
@@ -1040,7 +1028,7 @@ function SidebarContent({
                             <ListItemText
                               primary="Reporte de kárdex"
                               primaryTypographyProps={{
-                                fontSize: "0.93rem",
+                                fontSize: "0.82rem",
                                 fontWeight: isVacacionesKardexRoute ? 800 : 600,
                               }}
                             />
@@ -1073,7 +1061,7 @@ function SidebarContent({
                       <ListItemText
                         primary="Reclutamiento"
                         primaryTypographyProps={{
-                          fontSize: "0.98rem",
+                          fontSize: "0.82rem",
                           fontWeight: isRecruitmentRoute ? 800 : 700,
                         }}
                       />
@@ -1098,7 +1086,7 @@ function SidebarContent({
                     </ListItemButton>
 
                     <Collapse in={reclutamientoOpen} timeout="auto" unmountOnExit>
-                      <List sx={{ p: 0, pt: 0.75, display: "grid", gap: 0.6 }}>
+                      <List sx={{ p: 0, pt: 0.75, display: "grid", gap: 0.45 }}>
                         <ListItemButton
                           component={RouterLink}
                           to="/reclutamiento"
@@ -1136,7 +1124,7 @@ function SidebarContent({
                           <ListItemText
                             primary="Resumen"
                             primaryTypographyProps={{
-                              fontSize: "0.93rem",
+                              fontSize: "0.82rem",
                               fontWeight: isResumenRoute ? 800 : 600,
                             }}
                           />
@@ -1179,7 +1167,7 @@ function SidebarContent({
                           <ListItemText
                             primary="Candidatos"
                             primaryTypographyProps={{
-                              fontSize: "0.93rem",
+                              fontSize: "0.82rem",
                               fontWeight: isCandidatosRoute ? 800 : 600,
                             }}
                           />
@@ -1222,7 +1210,7 @@ function SidebarContent({
                           <ListItemText
                             primary="Vacantes"
                             primaryTypographyProps={{
-                              fontSize: "0.93rem",
+                              fontSize: "0.82rem",
                               fontWeight: isVacantesRoute ? 800 : 600,
                             }}
                           />
@@ -1327,7 +1315,7 @@ export default function AppShell({ children }: AppShellProps) {
           ml: isDesktop ? `${DRAWER_WIDTH}px` : 0,
         }}
       >
-        <Toolbar sx={{ minHeight: 84, px: { xs: 2, md: 3 } }}>
+        <Toolbar sx={{ minHeight: 68, px: { xs: 1.5, md: 2 } }}>
           {!isDesktop && (
             <IconButton edge="start" onClick={handleDrawerToggle} sx={{ mr: 1 }}>
               <MenuRoundedIcon />
@@ -1385,7 +1373,7 @@ export default function AppShell({ children }: AppShellProps) {
 
                         <Typography
                           sx={{
-                            fontSize: "0.8rem",
+                            fontSize: "0.74rem",
                             fontWeight: index === breadcrumb.length - 1 ? 800 : 700,
                             color:
                               index === breadcrumb.length - 1
@@ -1404,7 +1392,7 @@ export default function AppShell({ children }: AppShellProps) {
 
             <Typography
               variant="h5"
-              sx={{ fontWeight: 900, lineHeight: 1.1, color: "#0f172a" }}
+              sx={{ fontWeight: 800, lineHeight: 1.1, color: "#0f172a" }}
             >
               {pageTitle}
             </Typography>
@@ -1415,7 +1403,7 @@ export default function AppShell({ children }: AppShellProps) {
           </Box>
 
           {isDesktop ? (
-            <Stack direction="row" spacing={1.25} alignItems="center">
+            <Stack direction="row" spacing={0.9} alignItems="center">
               <Chip
                 label={primaryRole}
                 size="small"
@@ -1432,7 +1420,7 @@ export default function AppShell({ children }: AppShellProps) {
                 variant="text"
                 sx={{
                   px: 1.1,
-                  py: 0.7,
+                  py: 0.35,
                   minWidth: 0,
                   borderRadius: "12px",
                   color: "#0f172a",
@@ -1445,12 +1433,12 @@ export default function AppShell({ children }: AppShellProps) {
                   },
                 }}
               >
-                <Stack direction="row" spacing={1.1} alignItems="center">
+                <Stack direction="row" spacing={0.85} alignItems="center">
                   <Avatar
                     sx={{
-                      width: 40,
-                      height: 40,
-                      fontWeight: 900,
+                      width: 32,
+                      height: 32,
+                      fontWeight: 800,
                       color: "#ffffff",
                       background:
                         "linear-gradient(135deg, #0f172a 0%, #1d4ed8 100%)",
@@ -1463,7 +1451,7 @@ export default function AppShell({ children }: AppShellProps) {
                   <Box sx={{ textAlign: "left", minWidth: 0 }}>
                     <Typography
                       sx={{
-                        fontSize: "0.98rem",
+                        fontSize: "0.82rem",
                         fontWeight: 800,
                         lineHeight: 1.1,
                       }}
@@ -1472,7 +1460,7 @@ export default function AppShell({ children }: AppShellProps) {
                     </Typography>
                     <Typography
                       sx={{
-                        fontSize: "0.82rem",
+                        fontSize: "0.72rem",
                         color: "#64748b",
                         lineHeight: 1.1,
                       }}
@@ -1493,7 +1481,7 @@ export default function AppShell({ children }: AppShellProps) {
                   elevation: 0,
                   sx: {
                     mt: 1.25,
-                    minWidth: 260,
+                    minWidth: 230,
                     overflow: "hidden",
                     borderRadius: "12px",
                     border: `1px solid ${alpha("#1e3a8a", 0.12)}`,
@@ -1505,19 +1493,19 @@ export default function AppShell({ children }: AppShellProps) {
               >
                 <Box
                   sx={{
-                    px: 2,
-                    py: 1.75,
+                    px: 1.4,
+                    py: 1.2,
                     background:
                       "linear-gradient(135deg, #0b1630 0%, #16315f 100%)",
                     color: "#ffffff",
                   }}
                 >
-                  <Stack direction="row" spacing={1.25} alignItems="center">
+                  <Stack direction="row" spacing={0.9} alignItems="center">
                     <Avatar
                       sx={{
-                        width: 42,
-                        height: 42,
-                        fontWeight: 900,
+                        width: 36,
+                        height: 36,
+                        fontWeight: 800,
                         color: "#ffffff",
                         backgroundColor: alpha("#ffffff", 0.14),
                         border: `1px solid ${alpha("#ffffff", 0.16)}`,
@@ -1529,7 +1517,7 @@ export default function AppShell({ children }: AppShellProps) {
                     <Box sx={{ minWidth: 0 }}>
                       <Typography
                         sx={{
-                          fontSize: "0.98rem",
+                          fontSize: "0.82rem",
                           fontWeight: 800,
                           lineHeight: 1.1,
                           color: "#ffffff",
@@ -1540,7 +1528,7 @@ export default function AppShell({ children }: AppShellProps) {
 
                       <Typography
                         sx={{
-                          fontSize: "0.82rem",
+                          fontSize: "0.72rem",
                           lineHeight: 1.15,
                           color: alpha("#ffffff", 0.78),
                         }}
@@ -1564,7 +1552,7 @@ export default function AppShell({ children }: AppShellProps) {
                   />
                 </Box>
 
-                <Box sx={{ py: 0.75 }}>
+                <Box sx={{ py: 0.35 }}>
                   <MenuItem
                     onClick={() => {
                       setAccountAnchor(null);
@@ -1574,7 +1562,7 @@ export default function AppShell({ children }: AppShellProps) {
                       mx: 1,
                       my: 0.25,
                       borderRadius: "10px",
-                      minHeight: 44,
+                      minHeight: 36,
                       fontWeight: 600,
                       color: "#0f172a",
                       "&:hover": {
@@ -1582,7 +1570,7 @@ export default function AppShell({ children }: AppShellProps) {
                       },
                     }}
                   >
-                    <Stack direction="row" spacing={1.2} alignItems="center">
+                    <Stack direction="row" spacing={0.9} alignItems="center">
                       <LockRoundedIcon fontSize="small" />
                       <span>Cambiar contraseña</span>
                     </Stack>
@@ -1594,7 +1582,7 @@ export default function AppShell({ children }: AppShellProps) {
                       mx: 1,
                       my: 0.25,
                       borderRadius: "10px",
-                      minHeight: 44,
+                      minHeight: 36,
                       fontWeight: 700,
                       color: "#991b1b",
                       "&:hover": {
@@ -1602,7 +1590,7 @@ export default function AppShell({ children }: AppShellProps) {
                       },
                     }}
                   >
-                    <Stack direction="row" spacing={1.2} alignItems="center">
+                    <Stack direction="row" spacing={0.9} alignItems="center">
                       <LogoutRoundedIcon fontSize="small" />
                       <span>Cerrar sesión</span>
                     </Stack>
@@ -1646,7 +1634,7 @@ export default function AppShell({ children }: AppShellProps) {
           pt: "84px",
         }}
       >
-        <Box sx={{ p: { xs: 2, md: 3.5 } }}>{children ?? <Outlet />}</Box>
+        <Box sx={{ p: { xs: 1.25, md: 2 } }}>{children ?? <Outlet />}</Box>
       </Box>
     </Box>
   );

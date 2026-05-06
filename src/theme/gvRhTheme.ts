@@ -66,48 +66,48 @@ const gvRhTheme = createTheme({
       "sans-serif",
     ].join(","),
     h1: {
-      fontSize: "2rem",
+      fontSize: "1.55rem",
       fontWeight: 800,
       letterSpacing: "-0.02em",
     },
     h2: {
-      fontSize: "1.75rem",
+      fontSize: "1.55rem",
       fontWeight: 800,
       letterSpacing: "-0.02em",
     },
     h3: {
-      fontSize: "1.5rem",
+      fontSize: "1.32rem",
       fontWeight: 700,
       letterSpacing: "-0.02em",
     },
     h4: {
-      fontSize: "1.25rem",
+      fontSize: "1.12rem",
       fontWeight: 700,
       letterSpacing: "-0.02em",
     },
     h5: {
-      fontSize: "1.125rem",
+      fontSize: "0.86rem",
       fontWeight: 700,
     },
     h6: {
-      fontSize: "1rem",
+      fontSize: "0.86rem",
       fontWeight: 700,
     },
     subtitle1: {
-      fontSize: "1rem",
+      fontSize: "0.86rem",
       fontWeight: 600,
     },
     subtitle2: {
-      fontSize: "0.95rem",
+      fontSize: "0.88rem",
       fontWeight: 600,
     },
     body1: {
-      fontSize: "0.98rem",
-      lineHeight: 1.65,
+      fontSize: "0.9rem",
+      lineHeight: 1.45,
     },
     body2: {
-      fontSize: "0.92rem",
-      lineHeight: 1.6,
+      fontSize: "0.86rem",
+      lineHeight: 1.42,
     },
     button: {
       fontWeight: 700,
@@ -115,7 +115,7 @@ const gvRhTheme = createTheme({
       letterSpacing: "0.01em",
     },
     caption: {
-      fontSize: "0.8rem",
+      fontSize: "0.74rem",
       color: "#6b7280",
     },
   },
@@ -136,9 +136,9 @@ const gvRhTheme = createTheme({
       },
       styleOverrides: {
         root: {
-          minHeight: 42,
+          minHeight: 30,
           borderRadius: 10,
-          paddingInline: 16,
+          paddingInline: 10,
         },
         containedPrimary: {
           boxShadow: "0 10px 24px rgba(31, 75, 153, 0.16)",
@@ -173,14 +173,14 @@ const gvRhTheme = createTheme({
           fontWeight: 700,
         },
         label: {
-          paddingInline: 10,
+          paddingInline: 7,
         },
       },
     },
     MuiDialog: {
       styleOverrides: {
         paper: {
-          borderRadius: 14,
+          borderRadius: 12,
           paddingTop: 4,
         },
       },
@@ -189,14 +189,14 @@ const gvRhTheme = createTheme({
       styleOverrides: {
         root: {
           fontWeight: 800,
-          paddingBottom: 8,
+          paddingBottom: 6,
         },
       },
     },
     MuiDialogContent: {
       styleOverrides: {
         root: {
-          paddingTop: 8,
+          paddingTop: 6,
         },
       },
     },
@@ -222,8 +222,8 @@ const gvRhTheme = createTheme({
           },
         },
         input: {
-          paddingTop: 11,
-          paddingBottom: 11,
+          paddingTop: 6,
+          paddingBottom: 6,
         },
       },
     },

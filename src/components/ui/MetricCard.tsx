@@ -31,7 +31,7 @@ export default function MetricCard({
         height: "100%",
         position: "relative",
         overflow: "hidden",
-        borderRadius: "12px",
+        borderRadius: "9px",
         border: (theme) =>
           `1px solid ${alpha(theme.palette.common.black, 0.06)}`,
         boxShadow: "0 8px 18px rgba(15, 23, 42, 0.045)",
@@ -59,10 +59,10 @@ export default function MetricCard({
       <Stack
         direction="row"
         justifyContent="space-between"
-        spacing={1.75}
+        spacing={1.15}
         sx={{
-          p: { xs: 2, md: 2.25 },
-          minHeight: 136,
+          p: { xs: 1.35, md: 1.65 },
+          minHeight: 108,
         }}
       >
         <Box sx={{ minWidth: 0, flex: 1 }}>
@@ -90,7 +90,7 @@ export default function MetricCard({
               color: "text.primary",
               lineHeight: 1.05,
               letterSpacing: "-0.03em",
-              fontSize: { xs: "1.65rem", md: "1.85rem" },
+              fontSize: { xs: "1.22rem", md: "1.42rem" },
               wordBreak: "break-word",
             }}
           >
@@ -103,7 +103,7 @@ export default function MetricCard({
               color="text.secondary"
               sx={{
                 mt: 0.95,
-                lineHeight: 1.45,
+                lineHeight: 1.3,
                 maxWidth: "95%",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
@@ -116,7 +116,7 @@ export default function MetricCard({
         </Box>
 
         {(badge || icon) && (
-          <Stack alignItems="flex-end" spacing={0.9} sx={{ flexShrink: 0 }}>
+          <Stack alignItems="flex-end" spacing={0.55} sx={{ flexShrink: 0 }}>
             {badge ? (
               <Chip
                 size="small"
@@ -135,9 +135,9 @@ export default function MetricCard({
             {icon ? (
               <Box
                 sx={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: "10px",
+                  width: 34,
+                  height: 34,
+                  borderRadius: "9px",
                   display: "grid",
                   placeItems: "center",
                   bgcolor: (theme) => alpha(theme.palette.primary.main, 0.06),

@@ -28,15 +28,15 @@ export default function AppPage({
   return (
     <Box
       sx={{
-        px: { xs: 2, md: 3 },
-        py: 3,
+        px: { xs: 1.25, md: 2 },
+        py: { xs: 1.5, md: 2 },
         minWidth: 0,
       }}
     >
       <Box
         sx={{
           display: "grid",
-          gap: showHeader ? { xs: 3.5, md: 4.5 } : 0,
+          gap: showHeader ? { xs: 2, md: 2.5 } : 0,
           minWidth: 0,
         }}
       >
@@ -45,7 +45,7 @@ export default function AppPage({
             direction={{ xs: "column", md: "row" }}
             justifyContent="space-between"
             alignItems={{ xs: "stretch", md: "flex-start" }}
-            spacing={{ xs: 2, md: 2.75 }}
+            spacing={{ xs: 1.4, md: 2 }}
             sx={{ minWidth: 0 }}
           >
             <Box
@@ -94,7 +94,7 @@ export default function AppPage({
                   sx={{
                     mt: showTitle ? 0.9 : 0,
                     maxWidth: 920,
-                    lineHeight: 1.6,
+                    lineHeight: 1.42,
                   }}
                 >
                   {subtitle}
@@ -124,7 +124,7 @@ export default function AppPage({
           sx={{
             minWidth: 0,
             display: "grid",
-            gap: { xs: 2.75, md: 3.25 },
+            gap: { xs: 1.75, md: 2.25 },
           }}
         >
           {children}

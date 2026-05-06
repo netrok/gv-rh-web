@@ -36,7 +36,7 @@ export default function HeroBanner({
       sx={{
         position: "relative",
         overflow: "hidden",
-        borderRadius: "14px",
+        borderRadius: "10px",
         background:
           "linear-gradient(135deg, #0b1730 0%, #12264a 55%, #18335e 100%)",
         color: "#ffffff",
@@ -47,18 +47,18 @@ export default function HeroBanner({
       <Stack
         direction={{ xs: "column", lg: "row" }}
         justifyContent="space-between"
-        spacing={{ xs: 2.5, md: 3 }}
+        spacing={{ xs: 1.6, md: 2 }}
         alignItems={{ xs: "stretch", lg: "flex-start" }}
-        sx={{ p: { xs: 2.5, md: 3 } }}
+        sx={{ p: { xs: 1.35, md: 1.75 } }}
       >
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Stack direction="row" spacing={1.75} alignItems="flex-start">
+          <Stack direction="row" spacing={1.15} alignItems="flex-start">
             {icon ? (
               <Box
                 sx={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: "12px",
+                  width: 38,
+                  height: 38,
+                  borderRadius: "10px",
                   display: "grid",
                   placeItems: "center",
                   bgcolor: alpha("#ffffff", 0.1),
@@ -92,9 +92,9 @@ export default function HeroBanner({
                 variant="h3"
                 sx={{
                   mt: showEyebrow ? 0.75 : 0,
-                  fontWeight: 900,
-                  fontSize: { xs: "1.6rem", md: "2.1rem" },
-                  lineHeight: 1.08,
+                  fontWeight: 800,
+                  fontSize: { xs: "1.22rem", md: "1.5rem" },
+                  lineHeight: 1.06,
                   letterSpacing: "-0.03em",
                   maxWidth: 760,
                   textWrap: "balance",
@@ -110,8 +110,8 @@ export default function HeroBanner({
                     mt: 1.25,
                     color: alpha("#ffffff", 0.84),
                     maxWidth: 720,
-                    fontSize: { xs: "0.96rem", md: "1rem" },
-                    lineHeight: 1.55,
+                    fontSize: { xs: "0.78rem", md: "0.84rem" },
+                    lineHeight: 1.38,
                   }}
                 >
                   {subtitle}
@@ -121,7 +121,7 @@ export default function HeroBanner({
               {showFooterActions ? (
                 <Stack
                   direction="row"
-                  spacing={1.25}
+                  spacing={0.85}
                   alignItems="center"
                   flexWrap="wrap"
                   useFlexGap
@@ -151,10 +151,10 @@ export default function HeroBanner({
         {aside ? (
           <Box
             sx={{
-              minWidth: { xs: "100%", lg: 260 },
-              maxWidth: { xs: "100%", lg: 320 },
-              p: { xs: 2, md: 2.25 },
-              borderRadius: "14px",
+              minWidth: { xs: "100%", lg: 220 },
+              maxWidth: { xs: "100%", lg: 280 },
+              p: { xs: 1.2, md: 1.45 },
+              borderRadius: "10px",
               bgcolor: alpha("#ffffff", 0.08),
               border: `1px solid ${alpha("#ffffff", 0.1)}`,
             }}

@@ -825,7 +825,7 @@ export default function DashboardPage() {
                       letterSpacing: "-0.03em",
                     }}
                   >
-                    RH con vista premium
+                    Resumen ejecutivo de Recursos Humanos
                   </Typography>
 
                   <Typography
@@ -837,9 +837,7 @@ export default function DashboardPage() {
                       lineHeight: 1.55,
                     }}
                   >
-                    Consulta rápido el estado general del sistema, catálogos,
-                    incidencias, cumpleaños, expedientes y actividad reciente,
-                    sin volver esto un tablero triste ni una dona inflada.
+                    Consulta el estado general del personal, catálogos, incidencias, cumpleaños, expedientes y actividad reciente.
                   </Typography>
                 </Box>
 
@@ -885,7 +883,7 @@ export default function DashboardPage() {
                       },
                     }}
                   >
-                    Ver incidencias
+                    Incidencias
                   </Button>
                 </Stack>
               </Stack>
@@ -903,27 +901,27 @@ export default function DashboardPage() {
               >
                 <Chip
                   icon={<Groups2RoundedIcon />}
-                  label={`${formatNumber(dashboard?.empleadosActivos)} empleados activos`}
+                  label={`${formatNumber(dashboard?.empleadosActivos)} empleados`}
                   sx={heroChipSx()}
                 />
                 <Chip
                   icon={<StoreRoundedIcon />}
-                  label={`${formatNumber(dashboard?.sucursalesActivas)} sucursales activas`}
+                  label={`${formatNumber(dashboard?.sucursalesActivas)} sucursales`}
                   sx={heroChipSx()}
                 />
                 <Chip
                   icon={<PendingActionsRoundedIcon />}
-                  label={`${formatNumber(incidenciasPendientes)} incidencias pendientes`}
+                  label={`${formatNumber(incidenciasPendientes)} pendientes`}
                   sx={heroChipSx()}
                 />
                 <Chip
                   icon={<CelebrationRoundedIcon />}
-                  label={`${formatNumber(cumpleaniosHoy.length)} cumpleaños hoy`}
+                  label={`${formatNumber(cumpleaniosHoy.length)} cumpleaños`}
                   sx={heroChipSx()}
                 />
                 <Chip
                   icon={<HistoryRoundedIcon />}
-                  label={`${formatNumber(stats?.auditoriaTotal)} eventos auditados`}
+                  label={`${formatNumber(stats?.auditoriaTotal)} eventos`}
                   sx={heroChipSx()}
                 />
               </Box>
