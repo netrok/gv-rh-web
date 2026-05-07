@@ -271,6 +271,7 @@ export default function VacacionesSolicitudesPage() {
   const canSelectEmpleado = canManageAll || isJefe;
   const canResolveSolicitudes = canManageAll || isJefe;
   const isEmpleadoOnly = isEmpleado && !canManageAll && !isJefe;
+  const isJefeOnly = isJefe && !canManageAll;
 
   const [estatus, setEstatus] = useState<EstatusVacacionSolicitud | "">("");
   const [soloPendientes, setSoloPendientes] = useState(false);
@@ -430,11 +431,15 @@ export default function VacacionesSolicitudesPage() {
 
   const heroSubtitle = isEmpleadoOnly
     ? "Consulta tus solicitudes, registra nuevas fechas y da seguimiento al estatus sin depender de RH para preguntar lo básico."
-    : "Registra, revisa, aprueba o rechaza solicitudes. Al aprobar, el sistema descuenta saldo, genera kárdex e incidencia de vacaciones.";
+    : isJefeOnly
+      ? "Revisa solicitudes propias y del personal que tienes asignado como aprobador. La aprobación se limita a tu equipo."
+      : "Registra, revisa, aprueba o rechaza solicitudes. Al aprobar, el sistema descuenta saldo, genera kárdex e incidencia de vacaciones.";
 
   const heroBadge = isEmpleadoOnly
     ? "Mis vacaciones"
-    : `${solicitudesQuery.data?.pendientes ?? 0} pendiente(s)`;
+    : isJefeOnly
+      ? "Mi equipo"
+      : `${solicitudesQuery.data?.pendientes ?? 0} pendiente(s)`;
 
   return (
     <AppPage
@@ -462,7 +467,7 @@ export default function VacacionesSolicitudesPage() {
             startIcon={<AddRoundedIcon />}
             onClick={() => setCreateOpen(true)}
           >
-            {isEmpleadoOnly ? "Solicitar vacaciones" : "Nueva solicitud"}
+            {isEmpleadoOnly ? "Solicitar vacaciones" : isJefeOnly ? "Registrar solicitud" : "Nueva solicitud"}
           </Button>
         </Stack>
       }
@@ -470,8 +475,8 @@ export default function VacacionesSolicitudesPage() {
       <Box sx={{ width: "100%", maxWidth: "100%", minWidth: 0, overflowX: "hidden" }}>
         <Stack spacing={2.25}>
           <HeroBanner
-            eyebrow={isEmpleadoOnly ? "Mis vacaciones" : "Vacaciones / Solicitudes"}
-            title={isEmpleadoOnly ? "Mis solicitudes de vacaciones" : "Solicitudes de vacaciones"}
+            eyebrow={isEmpleadoOnly ? "Mis vacaciones" : isJefeOnly ? "Mi equipo / Vacaciones" : "Vacaciones / Solicitudes"}
+            title={isEmpleadoOnly ? "Mis solicitudes de vacaciones" : isJefeOnly ? "Solicitudes de mi equipo" : "Solicitudes de vacaciones"}
             subtitle={heroSubtitle}
             badge={heroBadge}
             actions={
@@ -512,7 +517,7 @@ export default function VacacionesSolicitudesPage() {
             <MetricCard
               title="Pendientes"
               value={solicitudesQuery.data?.pendientes ?? 0}
-              subtitle={isEmpleadoOnly ? "En revisión" : "Requieren revisión"}
+              subtitle={isEmpleadoOnly ? "En revisión" : isJefeOnly ? "De mi equipo" : "Requieren revisión"}
               icon={<HourglassBottomRoundedIcon />}
             />
 
@@ -539,7 +544,7 @@ export default function VacacionesSolicitudesPage() {
           </Box>
 
           <SectionCard
-            title={isEmpleadoOnly ? "Mis solicitudes" : "Bandeja de solicitudes"}
+            title={isEmpleadoOnly ? "Mis solicitudes" : isJefeOnly ? "Solicitudes de mi equipo" : "Bandeja de solicitudes"}
             subtitle={
               isEmpleadoOnly
                 ? "Seguimiento personal de solicitudes registradas."
@@ -574,7 +579,7 @@ export default function VacacionesSolicitudesPage() {
                   <TextField
                     select
                     size="small"
-                    label="Empleado"
+                    label={isJefeOnly ? "Empleado de mi equipo" : "Empleado"}
                     value={empleadoFilter}
                     onChange={(event) => setEmpleadoFilter(event.target.value)}
                     disabled={empleadosQuery.isLoading}
@@ -841,7 +846,7 @@ export default function VacacionesSolicitudesPage() {
         maxWidth="sm"
       >
         <DialogTitle>
-          {isEmpleadoOnly ? "Solicitar vacaciones" : "Nueva solicitud de vacaciones"}
+          {isEmpleadoOnly ? "Solicitar vacaciones" : isJefeOnly ? "Registrar solicitud de vacaciones" : "Nueva solicitud de vacaciones"}
         </DialogTitle>
 
         <DialogContent>
@@ -869,7 +874,9 @@ export default function VacacionesSolicitudesPage() {
                 helperText={
                   empleadosQuery.isError
                     ? "No se pudo cargar el catálogo de empleados."
-                    : "Requerido para capturar solicitudes de otra persona."
+                    : isJefeOnly
+                      ? "Solo se muestran empleados dentro de tu alcance."
+                      : "Requerido para capturar solicitudes de otra persona."
                 }
               >
                 <MenuItem value="">Selecciona empleado</MenuItem>
