@@ -176,7 +176,7 @@ function buildNavSections(roles?: string[] | null): NavSection[] {
             label: "Empleados",
             to: "/empleados",
             icon: <Groups2RoundedIcon />,
-            allow: ["ADMIN", "RRHH", "JEFE", "CONSULTA"],
+            allow: ["ADMIN", "RRHH"],
           },
         },
         {

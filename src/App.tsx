@@ -32,7 +32,7 @@ import { useAuth } from "./features/auth/AuthContext";
 
 const DASHBOARD_ROLES = ["ADMIN", "RRHH", "JEFE", "CONSULTA", "EMPLEADO"];
 const MI_EQUIPO_ROLES = ["ADMIN", "RRHH", "JEFE"];
-const EMPLEADOS_ROLES = ["ADMIN", "RRHH", "JEFE", "CONSULTA"];
+const EMPLEADOS_ROLES = ["ADMIN", "RRHH"];
 const INCIDENCIAS_ROLES = ["ADMIN", "RRHH", "JEFE", "EMPLEADO"];
 const CUMPLEANIOS_ROLES = ["ADMIN", "RRHH", "JEFE", "CONSULTA", "EMPLEADO"];
 const RECLUTAMIENTO_ROLES = ["ADMIN", "RRHH"];

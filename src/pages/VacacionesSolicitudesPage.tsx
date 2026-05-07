@@ -54,6 +54,7 @@ import {
   type VacacionesSolicitudCreate,
   type VacacionesSolicitudResolver,
 } from "../api/vacacionesSolicitudes.api";
+import { getMiEquipo } from "../api/miEquipo.api";
 import { useAuth } from "../features/auth/AuthContext";
 
 const numberFormatter = new Intl.NumberFormat("es-MX", {
@@ -309,9 +310,60 @@ export default function VacacionesSolicitudesPage() {
   const empleadosQuery = useQuery({
     queryKey: ["vacaciones", "solicitudes", "empleados-lookup"],
     queryFn: getVacacionesEmpleadoLookup,
-    enabled: canSelectEmpleado,
+    enabled: canManageAll,
     staleTime: 5 * 60 * 1000,
   });
+
+  const miEquipoQuery = useQuery({
+    queryKey: ["vacaciones", "solicitudes", "mi-equipo-lookup"],
+    queryFn: getMiEquipo,
+    enabled: isJefeOnly,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const empleadosLookup = useMemo<VacacionesEmpleadoLookup[]>(() => {
+    if (canManageAll) {
+      return empleadosQuery.data ?? [];
+    }
+
+    if (!isJefeOnly || !miEquipoQuery.data) {
+      return [];
+    }
+
+    const jefeOption: VacacionesEmpleadoLookup = {
+      id: miEquipoQuery.data.jefeEmpleadoId,
+      numEmpleado: "YO",
+      nombreCompleto: miEquipoQuery.data.jefeNombre || "Mi solicitud",
+      sucursalNombre: null,
+      departamentoNombre: null,
+      puestoNombre: null,
+    };
+
+    const equipoOptions: VacacionesEmpleadoLookup[] = miEquipoQuery.data.empleados.map(
+      (empleado) => ({
+        id: empleado.id,
+        numEmpleado: empleado.numEmpleado,
+        nombreCompleto: empleado.nombreCompleto,
+        sucursalNombre: empleado.sucursalNombre ?? null,
+        departamentoNombre: empleado.departamentoNombre ?? null,
+        puestoNombre: empleado.puestoNombre ?? null,
+      })
+    );
+
+    return [jefeOption, ...equipoOptions];
+  }, [canManageAll, empleadosQuery.data, isJefeOnly, miEquipoQuery.data]);
+
+  const empleadosLookupLoading = canManageAll
+    ? empleadosQuery.isLoading
+    : isJefeOnly
+      ? miEquipoQuery.isLoading
+      : false;
+
+  const empleadosLookupError = canManageAll
+    ? empleadosQuery.isError
+    : isJefeOnly
+      ? miEquipoQuery.isError
+      : false;
 
   const invalidateSolicitudes = async () => {
     await queryClient.invalidateQueries({
@@ -582,11 +634,11 @@ export default function VacacionesSolicitudesPage() {
                     label={isJefeOnly ? "Empleado de mi equipo" : "Empleado"}
                     value={empleadoFilter}
                     onChange={(event) => setEmpleadoFilter(event.target.value)}
-                    disabled={empleadosQuery.isLoading}
+                    disabled={empleadosLookupLoading}
                     fullWidth
                   >
                     <MenuItem value="">Todos</MenuItem>
-                    {(empleadosQuery.data ?? []).map((empleado) => (
+                    {empleadosLookup.map((empleado) => (
                       <MenuItem key={empleado.id} value={String(empleado.id)}>
                         #{empleado.numEmpleado} · {empleado.nombreCompleto}
                       </MenuItem>
@@ -870,17 +922,17 @@ export default function VacacionesSolicitudesPage() {
                     empleadoId: event.target.value,
                   }))
                 }
-                disabled={empleadosQuery.isLoading}
+                disabled={empleadosLookupLoading}
                 helperText={
-                  empleadosQuery.isError
+                  empleadosLookupError
                     ? "No se pudo cargar el catálogo de empleados."
                     : isJefeOnly
                       ? "Solo se muestran empleados dentro de tu alcance."
                       : "Requerido para capturar solicitudes de otra persona."
                 }
               >
-                <MenuItem value="">Selecciona empleado</MenuItem>
-                {(empleadosQuery.data ?? []).map((empleado) => (
+                <MenuItem value="">{isJefeOnly ? "Selecciona empleado de tu equipo" : "Selecciona empleado"}</MenuItem>
+                {empleadosLookup.map((empleado) => (
                   <MenuItem key={empleado.id} value={String(empleado.id)}>
                     #{empleado.numEmpleado} · {empleado.nombreCompleto}
                   </MenuItem>

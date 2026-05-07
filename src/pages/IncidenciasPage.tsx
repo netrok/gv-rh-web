@@ -82,6 +82,7 @@ import {
 } from "../api/incidencias.api";
 import { getEmpleados, type Empleado } from "../api/empleados.api";
 import { getSucursales } from "../api/sucursales.api";
+import { getMiEquipo } from "../api/miEquipo.api";
 
 type SucursalLite = {
   id: number;
@@ -513,6 +514,11 @@ export default function IncidenciasPage() {
     !normalizedRoles.includes("RRHH") &&
     !normalizedRoles.includes("JEFE");
 
+  const isJefeOnly =
+    normalizedRoles.includes("JEFE") &&
+    !normalizedRoles.includes("ADMIN") &&
+    !normalizedRoles.includes("RRHH");
+
   const canViewIncidencias = hasSomeRole(userRoles, [
     "ADMIN",
     "RRHH",
@@ -520,6 +526,7 @@ export default function IncidenciasPage() {
     "EMPLEADO",
   ]);
   const canManageIncidencias = hasSomeRole(userRoles, ["ADMIN", "RRHH"]);
+  const canCreateIncidencias = canManageIncidencias || isJefeOnly;
   const canApproveReject = hasSomeRole(userRoles, ["ADMIN", "RRHH", "JEFE"]);
   const canExport = hasSomeRole(userRoles, ["ADMIN", "RRHH"]);
   const canManageEvidence = hasSomeRole(userRoles, ["ADMIN", "RRHH"]);
@@ -604,14 +611,14 @@ export default function IncidenciasPage() {
   const activeFiltersCount = useMemo(() => {
     let count = 0;
     if (!isEmpleadoOnly && filters.empleadoId) count += 1;
-    if (!isEmpleadoOnly && filters.sucursalId) count += 1;
+    if (!isEmpleadoOnly && !isJefeOnly && filters.sucursalId) count += 1;
     if (filters.tipo) count += 1;
     if (filters.estatus) count += 1;
     if (filters.fechaDesde) count += 1;
     if (filters.fechaHasta) count += 1;
     if (filters.soloPendientes) count += 1;
     return count;
-  }, [filters, isEmpleadoOnly]);
+  }, [filters, isEmpleadoOnly, isJefeOnly]);
 
   const paginatedItems = useMemo(() => {
     const start = page * rowsPerPage;
@@ -655,7 +662,7 @@ export default function IncidenciasPage() {
       empleadoId: !isEmpleadoOnly && currentFilters.empleadoId
         ? Number(currentFilters.empleadoId)
         : undefined,
-      sucursalId: !isEmpleadoOnly && currentFilters.sucursalId
+      sucursalId: !isEmpleadoOnly && !isJefeOnly && currentFilters.sucursalId
         ? Number(currentFilters.sucursalId)
         : undefined,
       tipo: tipoSeleccionado?.clave ?? undefined,
@@ -670,10 +677,10 @@ export default function IncidenciasPage() {
     if (!canViewIncidencias) return;
 
     setTipos(DEFAULT_TIPOS);
-    setEstatuses(DEFAULT_ESTATUS);
-
-        const empleadosPromise = isEmpleadoOnly
+    setEstatuses(DEFAULT_ESTATUS);    const empleadosPromise = isEmpleadoOnly
       ? Promise.resolve({ items: [] })
+      : isJefeOnly
+      ? getMiEquipo()
       : getEmpleados({
           page: 1,
           pageSize: 1000,
@@ -682,7 +689,7 @@ export default function IncidenciasPage() {
           dir: "asc",
         });
 
-    const sucursalesPromise = isEmpleadoOnly
+    const sucursalesPromise = isEmpleadoOnly || isJefeOnly
       ? Promise.resolve([])
       : getSucursales();
 
@@ -709,8 +716,35 @@ export default function IncidenciasPage() {
       console.error("Error cargando estatus de incidencia:", estatusResult.reason);
     }
 
-    if (empleadosResult.status === "fulfilled") {
-      setEmpleados(empleadosResult.value.items ?? []);
+        if (empleadosResult.status === "fulfilled") {
+      if (isJefeOnly) {
+        const equipoData = empleadosResult.value as Awaited<ReturnType<typeof getMiEquipo>>;
+
+        const jefeEmpleado = equipoData.jefeEmpleadoId
+          ? [
+              {
+                id: equipoData.jefeEmpleadoId,
+                numEmpleado: "YO",
+                nombres: equipoData.jefeNombre || "Mi usuario",
+                apellidoPaterno: "",
+                apellidoMaterno: "",
+              },
+            ]
+          : [];
+
+        const empleadosEquipo = (equipoData.empleados ?? []).map((empleado) => ({
+          id: empleado.id,
+          numEmpleado: empleado.numEmpleado,
+          nombres: empleado.nombreCompleto,
+          apellidoPaterno: "",
+          apellidoMaterno: "",
+        }));
+
+        setEmpleados([...jefeEmpleado, ...empleadosEquipo] as Empleado[]);
+      } else {
+        const empleadosData = empleadosResult.value as { items?: Empleado[] };
+        setEmpleados(empleadosData.items ?? []);
+      }
     } else {
       console.error("Error cargando empleados:", empleadosResult.reason);
       setEmpleados([]);
@@ -791,7 +825,7 @@ export default function IncidenciasPage() {
   }, [items.length]);
 
   function openCreate() {
-    if (!canManageIncidencias) {
+    if (!canCreateIncidencias) {
       notify("warning", "No tienes permisos para crear incidencias.");
       return;
     }
@@ -876,8 +910,13 @@ export default function IncidenciasPage() {
   }
 
   async function handleSave() {
-    if (!canManageIncidencias) {
-      notify("warning", "No tienes permisos para guardar incidencias.");
+    if (editing && !canManageIncidencias) {
+      notify("warning", "No tienes permisos para editar incidencias.");
+      return;
+    }
+
+    if (!editing && !canCreateIncidencias) {
+      notify("warning", "No tienes permisos para crear incidencias.");
       return;
     }
 
@@ -1156,8 +1195,8 @@ export default function IncidenciasPage() {
   return (
     <AppPage
       eyebrow="Recursos Humanos"
-      title={isEmpleadoOnly ? "Mis incidencias" : "Incidencias"}
-      subtitle={isEmpleadoOnly ? "Consulta personal de tus incidencias y evidencias." : "Control de incidencias y asistencias con evidencia documental, filtros operativos y exportación."}
+      title={isEmpleadoOnly ? "Mis incidencias" : isJefeOnly ? "Incidencias de mi equipo" : "Incidencias"}
+      subtitle={isEmpleadoOnly ? "Consulta personal de tus incidencias y evidencias." : isJefeOnly ? "Consulta y resolución de incidencias del personal bajo tu aprobación." : "Control de incidencias y asistencias con evidencia documental, filtros operativos y exportación."}
       actions={
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
           <Button
@@ -1218,8 +1257,8 @@ export default function IncidenciasPage() {
     >
       <HeroBanner
         eyebrow="Módulo operativo"
-        title={isEmpleadoOnly ? "Mis incidencias" : "Seguimiento de incidencias"}
-        subtitle={isEmpleadoOnly ? "Consulta únicamente tus incidencias registradas y descarga evidencia cuando exista." : "Registra, revisa, aprueba y documenta incidencias del personal con control por estatus, fechas y evidencia adjunta."}
+        title={isEmpleadoOnly ? "Mis incidencias" : isJefeOnly ? "Seguimiento de mi equipo" : "Seguimiento de incidencias"}
+        subtitle={isEmpleadoOnly ? "Consulta únicamente tus incidencias registradas y descarga evidencia cuando exista." : isJefeOnly ? "Revisa incidencias propias y del personal que tienes asignado como aprobador. No es una vista global por sucursal." : "Registra, revisa, aprueba y documenta incidencias del personal con control por estatus, fechas y evidencia adjunta."}
         badge={
           canManageIncidencias
             ? "Gestión habilitada"
@@ -1329,7 +1368,7 @@ export default function IncidenciasPage() {
 
       <SectionCard
         title="Filtros"
-        subtitle={isEmpleadoOnly ? "Filtra tus incidencias por tipo, estatus o fechas." : "Refina el listado por empleado, sucursal, tipo, estatus o fechas."}
+        subtitle={isEmpleadoOnly ? "Filtra tus incidencias por tipo, estatus o fechas." : isJefeOnly ? "Refina el listado por empleado de tu equipo, tipo, estatus o fechas." : "Refina el listado por empleado, sucursal, tipo, estatus o fechas."}
         actions={
           <Chip
             size="small"
@@ -1380,14 +1419,14 @@ export default function IncidenciasPage() {
               renderInput={(params) => (
                 <TextField
                   {...params}
-                  label="Empleado"
-                  placeholder="Todos / buscar por número o nombre"
+                  label={isJefeOnly ? "Empleado de mi equipo" : "Empleado"}
+                  placeholder={isJefeOnly ? "Yo y mi equipo" : "Todos / buscar por número o nombre"}
                 />
               )}
             />
           </Box>
 
-          <Box sx={{ gridColumn: { xs: "span 1", md: "span 4" }, display: isEmpleadoOnly ? "none" : undefined }}>
+          <Box sx={{ gridColumn: { xs: "span 1", md: "span 4" }, display: isEmpleadoOnly || isJefeOnly ? "none" : undefined }}>
             <FormControl fullWidth>
               <InputLabel>Sucursal</InputLabel>
               <Select
@@ -1553,9 +1592,9 @@ export default function IncidenciasPage() {
           <EmptyState
             icon={<PendingActionsRoundedIcon sx={{ fontSize: 52 }} />}
             title="No hay incidencias para mostrar"
-            description={isEmpleadoOnly ? "No tienes incidencias registradas con los filtros actuales." : "No se encontraron registros con los filtros actuales. Ajusta la búsqueda o registra una nueva incidencia."}
-            actionLabel={canManageIncidencias ? "Nueva incidencia" : undefined}
-            onAction={canManageIncidencias ? openCreate : undefined}
+            description={isEmpleadoOnly ? "No tienes incidencias registradas con los filtros actuales." : isJefeOnly ? "No hay incidencias propias o de tu equipo con los filtros actuales." : "No se encontraron registros con los filtros actuales. Ajusta la búsqueda o registra una nueva incidencia."}
+            actionLabel={canCreateIncidencias ? (isJefeOnly ? "Nueva incidencia de mi equipo" : "Nueva incidencia") : undefined}
+            onAction={canCreateIncidencias ? openCreate : undefined}
           />
         ) : (
           <>
@@ -1919,14 +1958,14 @@ export default function IncidenciasPage() {
                 renderInput={(params) => (
                   <TextField
                     {...params}
-                    label="Empleado"
+                    label={isJefeOnly ? "Empleado de mi equipo" : "Empleado"}
                     placeholder="Busca por número o nombre"
                   />
                 )}
               />
             </Box>
 
-            <Box sx={{ gridColumn: { xs: "span 1", md: "span 6" } }}>
+            <Box sx={{ gridColumn: { xs: "span 1", md: "span 6" }, display: isJefeOnly ? "none" : undefined }}>
               <FormControl fullWidth>
                 <InputLabel>Sucursal</InputLabel>
                 <Select
