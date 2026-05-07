@@ -24,12 +24,14 @@ import VacacionesSaldosReportePage from "./pages/VacacionesSaldosReportePage";
 import VacacionesKardexReportePage from "./pages/VacacionesKardexReportePage";
 import VacacionesDashboardPage from "./pages/VacacionesDashboardPage";
 import VacacionesSolicitudesPage from "./pages/VacacionesSolicitudesPage";
+import MiEquipoPage from "./pages/MiEquipoPage";
 
 import RequireAuth from "./features/auth/RequireAuth";
 import RoleGuard from "./features/auth/RoleGuard";
 import { useAuth } from "./features/auth/AuthContext";
 
 const DASHBOARD_ROLES = ["ADMIN", "RRHH", "JEFE", "CONSULTA", "EMPLEADO"];
+const MI_EQUIPO_ROLES = ["ADMIN", "RRHH", "JEFE"];
 const EMPLEADOS_ROLES = ["ADMIN", "RRHH", "JEFE", "CONSULTA"];
 const INCIDENCIAS_ROLES = ["ADMIN", "RRHH", "JEFE", "EMPLEADO"];
 const CUMPLEANIOS_ROLES = ["ADMIN", "RRHH", "JEFE", "CONSULTA", "EMPLEADO"];
@@ -88,6 +90,18 @@ export default function App() {
               allow={DASHBOARD_ROLES}
             >
               <DashboardPage />
+            </RoleGuard>
+          }
+        />
+        <Route
+          path="mi-equipo"
+          element={
+            <RoleGuard
+              isAuthenticated={isAuthenticated}
+              userRoles={roles}
+              allow={MI_EQUIPO_ROLES}
+            >
+              <MiEquipoPage />
             </RoleGuard>
           }
         />

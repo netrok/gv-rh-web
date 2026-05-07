@@ -194,6 +194,9 @@ const empleadoSchema = z.object({
   puestoId: z.coerce.number().min(1, "Debes seleccionar un puesto"),
   sucursalId: z.coerce.number().min(0),
 
+  aprobadorPrimarioEmpleadoId: z.coerce.number().min(0),
+  aprobadorSecundarioEmpleadoId: z.coerce.number().min(0),
+
   curp: z
     .string()
     .trim()
@@ -677,6 +680,8 @@ function EmpleadoDialog({
       departamentoId: 0,
       puestoId: 0,
       sucursalId: 0,
+      aprobadorPrimarioEmpleadoId: 0,
+      aprobadorSecundarioEmpleadoId: 0,
 
       curp: "",
       rfc: "",
@@ -742,6 +747,8 @@ function EmpleadoDialog({
       departamentoId: Number(initialValues?.departamentoId ?? 0),
       puestoId: Number(initialValues?.puestoId ?? 0),
       sucursalId: Number(initialValues?.sucursalId ?? 0),
+      aprobadorPrimarioEmpleadoId: Number(initialValues?.aprobadorPrimarioEmpleadoId ?? 0),
+      aprobadorSecundarioEmpleadoId: Number(initialValues?.aprobadorSecundarioEmpleadoId ?? 0),
 
       curp: initialValues?.curp ?? "",
       rfc: initialValues?.rfc ?? "",
@@ -771,10 +778,48 @@ function EmpleadoDialog({
   const departamentoId = Number(watch("departamentoId") ?? 0);
   const puestoId = Number(watch("puestoId") ?? 0);
   const sucursalId = Number(watch("sucursalId") ?? 0);
+  const aprobadorPrimarioEmpleadoId = Number(watch("aprobadorPrimarioEmpleadoId") ?? 0);
+  const aprobadorSecundarioEmpleadoId = Number(watch("aprobadorSecundarioEmpleadoId") ?? 0);
   const activo = !!watch("activo");
   const numEmpleado = watch("numEmpleado");
 
   const effectivePhotoUrl = localPhotoPreviewUrl || photoUrl;
+  const aprobadoresQuery = useQuery<Empleado[], Error>({
+    queryKey: ["empleados-aprobadores-select"],
+    enabled: Boolean(open),
+    queryFn: async () => {
+      const data = await getEmpleados({
+        page: 1,
+        pageSize: 2000,
+        activo: true,
+        sort: "id",
+        dir: "asc",
+      });
+
+      return [...(data.items ?? [])].sort((a, b) => {
+        const nameA = [a.nombres, a.apellidoPaterno, a.apellidoMaterno]
+          .filter(Boolean)
+          .join(" ")
+          .toLocaleLowerCase("es-MX");
+
+        const nameB = [b.nombres, b.apellidoPaterno, b.apellidoMaterno]
+          .filter(Boolean)
+          .join(" ")
+          .toLocaleLowerCase("es-MX");
+
+        return nameA.localeCompare(nameB, "es-MX");
+      });
+    },
+  });
+
+  const aprobadoresOptions = useMemo<Empleado[]>(
+    () =>
+      (aprobadoresQuery.data ?? []).filter(
+        (empleado: Empleado) => empleado.id !== initialValues?.id
+      ),
+    [aprobadoresQuery.data, initialValues?.id]
+  );
+
 
   const puestosDisponibles = useMemo(() => {
     if (departamentoId <= 0) return [];
@@ -782,8 +827,7 @@ function EmpleadoDialog({
       (puesto) => getPuestoDepartamentoId(puesto) === departamentoId
     );
   }, [departamentoId, puestos]);
-
-  useEffect(() => {
+useEffect(() => {
     if (puestoId <= 0) return;
     const exists = puestosDisponibles.some((puesto) => puesto.id === puestoId);
     if (!exists) {
@@ -971,6 +1015,24 @@ function EmpleadoDialog({
   };
 
   const submitForm = async (values: EmpleadoFormValues) => {
+    const aprobadorPrimarioId = Number(values.aprobadorPrimarioEmpleadoId ?? 0);
+    const aprobadorSecundarioId = Number(values.aprobadorSecundarioEmpleadoId ?? 0);
+
+    if (initialValues?.id && aprobadorPrimarioId === initialValues.id) {
+      showSnackbar("El empleado no puede ser su propio aprobador primario.", "warning");
+      return;
+    }
+
+    if (initialValues?.id && aprobadorSecundarioId === initialValues.id) {
+      showSnackbar("El empleado no puede ser su propio aprobador secundario.", "warning");
+      return;
+    }
+
+    if (aprobadorPrimarioId > 0 && aprobadorPrimarioId === aprobadorSecundarioId) {
+      showSnackbar("El aprobador primario y secundario no pueden ser el mismo empleado.", "warning");
+      return;
+    }
+
     await onSubmit(
       {
         numEmpleado: normalizeOptional(
@@ -988,6 +1050,10 @@ function EmpleadoDialog({
         puestoId: Number(values.puestoId),
         sucursalId:
           Number(values.sucursalId) > 0 ? Number(values.sucursalId) : null,
+        aprobadorPrimarioEmpleadoId:
+          aprobadorPrimarioId > 0 ? aprobadorPrimarioId : null,
+        aprobadorSecundarioEmpleadoId:
+          aprobadorSecundarioId > 0 ? aprobadorSecundarioId : null,
 
         curp: normalizeUpperOptional(values.curp ?? ""),
         rfc: normalizeUpperOptional(values.rfc ?? ""),
@@ -1338,6 +1404,71 @@ function EmpleadoDialog({
                   {puestosDisponibles.map((puesto) => (
                     <MenuItem key={puesto.id} value={puesto.id}>
                       {puesto.clave} - {puesto.nombre}
+                    </MenuItem>
+                  ))}
+                </TextField>
+
+
+                <TextField
+                  select
+                  label="Aprobador primario"
+                  value={aprobadorPrimarioEmpleadoId}
+                  onChange={(e) => {
+                    setValue("aprobadorPrimarioEmpleadoId", Number(e.target.value), {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    });
+                  }}
+                  helperText={
+                    aprobadoresQuery.isLoading
+                      ? "Cargando empleados activos..."
+                      : "Jefe directo o responsable principal."
+                  }
+                  disabled={aprobadoresQuery.isLoading}
+                  fullWidth
+                >
+                  <MenuItem value={0}>Sin aprobador primario</MenuItem>
+                  {aprobadoresOptions.map((empleado) => (
+                    <MenuItem
+                      key={`primario-${empleado.id}`}
+                      value={empleado.id}
+                      disabled={empleado.id === aprobadorSecundarioEmpleadoId}
+                    >
+                      {empleado.numEmpleado} - {[empleado.nombres, empleado.apellidoPaterno, empleado.apellidoMaterno]
+                        .filter(Boolean)
+                        .join(" ")}
+                    </MenuItem>
+                  ))}
+                </TextField>
+
+                <TextField
+                  select
+                  label="Aprobador secundario"
+                  value={aprobadorSecundarioEmpleadoId}
+                  onChange={(e) => {
+                    setValue("aprobadorSecundarioEmpleadoId", Number(e.target.value), {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    });
+                  }}
+                  helperText={
+                    aprobadoresQuery.isLoading
+                      ? "Cargando empleados activos..."
+                      : "Respaldo para aprobación o supervisión alterna."
+                  }
+                  disabled={aprobadoresQuery.isLoading}
+                  fullWidth
+                >
+                  <MenuItem value={0}>Sin aprobador secundario</MenuItem>
+                  {aprobadoresOptions.map((empleado) => (
+                    <MenuItem
+                      key={`secundario-${empleado.id}`}
+                      value={empleado.id}
+                      disabled={empleado.id === aprobadorPrimarioEmpleadoId}
+                    >
+                      {empleado.numEmpleado} - {[empleado.nombres, empleado.apellidoPaterno, empleado.apellidoMaterno]
+                        .filter(Boolean)
+                        .join(" ")}
                     </MenuItem>
                   ))}
                 </TextField>
@@ -1977,8 +2108,7 @@ function ReingresoEmpleadoDialog({
       (puesto) => getPuestoDepartamentoId(puesto) === departamentoId
     );
   }, [departamentoId, puestos]);
-
-  useEffect(() => {
+useEffect(() => {
     if (puestoId <= 0) return;
     const exists = puestosDisponibles.some((puesto) => puesto.id === puestoId);
     if (!exists) setPuestoId(0);

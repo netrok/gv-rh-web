@@ -147,6 +147,15 @@ function buildNavSections(roles?: string[] | null): NavSection[] {
             allow: ["ADMIN", "RRHH", "JEFE", "CONSULTA", "EMPLEADO"],
           },
         },
+        {
+          type: "item",
+          item: {
+            label: "Mi equipo",
+            to: "/mi-equipo",
+            icon: <PeopleAltRoundedIcon />,
+            allow: ["ADMIN", "RRHH", "JEFE"],
+          },
+        },
       ],
     },
     {
@@ -280,6 +289,7 @@ function getPageTitle(pathname: string) {
   if (pathname.startsWith("/vacaciones/solicitudes")) {
     return "Solicitudes de vacaciones";
   }
+  if (pathname.startsWith("/mi-equipo")) return "Mi equipo";
   if (pathname.startsWith("/dashboard")) return "Dashboard";
   if (pathname.startsWith("/audit")) return "Auditoría";
   if (pathname.startsWith("/cumpleanios")) return "Cumpleaños";
@@ -322,6 +332,7 @@ function getPageSubtitle(pathname: string) {
   if (pathname.startsWith("/vacaciones/solicitudes")) {
     return "Bandeja de solicitud, aprobación y control de vacaciones";
   }
+  if (pathname.startsWith("/mi-equipo")) return "Personal asignado por relación de aprobador";
   if (pathname.startsWith("/dashboard")) return "Vista general del sistema";
   if (pathname.startsWith("/audit")) return "Trazabilidad y control de movimientos";
 
@@ -425,6 +436,7 @@ function getPageBreadcrumb(pathname: string) {
     return ["Reclutamiento"];
   }
 
+  if (pathname.startsWith("/mi-equipo")) return ["Mi equipo"];
   if (pathname.startsWith("/audit")) return ["Auditoría"];
   if (pathname.startsWith("/cumpleanios")) return ["Cumpleaños"];
   if (pathname.startsWith("/departamentos")) return ["Departamentos"];
