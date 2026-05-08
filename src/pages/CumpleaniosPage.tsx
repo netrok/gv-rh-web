@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+﻿import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Alert,
@@ -183,12 +183,16 @@ export default function CumpleaniosPage() {
   const { roles } = useAuth();
 
   const normalizedRoles = useMemo(() => normalizeRoles(roles), [roles]);
-  const isEmpleadoOnly =
-    hasRole(normalizedRoles, "EMPLEADO") &&
-    !hasRole(normalizedRoles, "ADMIN") &&
-    !hasRole(normalizedRoles, "RRHH") &&
-    !hasRole(normalizedRoles, "JEFE") &&
-    !hasRole(normalizedRoles, "CONSULTA");
+
+  const isAdminOrRrhh =
+    hasRole(normalizedRoles, "ADMIN") || hasRole(normalizedRoles, "RRHH");
+
+  const isJefeOnly = hasRole(normalizedRoles, "JEFE") && !isAdminOrRrhh;
+
+  // Mantengo el nombre para no reescribir toda la vista:
+  // true = vista sin herramientas administrativas.
+  // Aplica para JEFE, EMPLEADO y CONSULTA.
+  const isEmpleadoOnly = !isAdminOrRrhh;
 
   const [sucursalId, setSucursalId] = useState<number | "">("");
   const [departamentoId, setDepartamentoId] = useState<number | "">("");
@@ -292,6 +296,7 @@ export default function CumpleaniosPage() {
   }, [sucursalId, departamentoId]);
 
   const canExport =
+    !isEmpleadoOnly &&
     !isLoading &&
     !hasError &&
     !exportingXlsx &&
@@ -303,8 +308,10 @@ export default function CumpleaniosPage() {
     void hoyQuery.refetch();
     void proximosQuery.refetch();
     void mesQuery.refetch();
-    void sucursalesQuery.refetch();
-    void departamentosQuery.refetch();
+    if (!isEmpleadoOnly) {
+      void sucursalesQuery.refetch();
+      void departamentosQuery.refetch();
+    }
   };
 
   const clearFilters = () => {
@@ -378,7 +385,13 @@ export default function CumpleaniosPage() {
       <Stack spacing={2.5}>
         <HeroBanner
           title="Cumpleaños"
-          subtitle={isEmpleadoOnly ? "Consulta el calendario de cumpleaños del personal. Vista informativa para empleados." : "Consulta celebraciones del día, próximos cumpleaños y calendario del mes por sucursal o departamento."}
+          subtitle={
+            isEmpleadoOnly
+              ? isJefeOnly
+                ? "Consulta celebraciones y próximos cumpleaños del personal bajo tu responsabilidad."
+                : "Consulta el calendario de cumpleaños del personal. Vista informativa."
+              : "Consulta celebraciones del día, próximos cumpleaños y calendario del mes por sucursal o departamento."
+          }
           eyebrow="Capital humano"
           icon={<CelebrationRoundedIcon />}
           actions={
@@ -400,7 +413,13 @@ export default function CumpleaniosPage() {
               <Chip
                 size="small"
                 variant="outlined"
-                label={isEmpleadoOnly ? "Vista informativa" : `Reporte: ${getPeriodoReporteLabel(scopeReporte)}`}
+                label={
+                  isEmpleadoOnly
+                    ? isJefeOnly
+                      ? "Vista equipo"
+                      : "Vista informativa"
+                    : `Reporte: ${getPeriodoReporteLabel(scopeReporte)}`
+                }
                 sx={{
                   color: "#fff",
                   borderColor: "rgba(255,255,255,0.24)",
@@ -680,7 +699,7 @@ export default function CumpleaniosPage() {
                     <Stack alignItems="center" spacing={1.5} sx={{ py: 5 }}>
                       <EventRoundedIcon color="disabled" />
                       <Typography color="text.secondary">
-                        No hay cumpleaños próximos con los filtros actuales.
+                        {isEmpleadoOnly ? "No hay cumpleaños próximos del equipo." : "No hay cumpleaños próximos con los filtros actuales."}
                       </Typography>
                     </Stack>
                   ) : (
@@ -705,7 +724,7 @@ export default function CumpleaniosPage() {
                     <Stack alignItems="center" spacing={1.5} sx={{ py: 5 }}>
                       <CalendarMonthRoundedIcon color="disabled" />
                       <Typography color="text.secondary">
-                        No hay cumpleaños registrados este mes con los filtros aplicados.
+                        {isEmpleadoOnly ? "No hay cumpleaños registrados este mes en la vista actual." : "No hay cumpleaños registrados este mes con los filtros aplicados."}
                       </Typography>
                     </Stack>
                   ) : (
@@ -777,3 +796,4 @@ export default function CumpleaniosPage() {
     </AppPage>
   );
 }
+

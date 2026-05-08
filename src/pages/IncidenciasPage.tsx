@@ -1,4 +1,4 @@
-import {
+﻿import {
   useEffect,
   useMemo,
   useState,
@@ -1242,7 +1242,7 @@ export default function IncidenciasPage() {
             </Button>
           )}
 
-          {canManageIncidencias && (
+          {(canManageIncidencias || isJefeOnly) && (
             <Button
               variant="contained"
               startIcon={<AddIcon />}
@@ -1593,8 +1593,8 @@ export default function IncidenciasPage() {
             icon={<PendingActionsRoundedIcon sx={{ fontSize: 52 }} />}
             title="No hay incidencias para mostrar"
             description={isEmpleadoOnly ? "No tienes incidencias registradas con los filtros actuales." : isJefeOnly ? "No hay incidencias propias o de tu equipo con los filtros actuales." : "No se encontraron registros con los filtros actuales. Ajusta la búsqueda o registra una nueva incidencia."}
-            actionLabel={canCreateIncidencias ? (isJefeOnly ? "Nueva incidencia de mi equipo" : "Nueva incidencia") : undefined}
-            onAction={canCreateIncidencias ? openCreate : undefined}
+            actionLabel={(canCreateIncidencias || isJefeOnly) ? (isJefeOnly ? "Nueva incidencia de mi equipo" : "Nueva incidencia") : undefined}
+            onAction={(canCreateIncidencias || isJefeOnly) ? openCreate : undefined}
           />
         ) : (
           <>

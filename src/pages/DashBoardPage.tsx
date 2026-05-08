@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+﻿import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Alert,
@@ -51,6 +51,7 @@ import SendRoundedIcon from "@mui/icons-material/SendRounded";
 import MarkEmailReadRoundedIcon from "@mui/icons-material/MarkEmailReadRounded";
 
 import EmpleadoDashboardView from "../components/dashboard/EmpleadoDashboardView";
+import JefeDashboardView from "../components/dashboard/JefeDashboardView";
 import { useAuth } from "../features/auth/AuthContext";
 
 import {
@@ -530,8 +531,11 @@ export default function DashboardPage() {
   const isAdmin = hasRole(roles, "ADMIN");
   const isRrhh = hasRole(roles, "RRHH");
   const isEmpleado = hasRole(roles, "EMPLEADO");
+  const isJefe = hasRole(roles, "JEFE");
 
-  const shouldRenderEmpleadoDashboard = isEmpleado && !isAdmin && !isRrhh;
+  const shouldRenderEmpleadoDashboard =
+    isEmpleado && !isJefe && !isAdmin && !isRrhh;
+  const shouldRenderJefeDashboard = isJefe && !isAdmin && !isRrhh;
 
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
@@ -606,14 +610,14 @@ export default function DashboardPage() {
   );
 
   useEffect(() => {
-    if (shouldRenderEmpleadoDashboard) {
+    if (shouldRenderEmpleadoDashboard || shouldRenderJefeDashboard) {
       setLoading(false);
       setRefreshing(false);
       return;
     }
 
     void loadDashboard();
-  }, [loadDashboard, shouldRenderEmpleadoDashboard]);
+  }, [loadDashboard, shouldRenderEmpleadoDashboard, shouldRenderJefeDashboard]);
 
   const handleEnviarRecordatorioExpediente = useCallback(async () => {
     try {
@@ -733,6 +737,13 @@ export default function DashboardPage() {
     return (
       <AppPage>
         <EmpleadoDashboardView />
+      </AppPage>
+    );
+  }
+  if (shouldRenderJefeDashboard) {
+    return (
+      <AppPage>
+        <JefeDashboardView />
       </AppPage>
     );
   }
@@ -1803,3 +1814,4 @@ export default function DashboardPage() {
     </AppPage>
   );
 }
+
