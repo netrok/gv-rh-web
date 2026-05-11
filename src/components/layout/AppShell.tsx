@@ -1,4 +1,4 @@
-import {
+﻿import {
   useEffect,
   useMemo,
   useState,
@@ -58,6 +58,7 @@ import LockRoundedIcon from "@mui/icons-material/LockRounded";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 
 import { useAuth } from "../../features/auth/AuthContext";
+import MisAprobacionesMenuIcon from "./MisAprobacionesMenuIcon";
 
 const DRAWER_WIDTH = 244;
 
@@ -161,7 +162,7 @@ function buildNavSections(roles?: string[] | null): NavSection[] {
           item: {
             label: "Mis aprobaciones",
             to: "/mis-aprobaciones",
-            icon: <FactCheckRoundedIcon />,
+            icon: <MisAprobacionesMenuIcon />,
             allow: ["ADMIN", "RRHH", "JEFE"],
           },
         },
@@ -1802,3 +1803,6 @@ export default function AppShell({ children }: AppShellProps) {
     </Box>
   );
 }
+
+
+
