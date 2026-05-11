@@ -156,6 +156,15 @@ function buildNavSections(roles?: string[] | null): NavSection[] {
             allow: ["ADMIN", "RRHH", "JEFE"],
           },
         },
+        {
+          type: "item",
+          item: {
+            label: "Mis aprobaciones",
+            to: "/mis-aprobaciones",
+            icon: <FactCheckRoundedIcon />,
+            allow: ["ADMIN", "RRHH", "JEFE"],
+          },
+        },
       ],
     },
     {
@@ -289,6 +298,7 @@ function getPageTitle(pathname: string) {
   if (pathname.startsWith("/vacaciones/solicitudes")) {
     return "Solicitudes de vacaciones";
   }
+  if (pathname.startsWith("/mis-aprobaciones")) return "Mis aprobaciones";
   if (pathname.startsWith("/mi-equipo")) return "Mi equipo";
   if (pathname.startsWith("/dashboard")) return "Dashboard";
   if (pathname.startsWith("/audit")) return "Auditoría";
@@ -331,6 +341,9 @@ function getPageTitle(pathname: string) {
 function getPageSubtitle(pathname: string) {
   if (pathname.startsWith("/vacaciones/solicitudes")) {
     return "Bandeja de solicitud, aprobación y control de vacaciones";
+  }
+  if (pathname.startsWith("/mis-aprobaciones")) {
+    return "Pendientes centralizados de incidencias y vacaciones";
   }
   if (pathname.startsWith("/mi-equipo")) return "Personal asignado por relación de aprobador";
   if (pathname.startsWith("/dashboard")) return "Vista general del sistema";
@@ -400,6 +413,11 @@ function getPageBreadcrumb(pathname: string) {
   if (pathname.startsWith("/vacaciones/solicitudes")) {
     return ["Vacaciones", "Solicitudes"];
   }
+
+  if (pathname.startsWith("/mis-aprobaciones")) {
+    return ["Operación", "Mis aprobaciones"];
+  }
+
   if (pathname === "/vacaciones" || pathname.startsWith("/vacaciones/dashboard")) {
     return ["Vacaciones", "Resumen"];
   }
@@ -458,6 +476,13 @@ function getPageHeaderMeta(pathname: string): {
     return {
       label: "Dashboard",
       icon: <DashboardRoundedIcon sx={{ fontSize: 16 }} />,
+    };
+  }
+
+  if (pathname.startsWith("/mis-aprobaciones")) {
+    return {
+      label: "Aprobaciones",
+      icon: <FactCheckRoundedIcon sx={{ fontSize: 16 }} />,
     };
   }
 

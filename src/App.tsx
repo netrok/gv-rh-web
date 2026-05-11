@@ -25,6 +25,7 @@ import VacacionesKardexReportePage from "./pages/VacacionesKardexReportePage";
 import VacacionesDashboardPage from "./pages/VacacionesDashboardPage";
 import VacacionesSolicitudesPage from "./pages/VacacionesSolicitudesPage";
 import MiEquipoPage from "./pages/MiEquipoPage";
+import MisAprobacionesPage from "./pages/MisAprobacionesPage";
 
 import RequireAuth from "./features/auth/RequireAuth";
 import RoleGuard from "./features/auth/RoleGuard";
@@ -32,6 +33,7 @@ import { useAuth } from "./features/auth/AuthContext";
 
 const DASHBOARD_ROLES = ["ADMIN", "RRHH", "JEFE", "CONSULTA", "EMPLEADO"];
 const MI_EQUIPO_ROLES = ["ADMIN", "RRHH", "JEFE"];
+const MIS_APROBACIONES_ROLES = ["ADMIN", "RRHH", "JEFE"];
 const EMPLEADOS_ROLES = ["ADMIN", "RRHH"];
 const INCIDENCIAS_ROLES = ["ADMIN", "RRHH", "JEFE", "EMPLEADO"];
 const CUMPLEANIOS_ROLES = ["ADMIN", "RRHH", "JEFE", "CONSULTA", "EMPLEADO"];
@@ -93,6 +95,7 @@ export default function App() {
             </RoleGuard>
           }
         />
+
         <Route
           path="mi-equipo"
           element={
@@ -102,6 +105,19 @@ export default function App() {
               allow={MI_EQUIPO_ROLES}
             >
               <MiEquipoPage />
+            </RoleGuard>
+          }
+        />
+
+        <Route
+          path="mis-aprobaciones"
+          element={
+            <RoleGuard
+              isAuthenticated={isAuthenticated}
+              userRoles={roles}
+              allow={MIS_APROBACIONES_ROLES}
+            >
+              <MisAprobacionesPage />
             </RoleGuard>
           }
         />
@@ -240,6 +256,7 @@ export default function App() {
             </RoleGuard>
           }
         />
+
         <Route
           path="vacaciones/solicitudes"
           element={
@@ -252,6 +269,7 @@ export default function App() {
             </RoleGuard>
           }
         />
+
         <Route
           path="vacaciones/conciliacion"
           element={
