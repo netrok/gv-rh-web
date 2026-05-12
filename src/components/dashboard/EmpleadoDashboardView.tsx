@@ -1,5 +1,4 @@
-﻿
-import { getMisVacacionesResumen, type VacacionesResumen } from "../../api/vacaciones.api";import { useEffect, useMemo, useState, type ReactNode } from "react";
+﻿import { useEffect, useState, type ReactNode } from "react";
 import {
   Alert,
   Box,
@@ -33,10 +32,11 @@ import BeachAccessRoundedIcon from "@mui/icons-material/BeachAccessRounded";
 import HeroBanner from "../ui/HeroBanner";
 import MetricCard from "../ui/MetricCard";
 import SectionCard from "../ui/SectionCard";
+import { getMyDashboard, type MyDashboardData } from "../../api/dashboard.api";
 import {
-  getMyDashboard,
-  type MyDashboardData,
-} from "../../api/dashboard.api";
+  getMisVacacionesResumen,
+  type VacacionesResumen,
+} from "../../api/vacaciones.api";
 
 function getSafeErrorMessage(error: unknown) {
   const maybeAxiosError = error as {
@@ -55,6 +55,28 @@ function getSafeErrorMessage(error: unknown) {
   );
 }
 
+function formatVacationDashboardDate(value?: string | null) {
+  if (!value) return "—";
+
+  const [year, month, day] = value.split("-").map(Number);
+
+  if (!year || !month || !day) return value;
+
+  return new Date(year, month - 1, day).toLocaleDateString("es-MX", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function formatDays(value?: number | null) {
+  const numberValue = Number(value ?? 0);
+
+  return new Intl.NumberFormat("es-MX", {
+    maximumFractionDigits: numberValue % 1 === 0 ? 0 : 2,
+  }).format(numberValue);
+}
+
 function ProfileTile({
   icon,
   label,
@@ -69,18 +91,17 @@ function ProfileTile({
       sx={{
         border: "1px solid",
         borderColor: "divider",
-        borderRadius: "16px",
-        p: 1.75,
+        borderRadius: "14px",
+        p: 1.45,
         bgcolor: "background.paper",
-        minHeight: 86,
       }}
     >
-      <Stack direction="row" spacing={1.25} alignItems="center">
+      <Stack direction="row" spacing={1.2} alignItems="center">
         <Box
           sx={{
-            width: 38,
-            height: 38,
-            borderRadius: "13px",
+            width: 34,
+            height: 34,
+            borderRadius: "11px",
             display: "grid",
             placeItems: "center",
             color: "primary.main",
@@ -95,14 +116,15 @@ function ProfileTile({
           <Typography
             variant="caption"
             color="text.secondary"
-            sx={{ display: "block", lineHeight: 1.2 }}
+            sx={{ display: "block", lineHeight: 1.15 }}
           >
             {label}
           </Typography>
+
           <Typography
             fontWeight={850}
             sx={{
-              lineHeight: 1.25,
+              lineHeight: 1.2,
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
@@ -117,19 +139,6 @@ function ProfileTile({
   );
 }
 
-function formatVacationDashboardDate(value?: string | null) {
-  if (!value) return "—";
-
-  const [year, month, day] = value.split("-").map(Number);
-
-  if (!year || !month || !day) return value;
-
-  return new Date(year, month - 1, day).toLocaleDateString("es-MX", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-}
 function QuickActionButton({
   primary,
   icon,
@@ -149,15 +158,139 @@ function QuickActionButton({
       onClick={onClick}
       sx={{
         justifyContent: "flex-start",
-        minHeight: 46,
-        borderRadius: "14px",
-        px: 1.75,
+        minHeight: 42,
+        borderRadius: "12px",
+        px: 1.5,
         fontWeight: 850,
-        boxShadow: primary ? "0 10px 22px rgba(37, 99, 235, 0.22)" : "none",
+        boxShadow: primary ? "0 8px 20px rgba(37, 99, 235, 0.2)" : "none",
       }}
     >
       {label}
     </Button>
+  );
+}
+
+function VacationSummaryCard({
+  resumen,
+  loading,
+  error,
+  onViewRequests,
+}: {
+  resumen: VacacionesResumen | null;
+  loading: boolean;
+  error: string | null;
+  onViewRequests: () => void;
+}) {
+  return (
+    <SectionCard
+      title="Mis vacaciones"
+      subtitle="Saldo disponible y próximos datos clave."
+      actions={
+        <Button
+          size="small"
+          variant="outlined"
+          startIcon={<BeachAccessRoundedIcon />}
+          onClick={onViewRequests}
+          sx={{ borderRadius: "10px", fontWeight: 800 }}
+        >
+          Ver solicitudes
+        </Button>
+      }
+    >
+      {loading ? (
+        <Box sx={{ py: 4, display: "grid", placeItems: "center" }}>
+          <CircularProgress size={26} />
+        </Box>
+      ) : error ? (
+        <Alert severity="warning">{error}</Alert>
+      ) : resumen ? (
+        <Stack spacing={1.6}>
+          <Box
+            sx={{
+              p: 2,
+              borderRadius: "18px",
+              border: "1px solid",
+              borderColor: (theme) => alpha(theme.palette.primary.main, 0.14),
+              background: (theme) =>
+                `linear-gradient(135deg, ${alpha(
+                  theme.palette.primary.main,
+                  0.08
+                )}, ${alpha(theme.palette.primary.main, 0.025)})`,
+            }}
+          >
+            <Stack
+              direction={{ xs: "column", md: "row" }}
+              spacing={1.5}
+              justifyContent="space-between"
+              alignItems={{ xs: "flex-start", md: "center" }}
+            >
+              <Box>
+                <Typography variant="body2" color="text.secondary">
+                  Saldo disponible
+                </Typography>
+
+                <Stack direction="row" spacing={1} alignItems="baseline">
+                  <Typography
+                    variant="h3"
+                    sx={{
+                      fontWeight: 950,
+                      letterSpacing: "-0.04em",
+                      lineHeight: 1,
+                    }}
+                  >
+                    {formatDays(resumen.saldoDisponible)}
+                  </Typography>
+
+                  <Typography color="text.secondary" fontWeight={800}>
+                    días
+                  </Typography>
+                </Stack>
+
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.6 }}>
+                  Días pendientes de disfrutar.
+                </Typography>
+              </Box>
+
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                <Chip
+                  size="small"
+                  icon={<TaskAltRoundedIcon />}
+                  label={`${formatDays(resumen.diasTomadosTotal)} tomados`}
+                  variant="outlined"
+                  sx={{ fontWeight: 800 }}
+                />
+
+                <Chip
+                  size="small"
+                  icon={<PendingActionsRoundedIcon />}
+                  label={`${resumen.periodosAbiertos ?? 0} periodo(s) abierto(s)`}
+                  variant="outlined"
+                  sx={{ fontWeight: 800 }}
+                />
+              </Stack>
+            </Stack>
+          </Box>
+
+          <Alert
+            severity="info"
+            sx={{
+              borderRadius: "14px",
+              "& .MuiAlert-message": {
+                fontSize: 13,
+              },
+            }}
+          >
+            Próximo aniversario:{" "}
+            <strong>
+              {formatVacationDashboardDate(resumen.proximoAniversario)}
+            </strong>
+            {resumen.politicaNombre ? ` · Política: ${resumen.politicaNombre}` : ""}
+          </Alert>
+        </Stack>
+      ) : (
+        <Alert severity="info">No hay información de vacaciones disponible.</Alert>
+      )}
+    </SectionCard>
   );
 }
 
@@ -168,6 +301,7 @@ export default function EmpleadoDashboardView() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
   const [vacacionesResumen, setVacacionesResumen] =
     useState<VacacionesResumen | null>(null);
   const [vacacionesLoading, setVacacionesLoading] = useState(true);
@@ -197,7 +331,6 @@ export default function EmpleadoDashboardView() {
     }
   }
 
-
   async function loadVacacionesResumen() {
     try {
       setVacacionesLoading(true);
@@ -206,49 +339,27 @@ export default function EmpleadoDashboardView() {
       const resumen = await getMisVacacionesResumen();
       setVacacionesResumen(resumen);
     } catch (err) {
-      console.error(err);
+      console.error("Error cargando resumen de vacaciones:", err);
       setVacacionesError("No se pudo cargar tu resumen de vacaciones.");
     } finally {
       setVacacionesLoading(false);
     }
   }
+
+  async function refreshAll() {
+    await Promise.all([loadData(true), loadVacacionesResumen()]);
+  }
+
   useEffect(() => {
     void loadData();
-  }, []);
-
-  useEffect(() => {
     void loadVacacionesResumen();
   }, []);
-  const metricCards = useMemo(() => {
-    if (!data) return [];
 
-    return [
-      {
-        title: "Documentos cargados",
-        value: data.documentos.cargados,
-        subtitle: `de ${data.documentos.requeridos} requeridos`,
-        icon: <DescriptionRoundedIcon fontSize="small" />,
-      },
-      {
-        title: "Por vencer",
-        value: data.documentos.porVencer,
-        subtitle: "Próximos 30 días",
-        icon: <WarningAmberRoundedIcon fontSize="small" />,
-      },
-      {
-        title: "Vencidos",
-        value: data.documentos.vencidos,
-        subtitle: "Requieren atención",
-        icon: <ErrorOutlineRoundedIcon fontSize="small" />,
-      },
-      {
-        title: "Incidencias pendientes",
-        value: data.incidencias.pendientes,
-        subtitle: "Esperando resolución",
-        icon: <PendingActionsRoundedIcon fontSize="small" />,
-      },
-    ];
-  }, [data]);
+  const documentProgress =
+    data && data.documentos.requeridos > 0
+      ? Math.round((data.documentos.cargados / data.documentos.requeridos) * 100)
+      : 100;
+
 
   if (loading) {
     return (
@@ -305,9 +416,11 @@ export default function EmpleadoDashboardView() {
               <Typography variant="body2" sx={{ color: alpha("#ffffff", 0.78) }}>
                 Estado
               </Typography>
+
               <Typography variant="h4" sx={{ fontWeight: 900, lineHeight: 1 }}>
                 —
               </Typography>
+
               <Typography variant="body2" sx={{ color: alpha("#ffffff", 0.84) }}>
                 No fue posible cargar tu resumen personal.
               </Typography>
@@ -334,34 +447,29 @@ export default function EmpleadoDashboardView() {
     );
   }
 
-  const documentProgress =
-    data.documentos.requeridos > 0
-      ? Math.round((data.documentos.cargados / data.documentos.requeridos) * 100)
-      : 100;
-
   return (
-    <Stack spacing={{ xs: 2.25, md: 2.5 }} sx={{ pt: { xs: 0.5, md: 1 } }}>
+    <Stack spacing={{ xs: 2, md: 2.25 }} sx={{ pt: { xs: 0.5, md: 1 } }}>
       <Card
         elevation={0}
         sx={{
-          borderRadius: "26px",
+          borderRadius: "22px",
           overflow: "hidden",
           border: "1px solid",
           borderColor: (theme) => alpha(theme.palette.primary.main, 0.12),
-          boxShadow: "0 18px 42px rgba(15, 23, 42, 0.08)",
+          boxShadow: "0 16px 38px rgba(15, 23, 42, 0.07)",
           background:
             "linear-gradient(135deg, #071733 0%, #0f2b5c 58%, #173b78 100%)",
           color: "#ffffff",
         }}
       >
-        <CardContent sx={{ p: { xs: 2.5, md: 3 } }}>
+        <CardContent sx={{ p: { xs: 2.2, md: 2.6 } }}>
           <Stack
             direction={{ xs: "column", lg: "row" }}
-            spacing={{ xs: 2.25, lg: 3 }}
+            spacing={{ xs: 2, lg: 3 }}
             justifyContent="space-between"
             alignItems={{ xs: "stretch", lg: "center" }}
           >
-            <Stack spacing={1.35} sx={{ minWidth: 0 }}>
+            <Stack spacing={1.15} sx={{ minWidth: 0 }}>
               <Typography
                 variant="overline"
                 sx={{
@@ -385,16 +493,6 @@ export default function EmpleadoDashboardView() {
                 Hola, {data.empleado.nombreCompleto}
               </Typography>
 
-              <Typography
-                variant="body2"
-                sx={{
-                  color: alpha("#ffffff", 0.84),
-                  maxWidth: 720,
-                }}
-              >
-                Consulta tu expediente, documentos e incidencias desde un solo lugar.
-              </Typography>
-
               <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                 <Chip
                   size="small"
@@ -407,6 +505,7 @@ export default function EmpleadoDashboardView() {
                     fontWeight: 850,
                   }}
                 />
+
                 <Chip
                   size="small"
                   label={`# ${data.empleado.numEmpleado}`}
@@ -419,6 +518,20 @@ export default function EmpleadoDashboardView() {
                   }}
                 />
 
+                {data.empleado.sucursalNombre ? (
+                  <Chip
+                    size="small"
+                    label={data.empleado.sucursalNombre}
+                    variant="outlined"
+                    sx={{
+                      color: "#ffffff",
+                      borderColor: alpha("#ffffff", 0.22),
+                      backgroundColor: alpha("#ffffff", 0.08),
+                      fontWeight: 850,
+                    }}
+                  />
+                ) : null}
+
                 <Button
                   variant="contained"
                   startIcon={
@@ -428,14 +541,14 @@ export default function EmpleadoDashboardView() {
                       <RefreshRoundedIcon />
                     )
                   }
-                  onClick={() => void loadData(true)}
+                  onClick={() => void refreshAll()}
                   disabled={refreshing}
                   sx={{
                     bgcolor: "#ffffff",
                     color: "primary.main",
-                    minHeight: 34,
-                    px: 1.75,
-                    borderRadius: "12px",
+                    minHeight: 32,
+                    px: 1.6,
+                    borderRadius: "10px",
                     boxShadow: "none",
                     "&:hover": {
                       bgcolor: alpha("#ffffff", 0.92),
@@ -450,24 +563,24 @@ export default function EmpleadoDashboardView() {
 
             <Box
               sx={{
-                width: { xs: "100%", lg: 320 },
-                borderRadius: "20px",
+                width: { xs: "100%", lg: 300 },
+                borderRadius: "18px",
                 border: "1px solid",
                 borderColor: alpha("#ffffff", 0.14),
                 bgcolor: alpha("#ffffff", 0.08),
-                p: 2,
+                p: 1.8,
                 backdropFilter: "blur(10px)",
                 flexShrink: 0,
               }}
             >
-              <Stack spacing={1.4}>
+              <Stack spacing={1.25}>
                 <Typography variant="body2" sx={{ color: alpha("#ffffff", 0.78) }}>
                   Resumen rápido
                 </Typography>
 
-                <Stack direction="row" spacing={2.5}>
+                <Stack direction="row" spacing={2.2}>
                   <Box>
-                    <Typography variant="h4" sx={{ fontWeight: 950, lineHeight: 1 }}>
+                    <Typography variant="h5" sx={{ fontWeight: 950, lineHeight: 1 }}>
                       {data.documentos.cargados}
                     </Typography>
                     <Typography variant="caption" sx={{ color: alpha("#ffffff", 0.82) }}>
@@ -476,16 +589,16 @@ export default function EmpleadoDashboardView() {
                   </Box>
 
                   <Box>
-                    <Typography variant="h4" sx={{ fontWeight: 950, lineHeight: 1 }}>
-                      {data.incidencias.total}
+                    <Typography variant="h5" sx={{ fontWeight: 950, lineHeight: 1 }}>
+                      {formatDays(vacacionesResumen?.saldoDisponible ?? 0)}
                     </Typography>
                     <Typography variant="caption" sx={{ color: alpha("#ffffff", 0.82) }}>
-                      incidencias
+                      vacaciones
                     </Typography>
                   </Box>
 
                   <Box>
-                    <Typography variant="h4" sx={{ fontWeight: 950, lineHeight: 1 }}>
+                    <Typography variant="h5" sx={{ fontWeight: 950, lineHeight: 1 }}>
                       {documentProgress}%
                     </Typography>
                     <Typography variant="caption" sx={{ color: alpha("#ffffff", 0.82) }}>
@@ -498,7 +611,7 @@ export default function EmpleadoDashboardView() {
                   variant="determinate"
                   value={Math.max(0, Math.min(100, documentProgress))}
                   sx={{
-                    height: 8,
+                    height: 7,
                     borderRadius: 999,
                     bgcolor: alpha("#ffffff", 0.16),
                     "& .MuiLinearProgress-bar": {
@@ -509,7 +622,7 @@ export default function EmpleadoDashboardView() {
                 />
 
                 <Typography variant="body2" sx={{ color: alpha("#ffffff", 0.84) }}>
-                  Avance documental y seguimiento operativo de tu cuenta.
+                  Tu estado documental y vacaciones en una vista compacta.
                 </Typography>
               </Stack>
             </Box>
@@ -517,36 +630,16 @@ export default function EmpleadoDashboardView() {
         </CardContent>
       </Card>
 
-      <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: {
-            xs: "1fr",
-            sm: "repeat(2, 1fr)",
-            xl: "repeat(4, 1fr)",
-          },
-          gap: { xs: 1.75, md: 2 },
-        }}
-      >
-        {metricCards.map((card) => (
-          <MetricCard
-            key={card.title}
-            title={card.title}
-            value={card.value}
-            subtitle={card.subtitle}
-            icon={card.icon}
-          />
-        ))}
-      </Box>
+
 
       <Box
         sx={{
           display: "grid",
           gridTemplateColumns: {
             xs: "1fr",
-            xl: "1.12fr 0.88fr",
+            xl: "1.05fr 0.95fr",
           },
-          gap: { xs: 2, md: 2.25 },
+          gap: { xs: 2, md: 2.2 },
           alignItems: "stretch",
         }}
       >
@@ -569,7 +662,7 @@ export default function EmpleadoDashboardView() {
                 xs: "1fr",
                 md: "repeat(2, 1fr)",
               },
-              gap: 1.5,
+              gap: 1.25,
             }}
           >
             <ProfileTile
@@ -577,16 +670,19 @@ export default function EmpleadoDashboardView() {
               value={data.empleado.numEmpleado}
               icon={<BadgeRoundedIcon fontSize="small" />}
             />
+
             <ProfileTile
               label="Puesto"
               value={data.empleado.puestoNombre}
               icon={<BusinessCenterRoundedIcon fontSize="small" />}
             />
+
             <ProfileTile
               label="Departamento"
               value={data.empleado.departamentoNombre}
               icon={<ApartmentRoundedIcon fontSize="small" />}
             />
+
             <ProfileTile
               label="Sucursal"
               value={data.empleado.sucursalNombre}
@@ -599,7 +695,7 @@ export default function EmpleadoDashboardView() {
           title="Accesos directos"
           subtitle="Funciones principales de tu cuenta."
         >
-          <Stack spacing={1.15}>
+          <Stack spacing={1}>
             <QuickActionButton
               primary
               icon={<FolderSharedRoundedIcon />}
@@ -608,14 +704,15 @@ export default function EmpleadoDashboardView() {
             />
 
             <QuickActionButton
+              icon={<BeachAccessRoundedIcon />}
+              label="Mis vacaciones"
+              onClick={() => navigate("/mis-vacaciones")}
+            />
+
+            <QuickActionButton
               icon={<FactCheckRoundedIcon />}
               label="Mis incidencias"
               onClick={() => navigate("/incidencias")}
-            />
-            <QuickActionButton
-              icon={<BeachAccessRoundedIcon />}
-              label="Mis vacaciones"
-              onClick={() => navigate("/vacaciones/solicitudes")}
             />
 
             <QuickActionButton
@@ -627,14 +724,14 @@ export default function EmpleadoDashboardView() {
             <Alert
               severity="info"
               sx={{
-                mt: 0.5,
-                borderRadius: "14px",
+                mt: 0.4,
+                borderRadius: "12px",
                 "& .MuiAlert-message": {
                   fontSize: 13,
                 },
               }}
             >
-              Tu panel muestra solo información personal. La operación global queda reservada para perfiles administrativos.
+              Tu panel muestra solo información personal.
             </Alert>
           </Stack>
         </SectionCard>
@@ -645,11 +742,18 @@ export default function EmpleadoDashboardView() {
           display: "grid",
           gridTemplateColumns: {
             xs: "1fr",
-            xl: "repeat(2, 1fr)",
+            xl: "1fr 1fr",
           },
-          gap: { xs: 2, md: 2.25 },
+          gap: { xs: 2, md: 2.2 },
         }}
       >
+        <VacationSummaryCard
+          resumen={vacacionesResumen}
+          loading={vacacionesLoading}
+          error={vacacionesError}
+          onViewRequests={() => navigate("/mis-vacaciones")}
+        />
+
         <SectionCard
           title="Mis documentos"
           subtitle="Estado de tus documentos requeridos."
@@ -658,7 +762,7 @@ export default function EmpleadoDashboardView() {
               size="small"
               color={data.documentos.completo ? "success" : "warning"}
               variant="outlined"
-              label={data.documentos.completo ? "Expediente al corriente" : "Requiere atención"}
+              label={data.documentos.completo ? "Al corriente" : "Requiere atención"}
             />
           }
         >
@@ -669,7 +773,7 @@ export default function EmpleadoDashboardView() {
                 xs: "1fr",
                 md: "repeat(2, 1fr)",
               },
-              gap: 1.5,
+              gap: 1.35,
             }}
           >
             <MetricCard
@@ -678,18 +782,21 @@ export default function EmpleadoDashboardView() {
               subtitle={`de ${data.documentos.requeridos} requeridos`}
               icon={<DescriptionRoundedIcon fontSize="small" />}
             />
+
             <MetricCard
               title="Faltantes"
               value={data.documentos.faltantes}
               subtitle="Pendientes por subir"
               icon={<FolderSharedRoundedIcon fontSize="small" />}
             />
+
             <MetricCard
               title="Por vencer"
               value={data.documentos.porVencer}
               subtitle="Vigencias próximas"
               icon={<WarningAmberRoundedIcon fontSize="small" />}
             />
+
             <MetricCard
               title="Vencidos"
               value={data.documentos.vencidos}
@@ -698,124 +805,45 @@ export default function EmpleadoDashboardView() {
             />
           </Box>
         </SectionCard>
-        <SectionCard
-          title="Mis vacaciones"
-          subtitle="Resumen de tu saldo, periodos abiertos y próximo aniversario."
-          actions={
-            <Button
-              size="small"
-              variant="outlined"
-              startIcon={<BeachAccessRoundedIcon />}
-              onClick={() => navigate("/vacaciones/solicitudes")}
-              sx={{ borderRadius: "10px", fontWeight: 800 }}
-            >
-              Ver solicitudes
-            </Button>
-          }
-        >
-          {vacacionesLoading ? (
-            <Box sx={{ py: 3, display: "grid", placeItems: "center" }}>
-              <CircularProgress size={26} />
-            </Box>
-          ) : vacacionesError ? (
-            <Alert severity="warning">{vacacionesError}</Alert>
-          ) : vacacionesResumen ? (
-            <Stack spacing={1.5}>
-              <Box
-                sx={{
-                  display: "grid",
-                  gridTemplateColumns: {
-                    xs: "1fr",
-                    md: "repeat(3, 1fr)",
-                  },
-                  gap: 1.5,
-                }}
-              >
-                <MetricCard
-                  title="Saldo disponible"
-                  value={Number(vacacionesResumen.saldoDisponible ?? 0)}
-                  subtitle="Días pendientes de disfrutar"
-                  icon={<BeachAccessRoundedIcon fontSize="small" />}
-                />
-
-                <MetricCard
-                  title="Días tomados"
-                  value={Number(vacacionesResumen.diasTomadosTotal ?? 0)}
-                  subtitle="Histórico disfrutado"
-                  icon={<TaskAltRoundedIcon fontSize="small" />}
-                />
-
-                <MetricCard
-                  title="Periodos abiertos"
-                  value={Number(vacacionesResumen.periodosAbiertos ?? 0)}
-                  subtitle={`Total periodos: ${vacacionesResumen.periodosTotales ?? 0}`}
-                  icon={<PendingActionsRoundedIcon fontSize="small" />}
-                />
-              </Box>
-
-              <Alert
-                severity="info"
-                sx={{
-                  borderRadius: "14px",
-                  "& .MuiAlert-message": {
-                    fontSize: 13,
-                  },
-                }}
-              >
-                Próximo aniversario:{" "}
-                <strong>
-                  {formatVacationDashboardDate(vacacionesResumen.proximoAniversario)}
-                </strong>
-                {vacacionesResumen.politicaNombre
-                  ? ` · Política: ${vacacionesResumen.politicaNombre}`
-                  : ""}
-              </Alert>
-            </Stack>
-          ) : (
-            <Alert severity="info">No hay información de vacaciones disponible.</Alert>
-          )}
-        </SectionCard>
-
-        <SectionCard
-          title="Mis incidencias"
-          subtitle="Resumen de tus registros e incidencias."
-        >
-          <Box
-            sx={{
-              display: "grid",
-              gridTemplateColumns: {
-                xs: "1fr",
-                md: "repeat(3, 1fr)",
-              },
-              gap: 1.5,
-            }}
-          >
-            <MetricCard
-              title="Pendientes"
-              value={data.incidencias.pendientes}
-              subtitle="En revisión"
-              icon={<PendingActionsRoundedIcon fontSize="small" />}
-            />
-            <MetricCard
-              title="Aprobadas"
-              value={data.incidencias.aprobadas}
-              subtitle="Aceptadas"
-              icon={<TaskAltRoundedIcon fontSize="small" />}
-            />
-            <MetricCard
-              title="Rechazadas"
-              value={data.incidencias.rechazadas}
-              subtitle="No autorizadas"
-              icon={<CancelRoundedIcon fontSize="small" />}
-            />
-          </Box>
-        </SectionCard>
       </Box>
+
+      <SectionCard
+        title="Mis incidencias"
+        subtitle="Resumen de tus registros e incidencias."
+      >
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: {
+              xs: "1fr",
+              md: "repeat(3, 1fr)",
+            },
+            gap: 1.35,
+          }}
+        >
+          <MetricCard
+            title="Pendientes"
+            value={data.incidencias.pendientes}
+            subtitle="En revisión"
+            icon={<PendingActionsRoundedIcon fontSize="small" />}
+          />
+
+          <MetricCard
+            title="Aprobadas"
+            value={data.incidencias.aprobadas}
+            subtitle="Aceptadas"
+            icon={<TaskAltRoundedIcon fontSize="small" />}
+          />
+
+          <MetricCard
+            title="Rechazadas"
+            value={data.incidencias.rechazadas}
+            subtitle="No autorizadas"
+            icon={<CancelRoundedIcon fontSize="small" />}
+          />
+        </Box>
+      </SectionCard>
     </Stack>
   );
 }
-
-
-
-
 

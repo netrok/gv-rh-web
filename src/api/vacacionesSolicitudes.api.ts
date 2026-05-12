@@ -1,4 +1,4 @@
-import { api } from "./axios";
+﻿import { api } from "./axios";
 
 export type EstatusVacacionSolicitud =
   | "PENDIENTE"
@@ -261,3 +261,28 @@ export function getEstatusVacacionSolicitudLabel(value?: string | number | null)
 
   return raw || "—";
 }
+
+export async function getMisVacacionesSolicitudes(
+  query: VacacionesSolicitudQuery = {}
+): Promise<VacacionesSolicitudListResult> {
+  const { data } = await api.get("/api/me/vacaciones/solicitudes", {
+    params: buildParams(query),
+  });
+
+  const items = unwrapItems(data).map(normalizeSolicitud);
+
+  return {
+    page: asNumber(data?.page ?? data?.Page ?? query.page ?? 1),
+    pageSize: asNumber(data?.pageSize ?? data?.PageSize ?? query.pageSize ?? 50),
+    total: asNumber(data?.total ?? data?.Total),
+    totalPages: asNumber(data?.totalPages ?? data?.TotalPages ?? 1),
+
+    pendientes: asNumber(data?.pendientes ?? data?.Pendientes),
+    aprobadas: asNumber(data?.aprobadas ?? data?.Aprobadas),
+    rechazadas: asNumber(data?.rechazadas ?? data?.Rechazadas),
+    canceladas: asNumber(data?.canceladas ?? data?.Canceladas),
+
+    items,
+  };
+}
+

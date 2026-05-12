@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+﻿import { Navigate, Route, Routes } from "react-router-dom";
 import AppShell from "./components/layout/AppShell";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashBoardPage";
@@ -24,6 +24,7 @@ import VacacionesSaldosReportePage from "./pages/VacacionesSaldosReportePage";
 import VacacionesKardexReportePage from "./pages/VacacionesKardexReportePage";
 import VacacionesDashboardPage from "./pages/VacacionesDashboardPage";
 import VacacionesSolicitudesPage from "./pages/VacacionesSolicitudesPage";
+import MisVacacionesPage from "./pages/MisVacacionesPage";
 import MiEquipoPage from "./pages/MiEquipoPage";
 import MisAprobacionesPage from "./pages/MisAprobacionesPage";
 
@@ -39,6 +40,7 @@ const INCIDENCIAS_ROLES = ["ADMIN", "RRHH", "JEFE", "EMPLEADO"];
 const CUMPLEANIOS_ROLES = ["ADMIN", "RRHH", "JEFE", "CONSULTA", "EMPLEADO"];
 const RECLUTAMIENTO_ROLES = ["ADMIN", "RRHH"];
 const VACACIONES_ROLES = ["ADMIN", "RRHH"];
+const MIS_VACACIONES_ROLES = ["EMPLEADO"];
 
 export default function App() {
   const { isAuthenticated, roles = [], mustChangePassword } = useAuth();
@@ -239,6 +241,19 @@ export default function App() {
           }
         />
 
+
+        <Route
+          path="mis-vacaciones"
+          element={
+            <RoleGuard
+              isAuthenticated={isAuthenticated}
+              userRoles={roles}
+              allow={MIS_VACACIONES_ROLES}
+            >
+              <MisVacacionesPage />
+            </RoleGuard>
+          }
+        />
         <Route
           path="vacaciones"
           element={<Navigate to="/vacaciones/dashboard" replace />}

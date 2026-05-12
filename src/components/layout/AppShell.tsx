@@ -213,7 +213,7 @@ function buildNavSections(roles?: string[] | null): NavSection[] {
             label: "Solicitudes vacaciones",
             to: "/vacaciones/solicitudes",
             icon: <AssignmentTurnedInRoundedIcon />,
-            allow: ["JEFE", "EMPLEADO"],
+            allow: ["JEFE"],
           },
         },
 
@@ -343,7 +343,7 @@ function getPageSubtitle(pathname: string) {
   if (pathname.startsWith("/vacaciones/solicitudes")) {
     return "Bandeja de solicitud, aprobación y control de vacaciones";
   }
-  if (pathname.startsWith("/mis-aprobaciones")) {
+if (pathname.startsWith("/mis-aprobaciones")) {
     return "Pendientes centralizados de incidencias y vacaciones";
   }
   if (pathname.startsWith("/mi-equipo")) return "Personal asignado por relación de aprobador";
@@ -414,8 +414,7 @@ function getPageBreadcrumb(pathname: string) {
   if (pathname.startsWith("/vacaciones/solicitudes")) {
     return ["Vacaciones", "Solicitudes"];
   }
-
-  if (pathname.startsWith("/mis-aprobaciones")) {
+if (pathname.startsWith("/mis-aprobaciones")) {
     return ["Operación", "Mis aprobaciones"];
   }
 
@@ -479,8 +478,7 @@ function getPageHeaderMeta(pathname: string): {
       icon: <DashboardRoundedIcon sx={{ fontSize: 16 }} />,
     };
   }
-
-  if (pathname.startsWith("/mis-aprobaciones")) {
+if (pathname.startsWith("/mis-aprobaciones")) {
     return {
       label: "Aprobaciones",
       icon: <FactCheckRoundedIcon sx={{ fontSize: 16 }} />,
@@ -1803,6 +1801,9 @@ export default function AppShell({ children }: AppShellProps) {
     </Box>
   );
 }
+
+
+
 
 
 
