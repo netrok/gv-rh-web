@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+﻿import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Alert,
   Box,
@@ -27,6 +27,7 @@ import CancelRoundedIcon from "@mui/icons-material/CancelRounded";
 import FolderSharedRoundedIcon from "@mui/icons-material/FolderSharedRounded";
 import LockResetRoundedIcon from "@mui/icons-material/LockResetRounded";
 import FactCheckRoundedIcon from "@mui/icons-material/FactCheckRounded";
+import BeachAccessRoundedIcon from "@mui/icons-material/BeachAccessRounded";
 
 import HeroBanner from "../ui/HeroBanner";
 import MetricCard from "../ui/MetricCard";
@@ -575,6 +576,11 @@ export default function EmpleadoDashboardView() {
               label="Mis incidencias"
               onClick={() => navigate("/incidencias")}
             />
+            <QuickActionButton
+              icon={<BeachAccessRoundedIcon />}
+              label="Mis vacaciones"
+              onClick={() => navigate("/vacaciones/solicitudes")}
+            />
 
             <QuickActionButton
               icon={<LockResetRoundedIcon />}
@@ -695,3 +701,5 @@ export default function EmpleadoDashboardView() {
     </Stack>
   );
 }
+
+
