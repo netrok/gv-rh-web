@@ -14,10 +14,6 @@ import {
 import { alpha } from "@mui/material/styles";
 import { useNavigate } from "react-router-dom";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
-import BadgeRoundedIcon from "@mui/icons-material/BadgeRounded";
-import BusinessCenterRoundedIcon from "@mui/icons-material/BusinessCenterRounded";
-import ApartmentRoundedIcon from "@mui/icons-material/ApartmentRounded";
-import StoreRoundedIcon from "@mui/icons-material/StoreRounded";
 import DescriptionRoundedIcon from "@mui/icons-material/DescriptionRounded";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import ErrorOutlineRoundedIcon from "@mui/icons-material/ErrorOutlineRounded";
@@ -76,174 +72,134 @@ function formatDays(value?: number | null) {
   }).format(numberValue);
 }
 
-function SmallDataPill({
-  icon,
-  label,
-  value,
-}: {
-  icon: ReactNode;
-  label: string;
-  value?: string | null;
-}) {
-  return (
-    <Box
-      sx={{
-        display: "flex",
-        alignItems: "center",
-        gap: 1,
-        minWidth: 0,
-        px: 1.2,
-        py: 1,
-        borderRadius: "13px",
-        border: "1px solid",
-        borderColor: "divider",
-        bgcolor: "background.paper",
-      }}
-    >
-      <Box
-        sx={{
-          width: 32,
-          height: 32,
-          borderRadius: "10px",
-          display: "grid",
-          placeItems: "center",
-          flexShrink: 0,
-          color: "primary.main",
-          bgcolor: (theme) => alpha(theme.palette.primary.main, 0.08),
-        }}
-      >
-        {icon}
-      </Box>
-
-      <Box sx={{ minWidth: 0 }}>
-        <Typography
-          variant="caption"
-          color="text.secondary"
-          sx={{ display: "block", lineHeight: 1.1 }}
-        >
-          {label}
-        </Typography>
-
-        <Typography
-          fontWeight={900}
-          sx={{
-            lineHeight: 1.15,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
-          title={value || "No asignado"}
-        >
-          {value || "No asignado"}
-        </Typography>
-      </Box>
-    </Box>
-  );
-}
-
-function QuickActionButton({
+function ActionTile({
   primary,
   icon,
-  label,
+  title,
+  subtitle,
   onClick,
 }: {
   primary?: boolean;
   icon: ReactNode;
-  label: string;
+  title: string;
+  subtitle: string;
   onClick: () => void;
 }) {
   return (
     <Button
       fullWidth
       variant={primary ? "contained" : "outlined"}
-      startIcon={icon}
       onClick={onClick}
       sx={{
+        minHeight: 62,
         justifyContent: "flex-start",
-        minHeight: 42,
-        borderRadius: "12px",
-        px: 1.45,
-        fontWeight: 850,
+        textAlign: "left",
+        borderRadius: "14px",
+        px: 1.35,
+        py: 1.1,
+        textTransform: "none",
         boxShadow: primary ? "0 8px 18px rgba(37, 99, 235, 0.18)" : "none",
       }}
     >
-      {label}
+      <Stack direction="row" spacing={1.1} alignItems="center" sx={{ minWidth: 0 }}>
+        <Box
+          sx={{
+            width: 32,
+            height: 32,
+            borderRadius: "10px",
+            display: "grid",
+            placeItems: "center",
+            flexShrink: 0,
+            bgcolor: primary ? alpha("#ffffff", 0.16) : "background.default",
+          }}
+        >
+          {icon}
+        </Box>
+
+        <Box sx={{ minWidth: 0 }}>
+          <Typography fontWeight={900} sx={{ lineHeight: 1.1 }}>
+            {title}
+          </Typography>
+
+          <Typography
+            variant="caption"
+            sx={{
+              display: "block",
+              lineHeight: 1.25,
+              color: primary ? alpha("#ffffff", 0.8) : "text.secondary",
+            }}
+          >
+            {subtitle}
+          </Typography>
+        </Box>
+      </Stack>
     </Button>
   );
 }
 
-function CompactSummaryCard({
+function CompactLine({
+  icon,
   title,
   value,
-  subtitle,
-  icon,
-  tone = "primary",
+  helper,
   action,
 }: {
+  icon: ReactNode;
   title: string;
   value: string | number;
-  subtitle: string;
-  icon: ReactNode;
-  tone?: "primary" | "success" | "warning" | "error";
+  helper: string;
   action?: ReactNode;
 }) {
-  const colorMap = {
-    primary: "primary.main",
-    success: "success.main",
-    warning: "warning.main",
-    error: "error.main",
-  } as const;
-
   return (
-    <Card
-      elevation={0}
+    <Box
       sx={{
-        height: "100%",
-        borderRadius: "18px",
+        display: "flex",
+        gap: 1.2,
+        alignItems: "center",
+        justifyContent: "space-between",
+        px: 1.25,
+        py: 1.15,
+        borderRadius: "14px",
         border: "1px solid",
         borderColor: "divider",
         bgcolor: "background.paper",
       }}
     >
-      <CardContent sx={{ p: 1.75 }}>
-        <Stack spacing={1.1}>
-          <Stack direction="row" justifyContent="space-between" spacing={1}>
-            <Box
-              sx={{
-                width: 38,
-                height: 38,
-                borderRadius: "13px",
-                display: "grid",
-                placeItems: "center",
-                color: colorMap[tone],
-                bgcolor: (theme) => alpha(theme.palette.primary.main, 0.07),
-              }}
-            >
-              {icon}
-            </Box>
+      <Stack direction="row" spacing={1.1} alignItems="center" sx={{ minWidth: 0 }}>
+        <Box
+          sx={{
+            width: 36,
+            height: 36,
+            borderRadius: "12px",
+            display: "grid",
+            placeItems: "center",
+            color: "primary.main",
+            bgcolor: (theme) => alpha(theme.palette.primary.main, 0.08),
+            flexShrink: 0,
+          }}
+        >
+          {icon}
+        </Box>
 
-            {action}
-          </Stack>
+        <Box sx={{ minWidth: 0 }}>
+          <Typography variant="body2" color="text.secondary" fontWeight={700}>
+            {title}
+          </Typography>
 
-          <Box>
-            <Typography variant="body2" color="text.secondary" fontWeight={700}>
-              {title}
-            </Typography>
-
-            <Typography
-              variant="h4"
-              sx={{ fontWeight: 950, lineHeight: 1.05, letterSpacing: "-0.035em" }}
-            >
+          <Stack direction="row" spacing={0.7} alignItems="baseline">
+            <Typography variant="h6" fontWeight={950} lineHeight={1}>
               {value}
             </Typography>
 
             <Typography variant="caption" color="text.secondary">
-              {subtitle}
+              {helper}
             </Typography>
-          </Box>
-        </Stack>
-      </CardContent>
-    </Card>
+          </Stack>
+        </Box>
+      </Stack>
+
+      {action}
+    </Box>
   );
 }
 
@@ -327,14 +283,14 @@ export default function EmpleadoDashboardView() {
         <HeroBanner
           eyebrow="Panel personal"
           title="Mi espacio RH"
-          subtitle="Consulta tu información, expediente y vacaciones desde un solo lugar."
+          subtitle="Consulta tu expediente, vacaciones e incidencias desde un solo lugar."
           badge="Empleado"
           actions={
             <Button
               variant="contained"
               startIcon={
                 refreshing ? (
-                  <CircularProgress size={18} color="inherit" />
+                  <CircularProgress size={15} color="inherit" />
                 ) : (
                   <RefreshRoundedIcon />
                 )
@@ -382,28 +338,28 @@ export default function EmpleadoDashboardView() {
   const vacationAnniversary = formatDate(vacacionesResumen?.proximoAniversario);
 
   return (
-    <Stack spacing={{ xs: 1.8, md: 2.05 }} sx={{ pt: { xs: 0.5, md: 1 } }}>
+    <Stack spacing={{ xs: 1.75, md: 2 }} sx={{ pt: { xs: 0.5, md: 1 } }}>
       <Card
         elevation={0}
         sx={{
-          borderRadius: "20px",
+          borderRadius: "18px",
           overflow: "hidden",
           border: "1px solid",
           borderColor: (theme) => alpha(theme.palette.primary.main, 0.12),
-          boxShadow: "0 14px 32px rgba(15, 23, 42, 0.065)",
+          boxShadow: "0 12px 28px rgba(15, 23, 42, 0.06)",
           background:
             "linear-gradient(135deg, #071733 0%, #0f2b5c 58%, #173b78 100%)",
           color: "#ffffff",
         }}
       >
-        <CardContent sx={{ p: { xs: 2, md: 2.35 } }}>
+        <CardContent sx={{ p: { xs: 1.75, md: 2 } }}>
           <Stack
             direction={{ xs: "column", lg: "row" }}
             spacing={{ xs: 1.8, lg: 2.5 }}
             justifyContent="space-between"
             alignItems={{ xs: "stretch", lg: "center" }}
           >
-            <Stack spacing={1.05} sx={{ minWidth: 0 }}>
+            <Stack spacing={0.95} sx={{ minWidth: 0 }}>
               <Typography
                 variant="overline"
                 sx={{
@@ -427,7 +383,13 @@ export default function EmpleadoDashboardView() {
                 Hola, {data.empleado.nombreCompleto}
               </Typography>
 
-              <Stack direction="row" spacing={0.8} flexWrap="wrap" useFlexGap>
+              <Stack
+                direction="row"
+                spacing={0.75}
+                flexWrap="wrap"
+                useFlexGap
+                alignItems="center"
+              >
                 <Chip
                   size="small"
                   label={data.empleado.activo ? "Activo" : "Inactivo"}
@@ -452,6 +414,34 @@ export default function EmpleadoDashboardView() {
                   }}
                 />
 
+                {data.empleado.puestoNombre ? (
+                  <Chip
+                    size="small"
+                    label={data.empleado.puestoNombre}
+                    variant="outlined"
+                    sx={{
+                      color: "#ffffff",
+                      borderColor: alpha("#ffffff", 0.22),
+                      backgroundColor: alpha("#ffffff", 0.08),
+                      fontWeight: 850,
+                    }}
+                  />
+                ) : null}
+
+                {data.empleado.departamentoNombre ? (
+                  <Chip
+                    size="small"
+                    label={data.empleado.departamentoNombre}
+                    variant="outlined"
+                    sx={{
+                      color: "#ffffff",
+                      borderColor: alpha("#ffffff", 0.22),
+                      backgroundColor: alpha("#ffffff", 0.08),
+                      fontWeight: 850,
+                    }}
+                  />
+                ) : null}
+
                 {data.empleado.sucursalNombre ? (
                   <Chip
                     size="small"
@@ -470,7 +460,7 @@ export default function EmpleadoDashboardView() {
                   variant="contained"
                   startIcon={
                     refreshing ? (
-                      <CircularProgress size={18} color="inherit" />
+                      <CircularProgress size={15} color="inherit" />
                     ) : (
                       <RefreshRoundedIcon />
                     )
@@ -480,10 +470,19 @@ export default function EmpleadoDashboardView() {
                   sx={{
                     bgcolor: "#ffffff",
                     color: "primary.main",
-                    minHeight: 30,
-                    px: 1.45,
-                    borderRadius: "10px",
+                    minHeight: 26,
+                    px: 1.15,
+                    py: 0.25,
+                    borderRadius: "9px",
+                    fontSize: "0.76rem",
+                    lineHeight: 1.15,
                     boxShadow: "none",
+                    "& .MuiButton-startIcon": {
+                      mr: 0.45,
+                      "& svg": {
+                        fontSize: 17,
+                      },
+                    },
                     "&:hover": {
                       bgcolor: alpha("#ffffff", 0.92),
                       boxShadow: "none",
@@ -494,72 +493,6 @@ export default function EmpleadoDashboardView() {
                 </Button>
               </Stack>
             </Stack>
-
-            <Box
-              sx={{
-                width: { xs: "100%", lg: 292 },
-                borderRadius: "17px",
-                border: "1px solid",
-                borderColor: alpha("#ffffff", 0.14),
-                bgcolor: alpha("#ffffff", 0.08),
-                p: 1.55,
-                backdropFilter: "blur(10px)",
-                flexShrink: 0,
-              }}
-            >
-              <Stack spacing={1.05}>
-                <Typography variant="body2" sx={{ color: alpha("#ffffff", 0.78) }}>
-                  Resumen rápido
-                </Typography>
-
-                <Stack direction="row" spacing={2.1}>
-                  <Box>
-                    <Typography variant="h5" sx={{ fontWeight: 950, lineHeight: 1 }}>
-                      {data.documentos.cargados}
-                    </Typography>
-                    <Typography variant="caption" sx={{ color: alpha("#ffffff", 0.82) }}>
-                      documentos
-                    </Typography>
-                  </Box>
-
-                  <Box>
-                    <Typography variant="h5" sx={{ fontWeight: 950, lineHeight: 1 }}>
-                      {formatDays(vacationBalance)}
-                    </Typography>
-                    <Typography variant="caption" sx={{ color: alpha("#ffffff", 0.82) }}>
-                      vacaciones
-                    </Typography>
-                  </Box>
-
-                  <Box>
-                    <Typography variant="h5" sx={{ fontWeight: 950, lineHeight: 1 }}>
-                      {documentProgress}%
-                    </Typography>
-                    <Typography variant="caption" sx={{ color: alpha("#ffffff", 0.82) }}>
-                      avance
-                    </Typography>
-                  </Box>
-                </Stack>
-
-                <LinearProgress
-                  variant="determinate"
-                  value={Math.max(0, Math.min(100, documentProgress))}
-                  sx={{
-                    height: 7,
-                    borderRadius: 999,
-                    bgcolor: alpha("#ffffff", 0.16),
-                    "& .MuiLinearProgress-bar": {
-                      borderRadius: 999,
-                      bgcolor: "#ffffff",
-                    },
-                  }}
-                />
-
-                <Typography variant="body2" sx={{ color: alpha("#ffffff", 0.84) }}>
-                  Vista compacta de tu expediente y vacaciones.
-                </Typography>
-              </Stack>
-            </Box>
           </Stack>
         </CardContent>
       </Card>
@@ -571,62 +504,11 @@ export default function EmpleadoDashboardView() {
             xs: "1fr",
             xl: "1fr 1fr",
           },
-          gap: { xs: 1.8, md: 2 },
+          gap: { xs: 1.75, md: 2 },
           alignItems: "stretch",
         }}
       >
-        <Box sx={{ height: "100%" }}>
-          <SectionCard
-            title="Mi perfil"
-            subtitle="Datos laborales principales."
-          actions={
-            <Chip
-              size="small"
-              variant="outlined"
-              color={data.empleado.activo ? "success" : "default"}
-              label={data.empleado.activo ? "Empleado activo" : "Empleado inactivo"}
-            />
-          }
-        >
-          <Box
-            sx={{
-              display: "grid",
-              gridTemplateColumns: {
-                xs: "1fr",
-                md: "repeat(4, minmax(0, 1fr))",
-              },
-              gap: 1.1,
-            }}
-          >
-            <SmallDataPill
-              label="Número"
-              value={data.empleado.numEmpleado}
-              icon={<BadgeRoundedIcon fontSize="small" />}
-            />
-
-            <SmallDataPill
-              label="Puesto"
-              value={data.empleado.puestoNombre}
-              icon={<BusinessCenterRoundedIcon fontSize="small" />}
-            />
-
-            <SmallDataPill
-              label="Departamento"
-              value={data.empleado.departamentoNombre}
-              icon={<ApartmentRoundedIcon fontSize="small" />}
-            />
-
-            <SmallDataPill
-              label="Sucursal"
-              value={data.empleado.sucursalNombre}
-              icon={<StoreRoundedIcon fontSize="small" />}
-            />
-          </Box>
-          </SectionCard>
-        </Box>
-
-        <Box sx={{ height: "100%" }}>
-          <SectionCard title="Accesos rápidos" subtitle="Tus acciones principales.">
+        <SectionCard title="Accesos rápidos" subtitle="Tus acciones principales.">
           <Box
             sx={{
               display: "grid",
@@ -637,210 +519,200 @@ export default function EmpleadoDashboardView() {
               gap: 1,
             }}
           >
-            <QuickActionButton
+            <ActionTile
               primary
               icon={<FolderSharedRoundedIcon />}
-              label="Mi expediente"
+              title="Mi expediente"
+              subtitle="Documentos y datos"
               onClick={() => navigate(`/empleados/${data.empleado.id}/expediente`)}
             />
 
-            <QuickActionButton
+            <ActionTile
               icon={<BeachAccessRoundedIcon />}
-              label="Mis vacaciones"
+              title="Mis vacaciones"
+              subtitle="Saldo y solicitudes"
               onClick={() => navigate("/mis-vacaciones")}
             />
 
-            <QuickActionButton
+            <ActionTile
               icon={<FactCheckRoundedIcon />}
-              label="Mis incidencias"
+              title="Mis incidencias"
+              subtitle="Historial personal"
               onClick={() => navigate("/incidencias")}
             />
 
-            <QuickActionButton
+            <ActionTile
               icon={<LockResetRoundedIcon />}
-              label="Contraseña"
+              title="Contraseña"
+              subtitle="Seguridad de cuenta"
               onClick={() => navigate("/cambiar-password")}
             />
           </Box>
-          </SectionCard>
-        </Box>
+        </SectionCard>
+
+        <SectionCard
+          title="Estado general"
+          subtitle="Documentos e incidencias en una vista breve."
+        >
+          <Stack spacing={1.15}>
+            <CompactLine
+              icon={<DescriptionRoundedIcon fontSize="small" />}
+              title="Documentos"
+              value={`${data.documentos.cargados}/${data.documentos.requeridos}`}
+              helper={`${data.documentos.faltantes} faltante(s) · ${data.documentos.vencidos} vencido(s)`}
+              action={
+                <Chip
+                  size="small"
+                  color={data.documentos.completo ? "success" : "warning"}
+                  variant="outlined"
+                  label={data.documentos.completo ? "Al corriente" : "Atención"}
+                  sx={{ fontWeight: 800 }}
+                />
+              }
+            />
+
+            <LinearProgress
+              variant="determinate"
+              value={Math.max(0, Math.min(100, documentProgress))}
+              sx={{
+                height: 7,
+                borderRadius: 999,
+                bgcolor: "action.hover",
+                "& .MuiLinearProgress-bar": {
+                  borderRadius: 999,
+                },
+              }}
+            />
+
+            <CompactLine
+              icon={<PendingActionsRoundedIcon fontSize="small" />}
+              title="Incidencias"
+              value={data.incidencias.total}
+              helper={`${data.incidencias.pendientes} pendiente(s) · ${data.incidencias.aprobadas} aprobada(s)`}
+              action={
+                <Button
+                  size="small"
+                  variant="text"
+                  onClick={() => navigate("/incidencias")}
+                  sx={{ fontWeight: 850 }}
+                >
+                  Ver
+                </Button>
+              }
+            />
+          </Stack>
+        </SectionCard>
       </Box>
 
-      <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: {
-            xs: "1fr",
-            xl: "1fr 1fr",
-          },
-          gap: { xs: 1.8, md: 2 },
-        }}
+      <SectionCard
+        title="Mis vacaciones"
+        subtitle="Saldo disponible, ciclo y solicitudes personales."
+        actions={
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<BeachAccessRoundedIcon />}
+            onClick={() => navigate("/mis-vacaciones")}
+            sx={{ borderRadius: "10px", fontWeight: 850 }}
+          >
+            Ver vacaciones
+          </Button>
+        }
       >
-        <Box sx={{ height: "100%" }}>
-          <Card
-            elevation={0}
+        {vacacionesLoading ? (
+          <Box sx={{ py: 3, display: "grid", placeItems: "center" }}>
+            <CircularProgress size={24} />
+          </Box>
+        ) : vacacionesError ? (
+          <Alert severity="warning">{vacacionesError}</Alert>
+        ) : (
+          <Box
             sx={{
-            borderRadius: "18px",
-            border: "1px solid",
-            borderColor: "divider",
-            bgcolor: "background.paper",
+              px: { xs: 1.6, md: 1.85 },
+              py: { xs: 1.5, md: 1.7 },
+              borderRadius: "17px",
+              border: "1px solid",
+              borderColor: (theme) => alpha(theme.palette.primary.main, 0.14),
+              background: (theme) =>
+                `linear-gradient(135deg, ${alpha(
+                  theme.palette.primary.main,
+                  0.09
+                )}, ${alpha(theme.palette.primary.main, 0.025)})`,
             }}
           >
-            <CardContent sx={{ p: 2 }}>
             <Stack
-              direction={{ xs: "column", md: "row" }}
-              spacing={2}
+              direction={{ xs: "column", lg: "row" }}
+              spacing={1.5}
+              alignItems={{ xs: "flex-start", lg: "center" }}
               justifyContent="space-between"
-              alignItems={{ xs: "flex-start", md: "center" }}
             >
               <Box>
-                <Typography variant="h6" fontWeight={950}>
-                  Mis vacaciones
+                <Typography variant="body2" color="text.secondary" fontWeight={700}>
+                  Saldo disponible
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Saldo disponible, ciclo y solicitudes personales.
-                </Typography>
-              </Box>
 
-              <Button
-                size="small"
-                variant="outlined"
-                startIcon={<BeachAccessRoundedIcon />}
-                onClick={() => navigate("/mis-vacaciones")}
-                sx={{ borderRadius: "10px", fontWeight: 850 }}
-              >
-                Ver detalle
-              </Button>
-            </Stack>
-
-            <Box
-              sx={{
-                mt: 1.7,
-                p: 2,
-                borderRadius: "17px",
-                border: "1px solid",
-                borderColor: (theme) => alpha(theme.palette.primary.main, 0.14),
-                background: (theme) =>
-                  `linear-gradient(135deg, ${alpha(
-                    theme.palette.primary.main,
-                    0.08
-                  )}, ${alpha(theme.palette.primary.main, 0.025)})`,
-              }}
-            >
-              {vacacionesLoading ? (
-                <Box sx={{ py: 2, display: "grid", placeItems: "center" }}>
-                  <CircularProgress size={24} />
-                </Box>
-              ) : vacacionesError ? (
-                <Alert severity="warning">{vacacionesError}</Alert>
-              ) : (
-                <Stack spacing={1.25}>
-                  <Stack
-                    direction={{ xs: "column", md: "row" }}
-                    spacing={1.5}
-                    justifyContent="space-between"
-                    alignItems={{ xs: "flex-start", md: "center" }}
-                  >
-                    <Box>
-                      <Typography variant="body2" color="text.secondary">
-                        Saldo disponible
-                      </Typography>
-
-                      <Stack direction="row" spacing={0.8} alignItems="baseline">
-                        <Typography
-                          variant="h3"
-                          sx={{
-                            fontWeight: 950,
-                            letterSpacing: "-0.04em",
-                            lineHeight: 1,
-                          }}
-                        >
-                          {formatDays(vacationBalance)}
-                        </Typography>
-
-                        <Typography color="text.secondary" fontWeight={800}>
-                          días
-                        </Typography>
-                      </Stack>
-                    </Box>
-
-                    <Stack direction="row" spacing={0.8} flexWrap="wrap" useFlexGap>
-                      <Chip
-                        size="small"
-                        icon={<TaskAltRoundedIcon />}
-                        label={`${formatDays(vacacionesResumen?.diasTomadosTotal ?? 0)} tomados`}
-                        variant="outlined"
-                        sx={{ fontWeight: 800 }}
-                      />
-
-                      <Chip
-                        size="small"
-                        icon={<PendingActionsRoundedIcon />}
-                        label={`${vacacionesResumen?.periodosAbiertos ?? 0} periodo(s) abierto(s)`}
-                        variant="outlined"
-                        sx={{ fontWeight: 800 }}
-                      />
-                    </Stack>
-                  </Stack>
-
-                  <Alert
-                    severity="info"
+                <Stack direction="row" spacing={0.9} alignItems="baseline">
+                  <Typography
                     sx={{
-                      borderRadius: "13px",
-                      "& .MuiAlert-message": {
-                        fontSize: 13,
-                      },
+                      fontSize: { xs: 38, md: 46 },
+                      fontWeight: 950,
+                      letterSpacing: "-0.055em",
+                      lineHeight: 1,
                     }}
                   >
-                    Próximo aniversario: <strong>{vacationAnniversary}</strong>
-                    {vacacionesResumen?.politicaNombre
-                      ? ` · Política: ${vacacionesResumen.politicaNombre}`
-                      : ""}
-                  </Alert>
+                    {formatDays(vacationBalance)}
+                  </Typography>
+
+                  <Typography color="text.secondary" fontWeight={900}>
+                    días
+                  </Typography>
                 </Stack>
-              )}
-            </Box>
-            </CardContent>
-          </Card>
-        </Box>
+              </Box>
 
-        <Stack spacing={1.8} sx={{ height: "100%" }}>
-          <CompactSummaryCard
-            title="Mis documentos"
-            value={`${data.documentos.cargados}/${data.documentos.requeridos}`}
-            subtitle={`${data.documentos.faltantes} faltante(s) · ${data.documentos.vencidos} vencido(s)`}
-            icon={<DescriptionRoundedIcon fontSize="small" />}
-            tone={data.documentos.vencidos > 0 ? "error" : "warning"}
-            action={
-              <Chip
-                size="small"
-                color={data.documentos.completo ? "success" : "warning"}
-                variant="outlined"
-                label={data.documentos.completo ? "Al corriente" : "Atención"}
-                sx={{ fontWeight: 800 }}
-              />
-            }
-          />
-
-          <CompactSummaryCard
-            title="Mis incidencias"
-            value={data.incidencias.total}
-            subtitle={`${data.incidencias.pendientes} pendiente(s) · ${data.incidencias.aprobadas} aprobada(s)`}
-            icon={<PendingActionsRoundedIcon fontSize="small" />}
-            tone={data.incidencias.pendientes > 0 ? "warning" : "primary"}
-            action={
-              <Button
-                size="small"
-                variant="text"
-                onClick={() => navigate("/incidencias")}
-                sx={{ fontWeight: 850 }}
+              <Stack
+                direction="row"
+                spacing={0.75}
+                flexWrap="wrap"
+                useFlexGap
+                alignItems="center"
               >
-                Ver
-              </Button>
-            }
-          />
-        </Stack>
-      </Box>
+                <Chip
+                  size="small"
+                  icon={<TaskAltRoundedIcon />}
+                  label={`${formatDays(vacacionesResumen?.diasTomadosTotal ?? 0)} tomados`}
+                  variant="outlined"
+                  sx={{ fontWeight: 850, bgcolor: "background.paper" }}
+                />
+
+                <Chip
+                  size="small"
+                  icon={<PendingActionsRoundedIcon />}
+                  label={`${vacacionesResumen?.periodosAbiertos ?? 0} periodo(s) abierto(s)`}
+                  variant="outlined"
+                  sx={{ fontWeight: 850, bgcolor: "background.paper" }}
+                />
+
+                <Chip
+                  size="small"
+                  label={`Próximo aniversario: ${vacationAnniversary}`}
+                  variant="outlined"
+                  sx={{ fontWeight: 850, bgcolor: "background.paper" }}
+                />
+              </Stack>
+            </Stack>
+
+            {vacacionesResumen?.politicaNombre ? (
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ display: "block", mt: 1.2 }}
+              >
+                Política vigente: <strong>{vacacionesResumen.politicaNombre}</strong>
+              </Typography>
+            ) : null}
+          </Box>
+        )}
+      </SectionCard>
 
       {(data.documentos.porVencer > 0 ||
         data.documentos.vencidos > 0 ||
