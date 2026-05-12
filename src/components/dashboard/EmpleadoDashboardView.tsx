@@ -1,4 +1,5 @@
-﻿import { useEffect, useMemo, useState, type ReactNode } from "react";
+﻿
+import { getMisVacacionesResumen, type VacacionesResumen } from "../../api/vacaciones.api";import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Alert,
   Box,
@@ -116,6 +117,19 @@ function ProfileTile({
   );
 }
 
+function formatVacationDashboardDate(value?: string | null) {
+  if (!value) return "—";
+
+  const [year, month, day] = value.split("-").map(Number);
+
+  if (!year || !month || !day) return value;
+
+  return new Date(year, month - 1, day).toLocaleDateString("es-MX", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
 function QuickActionButton({
   primary,
   icon,
@@ -154,6 +168,10 @@ export default function EmpleadoDashboardView() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [vacacionesResumen, setVacacionesResumen] =
+    useState<VacacionesResumen | null>(null);
+  const [vacacionesLoading, setVacacionesLoading] = useState(true);
+  const [vacacionesError, setVacacionesError] = useState<string | null>(null);
 
   async function loadData(isRefresh = false) {
     if (isRefresh) {
@@ -179,10 +197,28 @@ export default function EmpleadoDashboardView() {
     }
   }
 
+
+  async function loadVacacionesResumen() {
+    try {
+      setVacacionesLoading(true);
+      setVacacionesError(null);
+
+      const resumen = await getMisVacacionesResumen();
+      setVacacionesResumen(resumen);
+    } catch (err) {
+      console.error(err);
+      setVacacionesError("No se pudo cargar tu resumen de vacaciones.");
+    } finally {
+      setVacacionesLoading(false);
+    }
+  }
   useEffect(() => {
     void loadData();
   }, []);
 
+  useEffect(() => {
+    void loadVacacionesResumen();
+  }, []);
   const metricCards = useMemo(() => {
     if (!data) return [];
 
@@ -662,6 +698,83 @@ export default function EmpleadoDashboardView() {
             />
           </Box>
         </SectionCard>
+        <SectionCard
+          title="Mis vacaciones"
+          subtitle="Resumen de tu saldo, periodos abiertos y próximo aniversario."
+          actions={
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<BeachAccessRoundedIcon />}
+              onClick={() => navigate("/vacaciones/solicitudes")}
+              sx={{ borderRadius: "10px", fontWeight: 800 }}
+            >
+              Ver solicitudes
+            </Button>
+          }
+        >
+          {vacacionesLoading ? (
+            <Box sx={{ py: 3, display: "grid", placeItems: "center" }}>
+              <CircularProgress size={26} />
+            </Box>
+          ) : vacacionesError ? (
+            <Alert severity="warning">{vacacionesError}</Alert>
+          ) : vacacionesResumen ? (
+            <Stack spacing={1.5}>
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: {
+                    xs: "1fr",
+                    md: "repeat(3, 1fr)",
+                  },
+                  gap: 1.5,
+                }}
+              >
+                <MetricCard
+                  title="Saldo disponible"
+                  value={Number(vacacionesResumen.saldoDisponible ?? 0)}
+                  subtitle="Días pendientes de disfrutar"
+                  icon={<BeachAccessRoundedIcon fontSize="small" />}
+                />
+
+                <MetricCard
+                  title="Días tomados"
+                  value={Number(vacacionesResumen.diasTomadosTotal ?? 0)}
+                  subtitle="Histórico disfrutado"
+                  icon={<TaskAltRoundedIcon fontSize="small" />}
+                />
+
+                <MetricCard
+                  title="Periodos abiertos"
+                  value={Number(vacacionesResumen.periodosAbiertos ?? 0)}
+                  subtitle={`Total periodos: ${vacacionesResumen.periodosTotales ?? 0}`}
+                  icon={<PendingActionsRoundedIcon fontSize="small" />}
+                />
+              </Box>
+
+              <Alert
+                severity="info"
+                sx={{
+                  borderRadius: "14px",
+                  "& .MuiAlert-message": {
+                    fontSize: 13,
+                  },
+                }}
+              >
+                Próximo aniversario:{" "}
+                <strong>
+                  {formatVacationDashboardDate(vacacionesResumen.proximoAniversario)}
+                </strong>
+                {vacacionesResumen.politicaNombre
+                  ? ` · Política: ${vacacionesResumen.politicaNombre}`
+                  : ""}
+              </Alert>
+            </Stack>
+          ) : (
+            <Alert severity="info">No hay información de vacaciones disponible.</Alert>
+          )}
+        </SectionCard>
 
         <SectionCard
           title="Mis incidencias"
@@ -701,5 +814,8 @@ export default function EmpleadoDashboardView() {
     </Stack>
   );
 }
+
+
+
 
 
