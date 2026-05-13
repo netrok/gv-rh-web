@@ -296,6 +296,7 @@ function isRouteActive(pathname: string, to: string) {
 }
 
 function getPageTitle(pathname: string) {
+    if (pathname.startsWith("/mis-vacaciones")) return "Mis vacaciones";
   if (pathname.startsWith("/vacaciones/solicitudes")) {
     return "Solicitudes de vacaciones";
   }
@@ -340,6 +341,7 @@ function getPageTitle(pathname: string) {
 }
 
 function getPageSubtitle(pathname: string) {
+    if (pathname.startsWith("/mis-vacaciones")) return "Resumen personal de vacaciones";
   if (pathname.startsWith("/vacaciones/solicitudes")) {
     return "Bandeja de solicitud, aprobación y control de vacaciones";
   }
@@ -411,6 +413,7 @@ if (pathname.startsWith("/mis-aprobaciones")) {
 }
 
 function getPageBreadcrumb(pathname: string) {
+    if (pathname.startsWith("/mis-vacaciones")) return ["Operación", "Mis vacaciones"];
   if (pathname.startsWith("/vacaciones/solicitudes")) {
     return ["Vacaciones", "Solicitudes"];
   }
@@ -1801,6 +1804,7 @@ export default function AppShell({ children }: AppShellProps) {
     </Box>
   );
 }
+
 
 
 
