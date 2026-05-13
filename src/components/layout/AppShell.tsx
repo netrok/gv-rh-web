@@ -301,7 +301,7 @@ function getPageTitle(pathname: string) {
   }
   if (pathname.startsWith("/mis-aprobaciones")) return "Mis aprobaciones";
   if (pathname.startsWith("/mi-equipo")) return "Mi equipo";
-  if (pathname.startsWith("/dashboard")) return "Dashboard";
+  if (pathname.startsWith("/dashboard")) return "Mi panel";
   if (pathname.startsWith("/audit")) return "Auditoría";
   if (pathname.startsWith("/cumpleanios")) return "Cumpleaños";
   if (pathname.startsWith("/departamentos")) return "Departamentos";
@@ -347,18 +347,18 @@ if (pathname.startsWith("/mis-aprobaciones")) {
     return "Pendientes centralizados de incidencias y vacaciones";
   }
   if (pathname.startsWith("/mi-equipo")) return "Personal asignado por relación de aprobador";
-  if (pathname.startsWith("/dashboard")) return "Vista general del sistema";
+  if (pathname.startsWith("/dashboard")) return "Resumen personal de Recursos Humanos";
   if (pathname.startsWith("/audit")) return "Trazabilidad y control de movimientos";
 
   if (pathname.startsWith("/cumpleanios")) {
-    return "Celebraciones y próximos cumpleaños del personal";
+    return "Próximas celebraciones del equipo";
   }
 
   if (pathname.startsWith("/departamentos")) return "Estructura organizacional";
   if (pathname.startsWith("/empleados")) return "Gestión integral del personal";
 
   if (pathname.startsWith("/incidencias")) {
-    return "Control administrativo de incidencias";
+    return "Consulta y seguimiento de incidencias";
   }
 
   if (pathname.startsWith("/puestos")) return "Catálogo de puestos y jerarquías";
@@ -1801,6 +1801,9 @@ export default function AppShell({ children }: AppShellProps) {
     </Box>
   );
 }
+
+
+
 
 
 

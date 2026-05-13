@@ -3,7 +3,7 @@
   useMemo,
   useState,
   type ChangeEvent,
-  type ReactNode,
+  type ReactElement,
 } from "react";
 import {
   Alert,
@@ -436,7 +436,7 @@ function getEvidenceKind(item: Incidencia): "image" | "pdf" | "file" {
   return "file";
 }
 
-function getEvidenceIcon(item: Incidencia): ReactNode {
+function getEvidenceIcon(item: Incidencia): ReactElement {
   const kind = getEvidenceKind(item);
 
   if (kind === "image") return <ImageRoundedIcon fontSize="small" />;
@@ -467,6 +467,156 @@ function normalizeIncidenciasResponse(data: unknown): Incidencia[] {
   return [];
 }
 
+
+function EmpleadoIncidenciaCard({
+  item,
+  tipos,
+  estatuses,
+  onDownloadEvidence,
+  canDownloadEvidence,
+}: {
+  item: Incidencia;
+  tipos: CatalogoOption[];
+  estatuses: CatalogoOption[];
+  onDownloadEvidence: (item: Incidencia) => void;
+  canDownloadEvidence: boolean;
+}) {
+  const isPendiente = isPendienteValue(item.estatus);
+
+  return (
+    <Box
+      sx={{
+        p: { xs: 1.5, md: 1.75 },
+        borderRadius: "16px",
+        border: "1px solid",
+        borderColor: isPendiente
+          ? "rgba(237, 108, 2, 0.28)"
+          : "divider",
+        bgcolor: isPendiente
+          ? "rgba(255, 244, 229, 0.34)"
+          : "background.paper",
+      }}
+    >
+      <Stack
+        direction={{ xs: "column", md: "row" }}
+        spacing={1.5}
+        justifyContent="space-between"
+        alignItems={{ xs: "flex-start", md: "center" }}
+      >
+        <Box sx={{ minWidth: 0 }}>
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            <Chip
+              size="small"
+              variant="outlined"
+              label={`#${item.id}`}
+              sx={{ fontWeight: 850 }}
+            />
+
+            <Chip
+              size="small"
+              variant="outlined"
+              label={getTipoNombre(item.tipo, tipos)}
+              sx={tipoChipSx(item.tipo)}
+            />
+
+            <Chip
+              size="small"
+              variant="outlined"
+              label={getEstatusNombre(item.estatus, estatuses)}
+              sx={estatusChipSx(item.estatus)}
+            />
+          </Stack>
+
+          <Typography
+            variant="h6"
+            sx={{
+              mt: 1,
+              fontWeight: 950,
+              lineHeight: 1.15,
+              letterSpacing: "-0.025em",
+            }}
+          >
+            {getTipoNombre(item.tipo, tipos)}
+          </Typography>
+
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.4 }}>
+            {formatDate(item.fechaInicio)} - {formatDate(item.fechaFin)}
+            {item.sucursalNombre ? ` · ${item.sucursalNombre}` : ""}
+          </Typography>
+        </Box>
+
+        <Stack
+          direction="row"
+          spacing={1}
+          flexWrap="wrap"
+          useFlexGap
+          alignItems="center"
+        >
+          {item.tieneEvidencia ? (
+            <Chip
+              size="small"
+              icon={getEvidenceIcon(item)}
+              color="success"
+              variant="outlined"
+              label="Con evidencia"
+              sx={{ fontWeight: 850 }}
+            />
+          ) : (
+            <Chip
+              size="small"
+              variant="outlined"
+              label="Sin evidencia"
+              sx={{ fontWeight: 850 }}
+            />
+          )}
+
+          {item.tieneEvidencia && canDownloadEvidence ? (
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<DownloadRoundedIcon />}
+              onClick={() => onDownloadEvidence(item)}
+              sx={{ borderRadius: "10px", fontWeight: 850 }}
+            >
+              Descargar
+            </Button>
+          ) : null}
+        </Stack>
+      </Stack>
+
+      {(item.comentario || item.comentarioResolucion || item.fechaResolucionUtc) ? (
+        <Box
+          sx={{
+            mt: 1.35,
+            p: 1.35,
+            borderRadius: "13px",
+            bgcolor: "background.default",
+            border: "1px solid",
+            borderColor: "divider",
+          }}
+        >
+          {item.comentario ? (
+            <Typography variant="body2">
+              <strong>Comentario:</strong> {item.comentario}
+            </Typography>
+          ) : null}
+
+          {item.comentarioResolucion ? (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              <strong>Resolución:</strong> {item.comentarioResolucion}
+            </Typography>
+          ) : null}
+
+          {item.fechaResolucionUtc ? (
+            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
+              Resuelta: {formatDateTime(item.fechaResolucionUtc)}
+            </Typography>
+          ) : null}
+        </Box>
+      ) : null}
+    </Box>
+  );
+}
 export default function IncidenciasPage() {
   const { roles: userRoles } = useAuth();
 
@@ -1131,7 +1281,7 @@ export default function IncidenciasPage() {
         subtitle="Control de incidencias y asistencias con evidencia documental, filtros operativos y exportación."
       >
         <HeroBanner
-          eyebrow="Módulo operativo"
+          eyebrow={isEmpleadoOnly ? "Panel personal" : "Módulo operativo"}
           title="Seguimiento de incidencias"
           subtitle="Registra, revisa, aprueba y documenta incidencias del personal con control por estatus, fechas y evidencia adjunta."
           badge="Sin acceso"
@@ -1192,11 +1342,368 @@ export default function IncidenciasPage() {
     );
   }
 
+
+  if (isEmpleadoOnly) {
+    return (
+      <AppPage
+        eyebrow="Recursos Humanos"
+        title="Mis incidencias"
+        subtitle="Consulta tus registros personales, estatus y evidencia."
+        actions={
+          <Button
+            variant="outlined"
+            startIcon={refreshBusy ? <CircularProgress size={16} /> : <RefreshIcon />}
+            onClick={handleRefresh}
+            disabled={refreshBusy || mutationBusy || exportBusy}
+            sx={{ borderRadius: "10px", fontWeight: 850 }}
+          >
+            {refreshBusy ? "Actualizando..." : "Actualizar"}
+          </Button>
+        }
+      >
+        <Stack spacing={2}>
+          <Box
+            sx={{
+              p: { xs: 1.8, md: 2.2 },
+              borderRadius: "18px",
+              border: "1px solid",
+              borderColor: (theme) => alpha(theme.palette.primary.main, 0.12),
+              background:
+                "linear-gradient(135deg, #071733 0%, #0f2b5c 58%, #173b78 100%)",
+              color: "#ffffff",
+              boxShadow: "0 12px 28px rgba(15, 23, 42, 0.06)",
+            }}
+          >
+            <Stack
+              direction={{ xs: "column", md: "row" }}
+              spacing={2}
+              justifyContent="space-between"
+              alignItems={{ xs: "flex-start", md: "center" }}
+            >
+              <Box>
+                <Typography
+                  variant="overline"
+                  sx={{
+                    color: alpha("#ffffff", 0.72),
+                    fontWeight: 900,
+                    letterSpacing: 1.1,
+                  }}
+                >
+                  Panel personal de incidencias
+                </Typography>
+
+                <Typography
+                  variant="h4"
+                  sx={{
+                    fontWeight: 950,
+                    letterSpacing: "-0.04em",
+                    lineHeight: 1.08,
+                  }}
+                >
+                  Mis incidencias
+                </Typography>
+
+                <Typography
+                  variant="body2"
+                  sx={{ color: alpha("#ffffff", 0.84), mt: 0.8 }}
+                >
+                  Consulta tus registros, estatus y evidencia disponible.
+                </Typography>
+              </Box>
+
+              <Stack direction="row" spacing={1.8} flexWrap="wrap" useFlexGap>
+                <Box>
+                  <Typography variant="h4" sx={{ fontWeight: 950, lineHeight: 1 }}>
+                    {summary.total}
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: alpha("#ffffff", 0.82) }}>
+                    registros
+                  </Typography>
+                </Box>
+
+                <Box>
+                  <Typography variant="h4" sx={{ fontWeight: 950, lineHeight: 1 }}>
+                    {summary.pendientes}
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: alpha("#ffffff", 0.82) }}>
+                    pendientes
+                  </Typography>
+                </Box>
+
+                <Box>
+                  <Typography variant="h4" sx={{ fontWeight: 950, lineHeight: 1 }}>
+                    {summary.conEvidencia}
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: alpha("#ffffff", 0.82) }}>
+                    evidencias
+                  </Typography>
+                </Box>
+              </Stack>
+            </Stack>
+          </Box>
+
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: {
+                xs: "1fr",
+                md: "repeat(3, minmax(0, 1fr))",
+              },
+              gap: 1.5,
+            }}
+          >
+            <MetricCard
+              title="Total"
+              value={summary.total}
+              subtitle="Incidencias personales"
+              icon={<PeopleAltRoundedIcon fontSize="small" />}
+            />
+
+            <MetricCard
+              title="Pendientes"
+              value={summary.pendientes}
+              subtitle="En revisión"
+              icon={<PendingActionsRoundedIcon fontSize="small" />}
+            />
+
+            <MetricCard
+              title="Aprobadas"
+              value={summary.aprobadas}
+              subtitle="Aceptadas"
+              icon={<TaskAltRoundedIcon fontSize="small" />}
+            />
+          </Box>
+
+          <SectionCard
+            title="Filtros rápidos"
+            subtitle="Filtra tus registros por tipo, estatus o fechas."
+            actions={
+              <Chip
+                size="small"
+                variant="outlined"
+                color={activeFiltersCount > 0 ? "primary" : undefined}
+                label={
+                  activeFiltersCount > 0
+                    ? `${activeFiltersCount} filtro${activeFiltersCount > 1 ? "s" : ""}`
+                    : "Sin filtros"
+                }
+              />
+            }
+          >
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: {
+                  xs: "1fr",
+                  md: "repeat(12, 1fr)",
+                },
+                gap: 1.5,
+              }}
+            >
+              <Box sx={{ gridColumn: { xs: "span 1", md: "span 3" } }}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Tipo</InputLabel>
+                  <Select
+                    label="Tipo"
+                    value={filters.tipo}
+                    onChange={(e) =>
+                      setFilters((prev) => ({
+                        ...prev,
+                        tipo: e.target.value,
+                      }))
+                    }
+                  >
+                    <MenuItem value="">Todos</MenuItem>
+                    {tipos.map((t) => (
+                      <MenuItem key={t.id} value={String(t.id)}>
+                        {t.nombre}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Box>
+
+              <Box sx={{ gridColumn: { xs: "span 1", md: "span 3" } }}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Estatus</InputLabel>
+                  <Select
+                    label="Estatus"
+                    value={filters.estatus}
+                    onChange={(e) =>
+                      setFilters((prev) => ({
+                        ...prev,
+                        estatus: e.target.value,
+                      }))
+                    }
+                  >
+                    <MenuItem value="">Todos</MenuItem>
+                    {estatuses.map((x) => (
+                      <MenuItem key={x.id} value={String(x.id)}>
+                        {x.nombre}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Box>
+
+              <Box sx={{ gridColumn: { xs: "span 1", md: "span 2" } }}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Desde"
+                  type="date"
+                  InputLabelProps={{ shrink: true }}
+                  value={filters.fechaDesde}
+                  onChange={(e) =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      fechaDesde: e.target.value,
+                    }))
+                  }
+                />
+              </Box>
+
+              <Box sx={{ gridColumn: { xs: "span 1", md: "span 2" } }}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Hasta"
+                  type="date"
+                  InputLabelProps={{ shrink: true }}
+                  value={filters.fechaHasta}
+                  onChange={(e) =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      fechaHasta: e.target.value,
+                    }))
+                  }
+                />
+              </Box>
+
+              <Box
+                sx={{
+                  gridColumn: { xs: "span 1", md: "span 2" },
+                  display: "flex",
+                  alignItems: "center",
+                }}
+              >
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={filters.soloPendientes}
+                      onChange={(e) =>
+                        setFilters((prev) => ({
+                          ...prev,
+                          soloPendientes: e.target.checked,
+                        }))
+                      }
+                    />
+                  }
+                  label="Pendientes"
+                />
+              </Box>
+
+              <Box sx={{ gridColumn: { xs: "span 1", md: "span 12" } }}>
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  <Button
+                    variant="contained"
+                    onClick={applyFilters}
+                    disabled={loadingList || mutationBusy || exportBusy}
+                    startIcon={loadingList ? <CircularProgress size={16} /> : undefined}
+                    sx={{ borderRadius: "10px", fontWeight: 850 }}
+                  >
+                    {loadingList ? "Aplicando..." : "Aplicar filtros"}
+                  </Button>
+
+                  <Button
+                    variant="outlined"
+                    onClick={clearFilters}
+                    disabled={loadingList || mutationBusy || exportBusy}
+                    sx={{ borderRadius: "10px", fontWeight: 850 }}
+                  >
+                    Limpiar
+                  </Button>
+                </Stack>
+              </Box>
+            </Box>
+          </SectionCard>
+
+          <SectionCard
+            title="Mis registros"
+            subtitle="Detalle de tus incidencias registradas."
+            actions={
+              <Chip
+                label={`${paginatedItems.length} visibles de ${items.length}`}
+                size="small"
+                variant="outlined"
+              />
+            }
+          >
+            {bootstrapping || loadingList ? (
+              <Box sx={{ py: 6, display: "flex", justifyContent: "center" }}>
+                <CircularProgress />
+              </Box>
+            ) : items.length === 0 ? (
+              <EmptyState
+                icon={<PendingActionsRoundedIcon sx={{ fontSize: 52 }} />}
+                title="No hay incidencias para mostrar"
+                description="No tienes incidencias registradas con los filtros actuales."
+              />
+            ) : (
+              <Stack spacing={1.25}>
+                {paginatedItems.map((item) => (
+                  <EmpleadoIncidenciaCard
+                    key={item.id}
+                    item={item}
+                    tipos={tipos}
+                    estatuses={estatuses}
+                    onDownloadEvidence={(current) =>
+                      void handleDownloadEvidence(current)
+                    }
+                    canDownloadEvidence={canDownloadEvidence}
+                  />
+                ))}
+
+                <TablePagination
+                  component="div"
+                  count={items.length}
+                  page={page}
+                  onPageChange={handleChangePage}
+                  rowsPerPage={rowsPerPage}
+                  onRowsPerPageChange={handleChangeRowsPerPage}
+                  rowsPerPageOptions={[5, 10, 25, 50]}
+                  labelRowsPerPage="Filas por página"
+                  labelDisplayedRows={({ from, to, count }) =>
+                    `${from}-${to} de ${count !== -1 ? count : `más de ${to}`}`
+                  }
+                />
+              </Stack>
+            )}
+          </SectionCard>
+
+          <Snackbar
+            open={snackbar.open}
+            autoHideDuration={4000}
+            onClose={closeSnackbar}
+            anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+          >
+            <Alert
+              severity={snackbar.severity}
+              onClose={closeSnackbar}
+              variant="filled"
+            >
+              {snackbar.message}
+            </Alert>
+          </Snackbar>
+        </Stack>
+      </AppPage>
+    );
+  }
   return (
     <AppPage
       eyebrow="Recursos Humanos"
       title={isEmpleadoOnly ? "Mis incidencias" : isJefeOnly ? "Incidencias de mi equipo" : "Incidencias"}
-      subtitle={isEmpleadoOnly ? "Consulta personal de tus incidencias y evidencias." : isJefeOnly ? "Consulta y resolución de incidencias del personal bajo tu aprobación." : "Control de incidencias y asistencias con evidencia documental, filtros operativos y exportación."}
+      subtitle={isEmpleadoOnly ? "Consulta personal de tus incidencias, estatus y evidencia." : isJefeOnly ? "Consulta y resolución de incidencias del personal bajo tu aprobación." : "Control de incidencias y asistencias con evidencia documental, filtros operativos y exportación."}
       actions={
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
           <Button
@@ -1256,9 +1763,9 @@ export default function IncidenciasPage() {
       }
     >
       <HeroBanner
-        eyebrow="Módulo operativo"
+        eyebrow={isEmpleadoOnly ? "Panel personal" : "Módulo operativo"}
         title={isEmpleadoOnly ? "Mis incidencias" : isJefeOnly ? "Seguimiento de mi equipo" : "Seguimiento de incidencias"}
-        subtitle={isEmpleadoOnly ? "Consulta únicamente tus incidencias registradas y descarga evidencia cuando exista." : isJefeOnly ? "Revisa incidencias propias y del personal que tienes asignado como aprobador. No es una vista global por sucursal." : "Registra, revisa, aprueba y documenta incidencias del personal con control por estatus, fechas y evidencia adjunta."}
+        subtitle={isEmpleadoOnly ? "Consulta tus registros personales, estatus y evidencia disponible." : isJefeOnly ? "Revisa incidencias propias y del personal que tienes asignado como aprobador. No es una vista global por sucursal." : "Registra, revisa, aprueba y documenta incidencias del personal con control por estatus, fechas y evidencia adjunta."}
         badge={
           canManageIncidencias
             ? "Gestión habilitada"
@@ -1367,7 +1874,7 @@ export default function IncidenciasPage() {
       </Box>
 
       <SectionCard
-        title="Filtros"
+        title={isEmpleadoOnly ? "Filtros rápidos" : "Filtros"}
         subtitle={isEmpleadoOnly ? "Filtra tus incidencias por tipo, estatus o fechas." : isJefeOnly ? "Refina el listado por empleado de tu equipo, tipo, estatus o fechas." : "Refina el listado por empleado, sucursal, tipo, estatus o fechas."}
         actions={
           <Chip
@@ -1574,8 +2081,8 @@ export default function IncidenciasPage() {
       </SectionCard>
 
       <SectionCard
-        title="Listado"
-        subtitle="Revisa estatus, evidencia y acciones disponibles por incidencia."
+        title={isEmpleadoOnly ? "Mis registros" : "Listado"}
+        subtitle={isEmpleadoOnly ? "Consulta el detalle de tus incidencias registradas." : "Revisa estatus, evidencia y acciones disponibles por incidencia."}
         actions={
           <Chip
             label={`${paginatedItems.length} visibles de ${items.length}`}
@@ -2136,3 +2643,8 @@ export default function IncidenciasPage() {
     </AppPage>
   );
 }
+
+
+
+
+
