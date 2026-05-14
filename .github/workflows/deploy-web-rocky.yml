@@ -1,0 +1,50 @@
+﻿name: Deploy Web to Rocky
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy-web:
+    name: Deploy Web
+    runs-on:
+      - self-hosted
+      - gv-rh-rocky
+      - web
+
+    steps:
+      - name: Deploy frontend on Rocky
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "======================================"
+          echo "Deploy WEB iniciado"
+          echo "Servidor: $(hostname)"
+          echo "Usuario: $(whoami)"
+          echo "Fecha: $(date)"
+          echo "======================================"
+
+          echo "Verificando Docker..."
+          docker ps
+          docker compose version
+
+          echo "Actualizando repo web..."
+          cd /opt/gv-rh-demo/web
+          git fetch origin
+          git reset --hard origin/main
+          git status -sb
+
+          echo "Reconstruyendo contenedor web..."
+          cd /opt/gv-rh-demo
+          docker compose build --no-cache web
+          docker compose up -d --no-deps --force-recreate web
+
+          echo "Estado de contenedores..."
+          docker compose ps
+
+          echo "Logs recientes del web..."
+          docker compose logs --tail=80 web
+
+          echo "======================================"
+          echo "Deploy WEB terminado correctamente"
+          echo "======================================"
