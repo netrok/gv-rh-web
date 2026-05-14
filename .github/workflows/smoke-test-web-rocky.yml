@@ -1,0 +1,126 @@
+﻿name: Smoke Test Web Rocky
+
+on:
+  workflow_dispatch:
+    inputs:
+      note:
+        description: "Motivo de la prueba"
+        required: false
+        default: "Smoke test manual de Web Rocky"
+
+jobs:
+  smoke-test-web:
+    name: Smoke test Web Rocky deployment
+    runs-on:
+      - self-hosted
+    timeout-minutes: 10
+
+    steps:
+      - name: Run web smoke tests on Rocky
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          PROJECT_DIR="/opt/gv-rh-demo"
+          API_CONTAINER="gv-rh-api"
+          WEB_CONTAINER="gv-rh-web"
+          DB_CONTAINER="gv-rh-db"
+
+          echo "======================================"
+          echo "Smoke test Web iniciado"
+          echo "Reason: ${{ github.event.inputs.note }}"
+          echo "Project directory: $PROJECT_DIR"
+          echo "======================================"
+
+          cd "$PROJECT_DIR"
+
+          echo "Checking Docker Compose services..."
+          docker compose ps
+
+          wait_for_healthy() {
+            local container="$1"
+            local timeout_seconds="${2:-120}"
+            local elapsed=0
+            local status="unknown"
+
+            echo "Waiting for $container to become healthy..."
+
+            while [ "$elapsed" -lt "$timeout_seconds" ]; do
+              status="$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' "$container")"
+
+              echo "$container health status: $status"
+
+              if [ "$status" = "healthy" ]; then
+                return 0
+              fi
+
+              if [ "$status" = "unhealthy" ]; then
+                echo "ERROR: $container is unhealthy."
+                docker inspect --format='{{range .State.Health.Log}}{{.End}} {{.ExitCode}} {{.Output}}{{println}}{{end}}' "$container" || true
+                return 1
+              fi
+
+              sleep 5
+              elapsed="$((elapsed + 5))"
+            done
+
+            echo "ERROR: $container did not become healthy within ${timeout_seconds}s."
+            docker inspect --format='{{range .State.Health.Log}}{{.End}} {{.ExitCode}} {{.Output}}{{println}}{{end}}' "$container" || true
+            return 1
+          }
+
+          wait_for_healthy "$WEB_CONTAINER" 120
+          wait_for_healthy "$API_CONTAINER" 120
+          wait_for_healthy "$DB_CONTAINER" 120
+
+          echo "Validating Web root through Nginx..."
+          WEB_CODE="$(curl -s -o /tmp/gv_rh_web_home.html -w "%{http_code}" http://localhost/)"
+          echo "Web HTTP status: $WEB_CODE"
+
+          if [ "$WEB_CODE" != "200" ]; then
+            echo "ERROR: Web root did not return 200."
+            exit 1
+          fi
+
+          if [ ! -s /tmp/gv_rh_web_home.html ]; then
+            echo "ERROR: Web root returned empty body."
+            exit 1
+          fi
+
+          echo "Validating API health through Nginx..."
+          HEALTH_JSON="$(curl -fsS http://localhost/api/health)"
+          echo "$HEALTH_JSON"
+
+          echo "$HEALTH_JSON" | grep -q '"status":"ok"'
+          echo "$HEALTH_JSON" | grep -q '"app":"Gv.Rh.Api"'
+          echo "$HEALTH_JSON" | grep -q '"environment":"Production"'
+          echo "$HEALTH_JSON" | grep -q '"database":{"status":"ok"'
+
+          echo "Validating Swagger is disabled..."
+          SWAGGER_CODE="$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/swagger/index.html)"
+          echo "Swagger HTTP status: $SWAGGER_CODE"
+
+          if [ "$SWAGGER_CODE" = "200" ]; then
+            echo "ERROR: Swagger is enabled in Production."
+            exit 1
+          fi
+
+          echo "Checking recent Web logs..."
+          docker compose logs --tail=80 web
+
+          echo "======================================"
+          echo "Smoke test Web completed successfully."
+          echo "======================================"
+
+      - name: Write summary
+        shell: bash
+        run: |
+          echo "### Web smoke test completed successfully" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Web: healthy" >> "$GITHUB_STEP_SUMMARY"
+          echo "- API: healthy" >> "$GITHUB_STEP_SUMMARY"
+          echo "- DB: healthy" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Web root: HTTP 200" >> "$GITHUB_STEP_SUMMARY"
+          echo "- API health through Nginx: OK" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Environment: Production" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Swagger: disabled" >> "$GITHUB_STEP_SUMMARY"
