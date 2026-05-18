@@ -1,0 +1,125 @@
+name: Deploy Web Staging Rocky
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch a desplegar en Staging"
+        required: true
+        default: "main"
+
+jobs:
+  deploy-web-staging:
+    name: Deploy Web to Rocky Staging
+    runs-on:
+      - self-hosted
+    timeout-minutes: 25
+
+    steps:
+      - name: Deploy Web to staging
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          PROJECT_DIR="/opt/gv-rh-staging"
+          WEB_REPO_DIR="$PROJECT_DIR/web"
+          PROD_WEB_DIR="/opt/gv-rh-demo/web"
+          BRANCH="${{ github.event.inputs.branch }}"
+
+          echo "======================================"
+          echo "Deploy Web Staging"
+          echo "Branch: $BRANCH"
+          echo "Project: $PROJECT_DIR"
+          echo "Web repo: $WEB_REPO_DIR"
+          echo "Server: $(hostname)"
+          echo "Date: $(date)"
+          echo "======================================"
+
+          cd "$PROJECT_DIR"
+
+          echo "Validando archivos staging..."
+          test -f "$PROJECT_DIR/.env"
+          test -f "$PROJECT_DIR/docker-compose.yml"
+          test -d "$WEB_REPO_DIR"
+
+          echo "Validando compose..."
+          docker compose config > /tmp/gv-rh-staging-compose-check.yml
+
+          echo "Estado antes del deploy..."
+          docker compose ps
+
+          echo "Actualizando repo Web staging..."
+          cd "$WEB_REPO_DIR"
+          git fetch origin "$BRANCH"
+          git reset --hard "origin/$BRANCH"
+
+          echo "Asegurando Dockerfile y nginx/default.conf para Web staging..."
+          if [ ! -f "$WEB_REPO_DIR/Dockerfile" ]; then
+            cp "$PROD_WEB_DIR/Dockerfile" "$WEB_REPO_DIR/Dockerfile"
+          fi
+
+          if [ ! -f "$WEB_REPO_DIR/nginx/default.conf" ]; then
+            mkdir -p "$WEB_REPO_DIR/nginx"
+            cp "$PROD_WEB_DIR/nginx/default.conf" "$WEB_REPO_DIR/nginx/default.conf"
+          fi
+
+          ls -lah "$WEB_REPO_DIR/Dockerfile"
+          ls -lah "$WEB_REPO_DIR/nginx/default.conf"
+
+          echo "Validando API staging antes de construir Web..."
+          cd "$PROJECT_DIR"
+          API_HEALTH="$(curl -fsS http://localhost:18080/health)"
+          echo "$API_HEALTH"
+
+          echo "$API_HEALTH" | grep -q '"environment":"Staging"'
+          echo "$API_HEALTH" | grep -q '"database":{"status":"ok"'
+
+          echo "Construyendo imagen Web staging..."
+          docker compose build web
+
+          echo "Recreando contenedor Web staging..."
+          docker compose up -d --no-deps --force-recreate web
+
+          echo "Esperando Web staging..."
+          sleep 30
+
+          echo "Estado después del deploy..."
+          docker compose ps
+
+          echo "Validando Web staging..."
+          WEB_CODE="$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8081/)"
+          echo "Web HTTP status: $WEB_CODE"
+
+          if [ "$WEB_CODE" != "200" ]; then
+            echo "ERROR: Web staging no responde 200."
+            exit 1
+          fi
+
+          echo "Validando API por Web/Nginx staging..."
+          HEALTH_JSON="$(curl -fsS http://localhost:8081/api/health)"
+          echo "$HEALTH_JSON"
+
+          echo "$HEALTH_JSON" | grep -q '"status":"ok"'
+          echo "$HEALTH_JSON" | grep -q '"environment":"Staging"'
+          echo "$HEALTH_JSON" | grep -q '"database":{"status":"ok"'
+
+          echo "Validando producción sigue sana..."
+          cd /opt/gv-rh-demo
+          PROD_HEALTH="$(curl -fsS http://localhost/api/health)"
+          echo "$PROD_HEALTH"
+
+          echo "$PROD_HEALTH" | grep -q '"environment":"Production"'
+          echo "$PROD_HEALTH" | grep -q '"database":{"status":"ok"'
+
+          echo "DEPLOY_WEB_STAGING_OK"
+
+      - name: Write summary
+        shell: bash
+        run: |
+          echo "### Web Staging deploy completed successfully" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Environment: Staging" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Project path: \`/opt/gv-rh-staging\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Web URL: \`http://localhost:8081/\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- API proxy health: \`http://localhost:8081/api/health\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Production checked: Yes" >> "$GITHUB_STEP_SUMMARY"
