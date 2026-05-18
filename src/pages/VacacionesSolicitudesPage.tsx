@@ -72,7 +72,11 @@ type ChipColor =
 
 function normalizeRoles(roles?: string[] | null): string[] {
   return [
-    ...new Set((roles ?? []).map((role) => String(role).trim().toUpperCase()).filter(Boolean)),
+    ...new Set(
+      (roles ?? [])
+        .map((role) => String(role).trim().toUpperCase())
+        .filter(Boolean)
+    ),
   ];
 }
 
@@ -118,6 +122,7 @@ function formatDateTime(value?: string | null): string {
 
 function getErrorMessage(error: unknown): string {
   const axiosError = error as AxiosError<{ message?: string; title?: string }>;
+
   return (
     axiosError.response?.data?.message ??
     axiosError.response?.data?.title ??
@@ -168,6 +173,7 @@ function calculateCalendarDays(fechaInicio: string, fechaFin: string): number {
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0;
 
   const diff = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+
   return Math.max(0, diff);
 }
 
@@ -414,6 +420,26 @@ export default function VacacionesSolicitudesPage() {
     [createForm.fechaInicio, createForm.fechaFin]
   );
 
+  const updateCreateDateRange = (
+    field: "fechaInicio" | "fechaFin",
+    value: string
+  ) => {
+    setCreateForm((form) => {
+      const next = {
+        ...form,
+        [field]: value,
+      };
+
+      const autoDias = calculateCalendarDays(next.fechaInicio, next.fechaFin);
+
+      if (autoDias > 0) {
+        next.diasSolicitados = String(autoDias);
+      }
+
+      return next;
+    });
+  };
+
   const pendingMutation =
     createMutation.isPending ||
     aprobarMutation.isPending ||
@@ -519,7 +545,11 @@ export default function VacacionesSolicitudesPage() {
             startIcon={<AddRoundedIcon />}
             onClick={() => setCreateOpen(true)}
           >
-            {isEmpleadoOnly ? "Solicitar vacaciones" : isJefeOnly ? "Registrar solicitud" : "Nueva solicitud"}
+            {isEmpleadoOnly
+              ? "Solicitar vacaciones"
+              : isJefeOnly
+                ? "Registrar solicitud"
+                : "Nueva solicitud"}
           </Button>
         </Stack>
       }
@@ -527,8 +557,20 @@ export default function VacacionesSolicitudesPage() {
       <Box sx={{ width: "100%", maxWidth: "100%", minWidth: 0, overflowX: "hidden" }}>
         <Stack spacing={2.25}>
           <HeroBanner
-            eyebrow={isEmpleadoOnly ? "Mis vacaciones" : isJefeOnly ? "Mi equipo / Vacaciones" : "Vacaciones / Solicitudes"}
-            title={isEmpleadoOnly ? "Mis solicitudes de vacaciones" : isJefeOnly ? "Solicitudes de mi equipo" : "Solicitudes de vacaciones"}
+            eyebrow={
+              isEmpleadoOnly
+                ? "Mis vacaciones"
+                : isJefeOnly
+                  ? "Mi equipo / Vacaciones"
+                  : "Vacaciones / Solicitudes"
+            }
+            title={
+              isEmpleadoOnly
+                ? "Mis solicitudes de vacaciones"
+                : isJefeOnly
+                  ? "Solicitudes de mi equipo"
+                  : "Solicitudes de vacaciones"
+            }
             subtitle={heroSubtitle}
             badge={heroBadge}
             actions={
@@ -602,7 +644,7 @@ export default function VacacionesSolicitudesPage() {
                 ? "Seguimiento personal de solicitudes registradas."
                 : "Control operativo de solicitudes de vacaciones."
             }
-            >
+          >
             <Box
               sx={{
                 mb: 1.5,
@@ -708,6 +750,7 @@ export default function VacacionesSolicitudesPage() {
                 </Button>
               </Box>
             </Box>
+
             <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
               <Table size="small">
                 <TableHead>
@@ -776,9 +819,7 @@ export default function VacacionesSolicitudesPage() {
                             </Typography>
                             <Typography variant="caption" color="text.secondary">
                               Folio SOL-VAC-{item.id}
-                              {item.vacacionPeriodoId
-                                ? ` · Periodo ${item.vacacionPeriodoId}`
-                                : ""}
+                              {item.vacacionPeriodoId ? ` · Periodo ${item.vacacionPeriodoId}` : ""}
                             </Typography>
                           </TableCell>
 
@@ -793,9 +834,7 @@ export default function VacacionesSolicitudesPage() {
                               size="small"
                               color={getStatusColor(item.estatus)}
                               variant="outlined"
-                              label={getEstatusVacacionSolicitudLabel(
-                                item.estatusNombre || item.estatus
-                              )}
+                              label={getEstatusVacacionSolicitudLabel(item.estatusNombre || item.estatus)}
                             />
                           </TableCell>
 
@@ -898,7 +937,11 @@ export default function VacacionesSolicitudesPage() {
         maxWidth="sm"
       >
         <DialogTitle>
-          {isEmpleadoOnly ? "Solicitar vacaciones" : isJefeOnly ? "Registrar solicitud de vacaciones" : "Nueva solicitud de vacaciones"}
+          {isEmpleadoOnly
+            ? "Solicitar vacaciones"
+            : isJefeOnly
+              ? "Registrar solicitud de vacaciones"
+              : "Nueva solicitud de vacaciones"}
         </DialogTitle>
 
         <DialogContent>
@@ -931,7 +974,9 @@ export default function VacacionesSolicitudesPage() {
                       : "Requerido para capturar solicitudes de otra persona."
                 }
               >
-                <MenuItem value="">{isJefeOnly ? "Selecciona empleado de tu equipo" : "Selecciona empleado"}</MenuItem>
+                <MenuItem value="">
+                  {isJefeOnly ? "Selecciona empleado de tu equipo" : "Selecciona empleado"}
+                </MenuItem>
                 {empleadosLookup.map((empleado) => (
                   <MenuItem key={empleado.id} value={String(empleado.id)}>
                     #{empleado.numEmpleado} · {empleado.nombreCompleto}
@@ -946,10 +991,7 @@ export default function VacacionesSolicitudesPage() {
                 type="date"
                 value={createForm.fechaInicio}
                 onChange={(event) =>
-                  setCreateForm((form) => ({
-                    ...form,
-                    fechaInicio: event.target.value,
-                  }))
+                  updateCreateDateRange("fechaInicio", event.target.value)
                 }
                 InputLabelProps={{ shrink: true }}
                 fullWidth
@@ -960,10 +1002,7 @@ export default function VacacionesSolicitudesPage() {
                 type="date"
                 value={createForm.fechaFin}
                 onChange={(event) =>
-                  setCreateForm((form) => ({
-                    ...form,
-                    fechaFin: event.target.value,
-                  }))
+                  updateCreateDateRange("fechaFin", event.target.value)
                 }
                 InputLabelProps={{ shrink: true }}
                 fullWidth
@@ -984,8 +1023,8 @@ export default function VacacionesSolicitudesPage() {
                 inputProps={{ min: 0.5, step: 0.5 }}
                 helperText={
                   diasCalendario > 0
-                    ? `Rango calendario: ${diasCalendario} día(s)`
-                    : "Captura el número de días a descontar"
+                    ? `Calculado automáticamente: ${diasCalendario} día(s) calendario. Puedes ajustarlo si aplica.`
+                    : "Se calculará automáticamente al capturar el rango de fechas"
                 }
                 fullWidth
               />
