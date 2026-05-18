@@ -38,10 +38,11 @@ import MetricCard from "../components/ui/MetricCard";
 import SectionCard from "../components/ui/SectionCard";
 import {
   getVacacionesDashboard,
+  type VacacionesDashboardAniversario,
   type VacacionesDashboardMovimiento,
   type VacacionesDashboardPeriodoVencer,
   type VacacionesDashboardSaldoAlto,
-  type VacacionesDashboardAniversario,
+  type VacacionesDashboardSolicitud,
 } from "../api/vacacionesDashboard.api";
 import { getTipoMovimientoVacacionLabel } from "../api/vacaciones.api";
 
@@ -53,6 +54,15 @@ const daysFormatter = new Intl.NumberFormat("es-MX", {
   minimumFractionDigits: 0,
   maximumFractionDigits: 2,
 });
+
+type ChipColor =
+  | "default"
+  | "primary"
+  | "secondary"
+  | "error"
+  | "info"
+  | "success"
+  | "warning";
 
 function formatNumber(value?: number | null): string {
   return numberFormatter.format(Number(value ?? 0));
@@ -106,9 +116,41 @@ function getEmployeeMeta(item: {
   departamento?: string | null;
   puesto?: string | null;
 }): string {
-  return [item.sucursal, item.departamento, item.puesto]
-    .filter(Boolean)
-    .join(" · ") || "Sin ubicación organizacional";
+  return (
+    [item.sucursal, item.departamento, item.puesto].filter(Boolean).join(" · ") ||
+    "Sin ubicación organizacional"
+  );
+}
+
+function getSolicitudStatusLabel(value?: string | null): string {
+  const raw = String(value ?? "").toUpperCase();
+
+  if (raw === "PENDIENTE") return "Pendiente";
+  if (raw === "APROBADA") return "Aprobada";
+  if (raw === "RECHAZADA") return "Rechazada";
+  if (raw === "CANCELADA") return "Cancelada";
+
+  return raw || "—";
+}
+
+function getSolicitudStatusColor(value?: string | null): ChipColor {
+  const raw = String(value ?? "").toUpperCase();
+
+  if (raw === "APROBADA") return "success";
+  if (raw === "RECHAZADA") return "error";
+  if (raw === "CANCELADA") return "default";
+
+  return "warning";
+}
+
+function getDiasParaInicioLabel(value?: number | null): string {
+  const dias = Number(value ?? 0);
+
+  if (dias < 0) return "En curso / pasada";
+  if (dias === 0) return "Inicia hoy";
+  if (dias === 1) return "Inicia mañana";
+
+  return `Inicia en ${formatNumber(dias)} días`;
 }
 
 function EmptyState({
@@ -343,6 +385,100 @@ function MovimientosTable({ items }: { items: VacacionesDashboardMovimiento[] })
   );
 }
 
+function SolicitudesTable({
+  items,
+  emptyTitle,
+  emptyDescription,
+  mode,
+}: {
+  items: VacacionesDashboardSolicitud[];
+  emptyTitle: string;
+  emptyDescription: string;
+  mode: "pendientes" | "aprobadas";
+}) {
+  if (items.length === 0) {
+    return <EmptyState title={emptyTitle} description={emptyDescription} />;
+  }
+
+  return (
+    <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
+      <Table size="small">
+        <TableHead>
+          <TableRow>
+            <TableCell>Empleado</TableCell>
+            <TableCell>Periodo</TableCell>
+            <TableCell align="right">Días</TableCell>
+            <TableCell>Estatus</TableCell>
+          </TableRow>
+        </TableHead>
+
+        <TableBody>
+          {items.map((item) => (
+            <TableRow key={`${mode}-${item.solicitudId}`} hover>
+              <TableCell>
+                <EmployeeCell
+                  nombre={item.nombreEmpleado}
+                  numEmpleado={item.numEmpleado}
+                  meta={getEmployeeMeta(item)}
+                />
+              </TableCell>
+
+              <TableCell>
+                <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                  {formatDate(item.fechaInicio)} — {formatDate(item.fechaFin)}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  SOL-VAC-{item.solicitudId}
+                  {mode === "pendientes"
+                    ? ` · Solicitada ${formatDateTime(item.createdAtUtc)}`
+                    : ` · ${getDiasParaInicioLabel(item.diasParaInicio)}`}
+                </Typography>
+
+                {item.comentarioEmpleado ? (
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{
+                      display: "block",
+                      mt: 0.25,
+                      maxWidth: 340,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {item.comentarioEmpleado}
+                  </Typography>
+                ) : null}
+              </TableCell>
+
+              <TableCell align="right">
+                <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                  {formatDays(item.diasSolicitados)}
+                </Typography>
+                {item.aprobadorEmpleado ? (
+                  <Typography variant="caption" color="text.secondary">
+                    {item.aprobadorEmpleado}
+                  </Typography>
+                ) : null}
+              </TableCell>
+
+              <TableCell>
+                <Chip
+                  size="small"
+                  color={getSolicitudStatusColor(item.estatus)}
+                  variant="outlined"
+                  label={getSolicitudStatusLabel(item.estatusNombre || item.estatus)}
+                />
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </TableContainer>
+  );
+}
+
 function AniversariosList({ items }: { items: VacacionesDashboardAniversario[] }) {
   if (items.length === 0) {
     return (
@@ -447,6 +583,16 @@ export default function VacacionesDashboardPage() {
 
           <Button
             size="small"
+            variant="outlined"
+            component={RouterLink}
+            to="/vacaciones/solicitudes"
+            startIcon={<BeachAccessRoundedIcon />}
+          >
+            Solicitudes
+          </Button>
+
+          <Button
+            size="small"
             variant="contained"
             component={RouterLink}
             to="/vacaciones/reportes/saldos"
@@ -462,7 +608,7 @@ export default function VacacionesDashboardPage() {
           <HeroBanner
             eyebrow="Vacaciones / Resumen"
             title="Centro operativo de vacaciones"
-            subtitle="Monitorea saldos, vencimientos, movimientos recientes, importaciones legacy y próximos ciclos laborales desde una sola vista."
+            subtitle="Monitorea saldos, solicitudes pendientes, vacaciones aprobadas, vencimientos y movimientos recientes desde una sola vista."
             badge={dashboard?.fechaCorte ? `Corte ${formatDate(dashboard.fechaCorte)}` : "RH"}
           />
 
@@ -500,6 +646,20 @@ export default function VacacionesDashboardPage() {
             />
 
             <MetricCard
+              title="Solicitudes pendientes"
+              value={formatNumber(dashboard?.solicitudesPendientes)}
+              subtitle={`${formatDays(dashboard?.diasSolicitadosPendientes)} por aprobar`}
+              icon={<HourglassBottomRoundedIcon />}
+            />
+
+            <MetricCard
+              title="Aprobadas del mes"
+              value={formatNumber(dashboard?.solicitudesAprobadasMes)}
+              subtitle={`${formatDays(dashboard?.diasAprobadosMes)} aprobados`}
+              icon={<EventAvailableRoundedIcon />}
+            />
+
+            <MetricCard
               title="Por vencer"
               value={formatNumber(dashboard?.periodosPorVencer30Dias)}
               subtitle="Periodos en próximos 30 días"
@@ -521,6 +681,13 @@ export default function VacacionesDashboardPage() {
             />
 
             <MetricCard
+              title="Uso acumulado"
+              value={`${formatNumber(eficienciaUso)}%`}
+              subtitle={`${formatDays(dashboard?.diasTomadosTotal)} tomados`}
+              icon={<DashboardRoundedIcon />}
+            />
+
+            <MetricCard
               title="Movimientos del mes"
               value={formatNumber(dashboard?.movimientosMes)}
               subtitle="Actividad registrada"
@@ -535,11 +702,67 @@ export default function VacacionesDashboardPage() {
             />
 
             <MetricCard
-              title="Uso acumulado"
-              value={`${formatNumber(eficienciaUso)}%`}
-              subtitle={`${formatDays(dashboard?.diasTomadosTotal)} tomados`}
-              icon={<DashboardRoundedIcon />}
+              title="Rechazadas del mes"
+              value={formatNumber(dashboard?.solicitudesRechazadasMes)}
+              subtitle="Solicitudes no autorizadas"
+              icon={<WarningAmberRoundedIcon />}
             />
+
+            <MetricCard
+              title="Canceladas del mes"
+              value={formatNumber(dashboard?.solicitudesCanceladasMes)}
+              subtitle="Canceladas antes de aprobar"
+              icon={<CalendarMonthRoundedIcon />}
+            />
+          </Box>
+
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: { xs: "1fr", xl: "1fr 1fr" },
+              gap: 1.5,
+              minWidth: 0,
+            }}
+          >
+            <SectionCard
+              title="Solicitudes pendientes"
+              subtitle="Vacaciones registradas que aún requieren aprobación."
+              actions={
+                <Chip
+                  size="small"
+                  color={(dashboard?.solicitudesPendientes ?? 0) > 0 ? "warning" : "default"}
+                  variant="outlined"
+                  label={`${formatNumber(dashboard?.solicitudesPendientes)} pendiente(s)`}
+                />
+              }
+            >
+              <SolicitudesTable
+                mode="pendientes"
+                items={dashboard?.solicitudesPendientesDetalle ?? []}
+                emptyTitle="Sin solicitudes pendientes"
+                emptyDescription="No hay vacaciones esperando aprobación."
+              />
+            </SectionCard>
+
+            <SectionCard
+              title="Próximas vacaciones aprobadas"
+              subtitle="Solicitudes aprobadas con fechas próximas o vigentes."
+              actions={
+                <Chip
+                  size="small"
+                  variant="outlined"
+                  icon={<CalendarMonthRoundedIcon />}
+                  label={`${dashboard?.proximasVacacionesAprobadas?.length ?? 0} próxima(s)`}
+                />
+              }
+            >
+              <SolicitudesTable
+                mode="aprobadas"
+                items={dashboard?.proximasVacacionesAprobadas ?? []}
+                emptyTitle="Sin vacaciones aprobadas próximas"
+                emptyDescription="No hay vacaciones aprobadas por iniciar o vigentes."
+              />
+            </SectionCard>
           </Box>
 
           <Box
@@ -626,6 +849,16 @@ export default function VacacionesDashboardPage() {
               <Button
                 size="small"
                 variant="contained"
+                component={RouterLink}
+                to="/vacaciones/solicitudes"
+                startIcon={<BeachAccessRoundedIcon />}
+              >
+                Solicitudes
+              </Button>
+
+              <Button
+                size="small"
+                variant="outlined"
                 component={RouterLink}
                 to="/vacaciones/reportes/saldos"
                 startIcon={<SavingsRoundedIcon />}
