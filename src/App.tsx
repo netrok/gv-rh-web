@@ -24,6 +24,7 @@ import VacacionesSaldosReportePage from "./pages/VacacionesSaldosReportePage";
 import VacacionesKardexReportePage from "./pages/VacacionesKardexReportePage";
 import VacacionesDashboardPage from "./pages/VacacionesDashboardPage";
 import VacacionesSolicitudesPage from "./pages/VacacionesSolicitudesPage";
+import VacacionesCalendarioPage from "./pages/VacacionesCalendarioPage";
 import MisVacacionesPage from "./pages/MisVacacionesPage";
 import MiEquipoPage from "./pages/MiEquipoPage";
 import MisAprobacionesPage from "./pages/MisAprobacionesPage";
@@ -241,7 +242,6 @@ export default function App() {
           }
         />
 
-
         <Route
           path="mis-vacaciones"
           element={
@@ -254,6 +254,7 @@ export default function App() {
             </RoleGuard>
           }
         />
+
         <Route
           path="vacaciones"
           element={<Navigate to="/vacaciones/dashboard" replace />}
@@ -268,6 +269,19 @@ export default function App() {
               allow={VACACIONES_ROLES}
             >
               <VacacionesDashboardPage />
+            </RoleGuard>
+          }
+        />
+
+        <Route
+          path="vacaciones/calendario"
+          element={
+            <RoleGuard
+              isAuthenticated={isAuthenticated}
+              userRoles={roles}
+              allow={VACACIONES_ROLES}
+            >
+              <VacacionesCalendarioPage />
             </RoleGuard>
           }
         />

@@ -140,8 +140,8 @@ function asString(value: unknown): string {
 function asNullableString(value: unknown): string | null {
   if (value === null || value === undefined) return null;
 
-  const text = String(value);
-  return text.trim() ? text : null;
+  const text = String(value).trim();
+  return text ? text : null;
 }
 
 function asArray<T>(value: T[] | null | undefined): T[] {
@@ -214,7 +214,9 @@ function normalizeAniversario(item: any): VacacionesDashboardAniversario {
     fechaBaseCicloLaboral: asString(
       item?.fechaBaseCicloLaboral ?? item?.FechaBaseCicloLaboral
     ),
-    proximoAniversario: asString(item?.proximoAniversario ?? item?.ProximoAniversario),
+    proximoAniversario: asString(
+      item?.proximoAniversario ?? item?.ProximoAniversario
+    ),
     diasRestantes: asNumber(item?.diasRestantes ?? item?.DiasRestantes),
     aniosServicioCumplidos: asNumber(
       item?.aniosServicioCumplidos ?? item?.AniosServicioCumplidos
@@ -248,6 +250,7 @@ function normalizeSolicitud(item: any): VacacionesDashboardSolicitud {
 
     aprobadorEmpleadoId:
       item?.aprobadorEmpleadoId ?? item?.AprobadorEmpleadoId ?? null,
+
     aprobadorEmpleado: asNullableString(
       item?.aprobadorEmpleado ?? item?.AprobadorEmpleado
     ),
@@ -261,9 +264,7 @@ function normalizeSolicitud(item: any): VacacionesDashboardSolicitud {
   };
 }
 
-function normalizeDashboard(
-  payload: Partial<VacacionesDashboard> | any | null | undefined
-): VacacionesDashboard {
+function normalizeDashboard(payload: any): VacacionesDashboard {
   return {
     fechaCorte: asString(payload?.fechaCorte ?? payload?.FechaCorte),
 
@@ -330,6 +331,6 @@ function normalizeDashboard(
 }
 
 export async function getVacacionesDashboard(): Promise<VacacionesDashboard> {
-  const { data } = await api.get<VacacionesDashboard>("/api/Vacaciones/dashboard");
+  const { data } = await api.get("/api/Vacaciones/dashboard");
   return normalizeDashboard(data);
 }

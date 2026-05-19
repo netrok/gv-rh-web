@@ -47,6 +47,7 @@ import WorkOutlineRoundedIcon from "@mui/icons-material/WorkOutlineRounded";
 import PersonSearchRoundedIcon from "@mui/icons-material/PersonSearchRounded";
 import BusinessCenterRoundedIcon from "@mui/icons-material/BusinessCenterRounded";
 import CelebrationRoundedIcon from "@mui/icons-material/CelebrationRounded";
+import CalendarMonthRoundedIcon from "@mui/icons-material/CalendarMonthRounded";
 import UploadFileRoundedIcon from "@mui/icons-material/UploadFileRounded";
 import TableViewRoundedIcon from "@mui/icons-material/TableViewRounded";
 import ExpandLessRoundedIcon from "@mui/icons-material/ExpandLessRounded";
@@ -300,6 +301,9 @@ function getPageTitle(pathname: string) {
   if (pathname.startsWith("/vacaciones/solicitudes")) {
     return "Solicitudes de vacaciones";
   }
+  if (pathname.startsWith("/vacaciones/calendario")) {
+    return "Calendario de vacaciones";
+  }
   if (pathname.startsWith("/mis-aprobaciones")) return "Mis aprobaciones";
   if (pathname.startsWith("/mi-equipo")) return "Mi equipo";
   if (pathname.startsWith("/dashboard")) return "Mi panel";
@@ -344,6 +348,9 @@ function getPageSubtitle(pathname: string) {
     if (pathname.startsWith("/mis-vacaciones")) return "Resumen personal de vacaciones";
   if (pathname.startsWith("/vacaciones/solicitudes")) {
     return "Bandeja de solicitud, aprobación y control de vacaciones";
+  }
+  if (pathname.startsWith("/vacaciones/calendario")) {
+    return "Vista mensual de vacaciones aprobadas";
   }
 if (pathname.startsWith("/mis-aprobaciones")) {
     return "Pendientes centralizados de incidencias y vacaciones";
@@ -416,6 +423,9 @@ function getPageBreadcrumb(pathname: string) {
     if (pathname.startsWith("/mis-vacaciones")) return ["Operación", "Mis vacaciones"];
   if (pathname.startsWith("/vacaciones/solicitudes")) {
     return ["Vacaciones", "Solicitudes"];
+  }
+  if (pathname.startsWith("/vacaciones/calendario")) {
+    return ["Vacaciones", "Calendario"];
   }
 if (pathname.startsWith("/mis-aprobaciones")) {
     return ["Operación", "Mis aprobaciones"];
@@ -617,6 +627,8 @@ function SidebarContent({
     pathname === "/vacaciones" || pathname.startsWith("/vacaciones/dashboard");
   const isVacacionesSolicitudesRoute =
     pathname.startsWith("/vacaciones/solicitudes");
+  const isVacacionesCalendarioRoute =
+    pathname.startsWith("/vacaciones/calendario");
   const isVacacionesConciliacionRoute = pathname.startsWith(
     "/vacaciones/conciliacion"
   );
@@ -974,6 +986,49 @@ function SidebarContent({
                                 fontWeight: isVacacionesDashboardRoute
                                   ? 800
                                   : 600,
+                              }}
+                            />
+                          </ListItemButton>
+
+                          <ListItemButton
+                            component={RouterLink}
+                            to="/vacaciones/calendario"
+                            onClick={onNavigate}
+                            sx={subNavButtonSx(isVacacionesCalendarioRoute)}
+                          >
+                            <ListItemIcon
+                              sx={{
+                                minWidth: 34,
+                                color: isVacacionesCalendarioRoute
+                                  ? "#ffffff"
+                                  : alpha("#ffffff", 0.78),
+                              }}
+                            >
+                              <Box
+                                sx={{
+                                  width: 26,
+                                  height: 26,
+                                  borderRadius: "9px",
+                                  display: "grid",
+                                  placeItems: "center",
+                                  backgroundColor: isVacacionesCalendarioRoute
+                                    ? alpha("#ffffff", 0.1)
+                                    : alpha("#ffffff", 0.05),
+                                  border: `1px solid ${alpha(
+                                    "#ffffff",
+                                    isVacacionesCalendarioRoute ? 0.1 : 0.05
+                                  )}`,
+                                }}
+                              >
+                                <CalendarMonthRoundedIcon sx={{ fontSize: 17 }} />
+                              </Box>
+                            </ListItemIcon>
+
+                            <ListItemText
+                              primary="Calendario"
+                              primaryTypographyProps={{
+                                fontSize: "0.82rem",
+                                fontWeight: isVacacionesCalendarioRoute ? 800 : 600,
                               }}
                             />
                           </ListItemButton>
@@ -1804,13 +1859,3 @@ export default function AppShell({ children }: AppShellProps) {
     </Box>
   );
 }
-
-
-
-
-
-
-
-
-
-
